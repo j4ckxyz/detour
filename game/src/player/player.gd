@@ -111,7 +111,7 @@ func _ready() -> void:
 	ghost_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ghost_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var ghost_mesh := BoxMesh.new()
-	ghost_mesh.size = Vector3(ItemLibrary.PLANK_LENGTH, 0.05, 0.25)
+	ghost_mesh.size = Vector3(ItemLibrary.PLANK_LENGTH, 0.06, 0.3)
 	ghost_mesh.material = ghost_material
 	_ghost.mesh = ghost_mesh
 	_ghost.top_level = true

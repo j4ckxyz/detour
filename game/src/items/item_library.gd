@@ -8,8 +8,8 @@ const SMALL_HOLD := Transform3D(Basis.IDENTITY, Vector3(0.24, -0.22, -0.45))
 
 ## kind → {name, model, mass, hold (camera-space transform), two_handed}
 static var DEFS: Dictionary[StringName, Dictionary] = {
-	&"plank": {"name": "Plank", "model": "plank", "mass": 8.0, "two_handed": true, "reach": 3.4,
-		"hold": Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(0.28, -0.42, -1.3))},
+	&"plank": {"name": "Plank", "model": "plank", "mass": 15.0, "two_handed": true, "reach": 4.5,
+		"hold": Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(0.28, -0.42, -2.5))},
 	&"jerrycan": {"name": "Jerry can", "model": "jerrycan", "mass": 20.0, "two_handed": true,
 		"hold": Transform3D(Basis.IDENTITY, Vector3(0.3, -0.62, -0.5))},
 	&"spare_tire": {"name": "Spare tire", "model": "sparetire", "mass": 25.0, "two_handed": true,
@@ -29,8 +29,9 @@ static var DEFS: Dictionary[StringName, Dictionary] = {
 		"hold": Transform3D(Basis.IDENTITY, Vector3(0.25, -0.3, -0.55))},
 }
 ## How far ahead a plank can be placed, metres.
-const PLANK_REACH := 4.5
-const PLANK_LENGTH := 2.4
+const PLANK_REACH := 5.5
+## Must match rvgen::route::PLANK_LENGTH and the plank model.
+const PLANK_LENGTH := 5.0
 
 static var _meshes: Dictionary[String, Mesh] = {}
 
@@ -147,12 +148,22 @@ static func plank_placement(player: Player) -> Variant:
 		if h.is_empty():
 			return null # That end would hang in the air.
 		ends.append(h["position"])
+	# A board rests on the highest points under it: lift it over any bump between the ends.
+	var lift := 0.0
+	for k: int in range(1, 6):
+		var t := k / 6.0
+		var along := ends[0].lerp(ends[1], t)
+		var probe := PhysicsRayQueryParameters3D.create(along + Vector3.UP * 1.5, along + Vector3.DOWN * 1.0, TerrainStreamer.WORLD_LAYER)
+		probe.exclude = query.exclude
+		var h := space.intersect_ray(probe)
+		if not h.is_empty():
+			lift = maxf(lift, (h["position"] as Vector3).y - along.y)
 	var axis_x := (ends[1] - ends[0]).normalized()
 	var up := axis_x.cross(Vector3.UP).cross(axis_x).normalized()
 	if up.y < 0.0:
 		up = -up
 	var z := axis_x.cross(up)
-	var mid := (ends[0] + ends[1]) * 0.5 + up * 0.03
+	var mid := (ends[0] + ends[1]) * 0.5 + Vector3.UP * lift + up * 0.04
 	return Transform3D(Basis(axis_x, up, z), mid)
 
 

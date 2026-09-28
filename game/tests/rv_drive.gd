@@ -20,6 +20,7 @@ var _min_up := 1.0
 
 func _ready() -> void:
 	_pg = PLAYGROUND.instantiate()
+	_pg.fresh_start = true
 	add_child(_pg)
 	_run()
 
@@ -103,8 +104,14 @@ func _stall_and_restart() -> void:
 
 ## Re-places the RV at a clear spot with room ahead, so each phase starts fresh whatever the
 ## last one ran into.
-func _fresh_start(ahead: float) -> void:
-	_check(_pg.respawn(_rv.global_position, 150.0, ahead), "found a clear spot with %.0f m ahead" % ahead)
+func _fresh_start(_ahead: float) -> void:
+	# The straight-ish stretch of road after the camp (the first obstacle is further on).
+	_pg._place_rv(_pg.trip.road_transform(50.0))
+	var waited := 0
+	while _pg.is_rv_waiting() and waited < HZ * 30:
+		await get_tree().physics_frame
+		waited += 1
+	_check(not _rv.freeze, "back on the road near the camp")
 	_rv.throttle = 0.0
 	_rv.brake = 0.0
 	await _hold(1.0)
@@ -195,6 +202,13 @@ func _hold(seconds: float) -> void:
 
 
 func _tick() -> void:
+	# Keep to the road like a driver would (the forest crowds its edges).
+	var s := _pg.world.road_progress(_rv.global_position.x, _rv.global_position.z)
+	if s >= 0.0 and _rv.forward_speed() > 0.5:
+		var to := _rv.to_local(_pg.trip.road_transform(s + 10.0).origin)
+		_rv.steer_input = clampf(to.x * 0.25, -1.0, 1.0)
+	else:
+		_rv.steer_input = 0.0
 	await get_tree().physics_frame
 	_min_up = minf(_min_up, _rv.global_basis.y.dot(Vector3.UP))
 

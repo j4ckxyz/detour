@@ -17,6 +17,7 @@ var _failures: PackedStringArray = []
 
 func _ready() -> void:
 	_pg = PLAYGROUND.instantiate()
+	_pg.fresh_start = true
 	add_child(_pg)
 	_run()
 
@@ -103,6 +104,7 @@ func _winch() -> void:
 	_rv.parking_brake = true
 	_player.held = null
 	remote.stow(_rv, Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.34, -2.35))) # Back on the dash.
+	winch._stow_hook() # Rope back on the drum, so the next phases start clean.
 
 
 func _plank() -> void:
@@ -120,7 +122,7 @@ func _plank() -> void:
 	_check(plank.is_placed() and plank.collision_layer == TerrainStreamer.WORLD_LAYER, "plank placed as solid ground")
 	var probe := PhysicsRayQueryParameters3D.create(plank.global_position + Vector3.UP * 2.0, plank.global_position + Vector3.DOWN)
 	var hit := _player.get_world_3d().direct_space_state.intersect_ray(probe)
-	_check(not hit.is_empty() and hit["collider"] == plank, "the placed plank is what's underfoot")
+	_check(not hit.is_empty() and hit["collider"] == plank, "the placed plank is what's underfoot (hit %s)" % (hit.get("collider") if hit else "nothing"))
 	_w.face(plank.global_position)
 	await _w.hold(0.2)
 	await _w.press(&"interact")

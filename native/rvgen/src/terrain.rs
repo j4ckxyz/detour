@@ -11,6 +11,12 @@ use crate::noise::{Fractal, fbm, perlin, ridged, smoothstep};
 pub const HEIGHT_STEPS_PER_M: f32 = 50.0;
 const MAX_HEIGHT_M: f32 = 1310.0;
 
+/// Quantises a height in metres to 2 cm steps.
+#[inline]
+pub fn quantize(m: f32) -> u16 {
+    (m.clamp(0.0, MAX_HEIGHT_M) * HEIGHT_STEPS_PER_M).round() as u16
+}
+
 /// Converts a quantised height to metres.
 #[inline]
 pub fn q_to_m(q: u16) -> f32 {
@@ -111,9 +117,10 @@ impl TerrainGen {
         (rolling + hills + peaks + bumps).clamp(0.0, MAX_HEIGHT_M)
     }
 
-    /// Quantised height at an integer grid point. This is the canonical, hashed value.
+    /// Quantised natural height at an integer grid point (no road). The world's canonical
+    /// height is `World::height_q`, which adds the trip's road on top.
     pub fn height_q(&self, gx: i32, gz: i32) -> u16 {
-        (self.height_m(gx as f32, gz as f32) * HEIGHT_STEPS_PER_M).round() as u16
+        quantize(self.height_m(gx as f32, gz as f32))
     }
 
     /// Tree density in `[0, 1]` before slope and treeline limits.

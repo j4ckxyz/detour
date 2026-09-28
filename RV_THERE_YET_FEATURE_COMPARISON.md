@@ -2107,11 +2107,11 @@ Legend:
 | Winch controller | ✅ DONE (M2) |
 | Planks | ✅ DONE (M2) |
 | Push RV | ✅ DONE (M2) |
-| Finite route | MISSING |
-| Objective | MISSING |
-| Checkpoints | MISSING |
-| Gas stations | MISSING |
-| Saving/checkpoint progress | MISSING |
+| Finite route | ✅ DONE (M3) |
+| Objective | ✅ DONE (M3: reach home) |
+| Checkpoints | ✅ DONE (M3) |
+| Gas stations | ✅ DONE (M3: checkpoint, save, restock; refuel/welder come with fuel & damage) |
+| Saving/checkpoint progress | ✅ DONE (M3) |
 | RV body damage | MISSING |
 | Tire damage | MISSING |
 | Engine damage | MISSING |
@@ -2129,7 +2129,7 @@ Legend:
 | Bear spray | MISSING |
 | Multiple biomes | MISSING |
 | Rivers/lakes | MISSING |
-| Mud | MISSING |
+| Mud | ✅ DONE (M3) |
 | Ice | MISSING |
 | Caves | MISSING |
 | Weather | MISSING |

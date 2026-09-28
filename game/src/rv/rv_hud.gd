@@ -73,10 +73,8 @@ func _ready() -> void:
 	add_child(_gate)
 
 	var help_panel := _panel()
-	help_panel.anchor_left = 0.5
-	help_panel.anchor_right = 0.5
-	help_panel.offset_top = 16.0
-	help_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	help_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 16)
+	help_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_help.text = HELP
 	_help.add_theme_font_size_override("font_size", 14)
 	_help.add_theme_color_override("font_color", TEXT)

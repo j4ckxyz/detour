@@ -49,6 +49,8 @@ var excess_drive := 0.0
 ## Angular speed for visuals, rad/s (+ = rolling forward).
 var spin_speed := 0.0
 var surface_grip := 1.0
+## 0..1: how muddy the ground under the tire is (less grip, much more drag).
+var mud := 0.0
 
 var _cast := ShapeCast3D.new()
 var _prev_length := -1.0
@@ -133,7 +135,7 @@ func apply_forces(body: RV, dt: float, drive: float, brake: float) -> void:
 
 	# Longitudinal: brakes and rolling resistance work against the drive and gravity, up to
 	# stopping the wheel this step, but never push it backwards.
-	var resist := brake + ROLLING * fz
+	var resist := brake + ROLLING * (1.0 + 9.0 * mud) * fz
 	var to_stop := -v_long * corner_mass / dt - gravity.dot(_forward)
 	var f_long := drive + clampf(to_stop - drive, -resist, resist)
 

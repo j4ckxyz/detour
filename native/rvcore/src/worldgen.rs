@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use godot::prelude::*;
+use rvgen::route::{PLANK_LENGTH, ROAD_HALF_WIDTH, SAMPLE};
 use rvgen::{ChunkCoord, GEN_VERSION, SeedCode, TripLength, World, mesh, scatter};
 
 use crate::convert;
@@ -145,6 +146,84 @@ impl WorldGen {
             }
             None => PackedFloat32Array::new(),
         }
+    }
+
+    /// The trip, as a Dictionary:
+    /// - `length` (metres of road), `road_half_width`, `plank_length`;
+    /// - `points`: PackedVector3Array of the road centreline (x, road height, z) every 8 m;
+    /// - `pads`: [{kind: 0 camp | 1 station | 2 home, s, pos: Vector3, dir: Vector3, side}];
+    /// - `obstacles`: [{kind: 0 gap | 1 ledge | 2 mud | 3 climb, s, pos, dir, length, size,
+    ///   difficulty}];
+    /// - `supplies`: [{kind: 0 planks | 1 anchor, pos, dir, count}].
+    #[func]
+    fn trip(&self) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let Some(w) = self.world() else {
+            return d;
+        };
+        let r = w.route();
+        let v3 = |p: [f32; 3]| Vector3::new(p[0], p[1], p[2]);
+        let dir3 = |d: [f32; 2]| Vector3::new(d[0], 0.0, d[1]);
+        let every = (8.0 / SAMPLE) as usize;
+        let points: PackedVector3Array =
+            r.xz.iter()
+                .zip(&r.h)
+                .step_by(every)
+                .map(|(p, &h)| Vector3::new(p[0], h, p[1]))
+                .collect();
+        let mut pads = VarArray::new();
+        for p in &r.pads {
+            let mut e = VarDictionary::new();
+            e.set("kind", p.kind as i32);
+            e.set("s", p.s);
+            e.set("pos", v3(p.pos));
+            e.set("dir", dir3(p.dir));
+            e.set("side", p.side);
+            pads.push(&e.to_variant());
+        }
+        let mut obstacles = VarArray::new();
+        for o in &r.obstacles {
+            let mut e = VarDictionary::new();
+            e.set("kind", o.kind as i32);
+            e.set("s", o.s);
+            e.set("pos", v3(o.pos));
+            e.set("dir", dir3(o.dir));
+            e.set("length", o.length);
+            e.set("size", o.size);
+            e.set("difficulty", o.difficulty);
+            obstacles.push(&e.to_variant());
+        }
+        let mut supplies = VarArray::new();
+        for s in &r.supplies {
+            let mut e = VarDictionary::new();
+            e.set("kind", s.kind as i32);
+            e.set("pos", v3(s.pos));
+            e.set("dir", dir3(s.yaw_dir));
+            e.set("count", s.count as i32);
+            supplies.push(&e.to_variant());
+        }
+        d.set("length", r.length);
+        d.set("road_half_width", ROAD_HALF_WIDTH);
+        d.set("plank_length", PLANK_LENGTH);
+        d.set("points", &points.to_variant());
+        d.set("pads", &pads.to_variant());
+        d.set("obstacles", &obstacles.to_variant());
+        d.set("supplies", &supplies.to_variant());
+        d
+    }
+
+    /// How muddy the ground is at a world position, 0..1 (the game lowers tire grip).
+    #[func]
+    fn mud_at(&self, x: f32, z: f32) -> f32 {
+        self.world().map_or(0.0, |w| w.route().mud_at(x, z))
+    }
+
+    /// Distance along the road of the closest road point, or -1 if well away from it.
+    #[func]
+    fn road_progress(&self, x: f32, z: f32) -> f32 {
+        self.world()
+            .and_then(|w| w.route().near(x, z))
+            .map_or(-1.0, |r| r.s)
     }
 
     /// Terrain height in metres at a world position (matches the collision shape).

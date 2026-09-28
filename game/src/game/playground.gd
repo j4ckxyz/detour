@@ -7,13 +7,14 @@ extends Node3D
 ##   --seed=CODE      world seed code
 ##   --preset=NAME    potato | low | medium | high (default: detected)
 ##   --automatic      start with the automatic gearbox
+##   --new            ignore any saved progress for this seed (start at the camp)
 ##
 ## Keys: see the F1 help. F5-F8 switch graphics presets, F3 perf overlay.
 
 ## Emitted once the RV has been placed on solid ground and can drive.
 signal spawned
 
-const DEFAULT_SEED := "DT1-81YPW-3A7TA"
+const DEFAULT_SEED := "DT2-01YPW-3A7T8" # A Short trip (v1 terrain seed DT1-81YPW-3A7TA).
 const START := Vector3(64.0, 0.0, 64.0)
 const RV_SCENE := preload("res://src/rv/rv.tscn")
 const PRESET_KEYS: Dictionary[Key, StringName] = {
@@ -40,10 +41,14 @@ var overlay := PerfOverlay.new()
 var menu := PauseMenu.new()
 var player := Player.new()
 var player_hud := PlayerHud.new()
+var trip := Trip.new()
+var trip_hud := TripHud.new()
 ## Loose items in the world.
 var items := Node3D.new()
 var rv: RV
 var is_spawned := false
+## Ignore saved progress (tests set this before adding the playground).
+var fresh_start := false
 
 var _args: Dictionary[String, String] = {}
 var _spawn_near := START
@@ -61,8 +66,16 @@ func _ready() -> void:
 	rv = RV_SCENE.instantiate()
 	rv.freeze = true # Until the ground under it exists.
 	add_child(rv)
-	rv.global_position = START + Vector3.UP * (world.height_at(START.x, START.z) + 1.0)
 	rv.set_automatic(_args.has("automatic"))
+	rv.surface_query = world.mud_at
+	trip.name = "Trip"
+	add_child(trip)
+	trip.setup(world, rv, items)
+	if not (_args.has("new") or fresh_start):
+		trip.load_save()
+	var start := trip.start_transform()
+	_spawn_near = start.origin
+	rv.global_transform = start.translated(Vector3.UP * 1.0)
 
 	items.name = "Items"
 	add_child(items)
@@ -92,6 +105,10 @@ func _ready() -> void:
 	player_hud.player = player
 	player_hud.visible = false
 	add_child(player_hud)
+	trip_hud.trip = trip
+	add_child(trip_hud)
+	menu.add_action("Tow to the last checkpoint", tow_to_checkpoint)
+	menu.add_action("Restart this trip", restart_trip)
 	overlay.streamer = streamer
 	overlay.extra_lines = _overlay_lines
 	overlay.visible = false
@@ -136,17 +153,44 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(_dt: float) -> void:
+	if is_spawned and rv.freeze and streamer.has_collision_at(rv.global_position):
+		rv.freeze = false
+		rv.reset_physics_interpolation()
 	if is_spawned or not streamer.has_collision_at(_spawn_near):
 		return
-	var spot: Variant = find_spawn(_spawn_near, 240.0)
-	if spot == null:
-		push_warning("No clear, level spot near %s; dropping the RV there anyway." % _spawn_near)
-		spot = Transform3D(Basis.IDENTITY, _spawn_near + Vector3.UP * (world.height_at(_spawn_near.x, _spawn_near.z) + 1.0))
-	_place_rv(spot)
+	_place_rv(trip.start_transform())
+	trip.build()
 	_spawn_player()
-	_spawn_starter_items()
+	if trip.checkpoint == 0:
+		_spawn_starter_items()
+	else:
+		trip.restock(trip.checkpoint)
+		trip.show_notice("Welcome back: continuing from gas station %d." % trip.checkpoint, 6.0)
 	is_spawned = true
 	spawned.emit()
+
+
+## "Call a tow": the RV (and you) go back to the last checkpoint. It costs 15 minutes.
+func tow_to_checkpoint() -> void:
+	if not is_spawned:
+		return
+	if player.seat != &"":
+		player.stand_up()
+	if player.inside:
+		player.leave_rv()
+	_place_rv(trip.start_transform())
+	var door := Vector3(rv.interior.door_x_outer + 1.6, 0.0, (rv.interior.door_z.x + rv.interior.door_z.y) * 0.5)
+	var at := rv.to_global(door)
+	at.y = world.height_at(at.x, at.z) + 0.2
+	player.global_position = at
+	player.reset_physics_interpolation()
+	trip.elapsed += 15.0 * 60.0
+	trip.show_notice("Towed back to the last checkpoint (+15 min).", 6.0)
+
+
+func restart_trip() -> void:
+	trip.clear_save()
+	get_tree().reload_current_scene()
 
 
 ## Puts the player on foot by the RV's door, facing it.
@@ -204,7 +248,13 @@ func _on_seat_changed(seat: StringName) -> void:
 
 
 func _on_reset_requested() -> void:
-	if is_spawned:
+	if not is_spawned:
+		return
+	# Back on the wheels on the road where you are, else somewhere clear nearby.
+	var s := world.road_progress(rv.global_position.x, rv.global_position.z)
+	if s >= 0.0:
+		_place_rv(trip.road_transform(s))
+	else:
 		respawn(rv.global_position, 60.0)
 
 
@@ -298,8 +348,15 @@ func _box_query(xf: Transform3D) -> PhysicsShapeQueryParameters3D:
 	return query
 
 
+## True while the RV waits (frozen) for collision to stream in where it was just put.
+func is_rv_waiting() -> bool:
+	return rv.freeze and is_spawned
+
+
 func _place_rv(xf: Transform3D) -> void:
-	rv.freeze = false
+	# After a long move (a tow, a reset far away) the ground there may not be solid yet: hold
+	# the RV still until it is, or it would fall through the world.
+	rv.freeze = not streamer.has_collision_at(xf.origin)
 	rv.global_transform = xf
 	rv.linear_velocity = Vector3.ZERO
 	rv.angular_velocity = Vector3.ZERO

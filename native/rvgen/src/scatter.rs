@@ -7,6 +7,7 @@ use crate::chunk::{CHUNK_SIZE, Heightfield};
 use crate::hash::sub_seed;
 use crate::noise::smoothstep;
 use crate::rng::Pcg32;
+use crate::route::{CLEAR, SupplyKind, TREE_WALL};
 use crate::terrain::TREELINE_M;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -51,9 +52,16 @@ pub fn trees(world: &World, hf: &Heightfield) -> Vec<TreeInstance> {
             let roll = rng.next_f32();
             let kind = rng.below(TREE_KINDS as u32) as u8;
 
-            let density = world
-                .terrain()
-                .forest_density((ox as f32) + lx, (oz as f32) + lz);
+            let (wx, wz) = ((ox as f32) + lx, (oz as f32) + lz);
+            let mut density = world.terrain().forest_density(wx, wz);
+            let route = world.route();
+            let road = route.distance(wx, wz);
+            if road < CLEAR || route.on_pad(wx, wz, 4.0) {
+                continue;
+            }
+            if road < CLEAR + TREE_WALL {
+                density = density.max(0.7); // The forest crowds the road.
+            }
             if roll >= density {
                 continue;
             }
@@ -105,6 +113,8 @@ pub struct PropInstance {
     pub variant: u8,
 }
 
+/// Rock shape used for guaranteed anchors (a big, round boulder in the game's set).
+pub const ANCHOR_VARIANT: u8 = 13;
 /// Prop cell size in metres: at most one feature (a rock cluster, a log...) per cell.
 const PROP_CELL: i32 = 16;
 /// Most props in one feature (a rock cluster or a clump of saplings).
@@ -243,6 +253,26 @@ pub fn props(world: &World, hf: &Heightfield, trees: &[TreeInstance]) -> Vec<Pro
     let cells = CHUNK_SIZE / PROP_CELL;
     let max = CHUNK_SIZE as f32 - EDGE;
     let mut out = Vec::new();
+    // Winch anchors the trip guarantees (e.g. a boulder at the top of each ledge).
+    for supply in &world.route().supplies {
+        if supply.kind != SupplyKind::Anchor {
+            continue;
+        }
+        let (lx, lz) = (supply.pos[0] - ox as f32, supply.pos[2] - oz as f32);
+        if !(0.0..CHUNK_SIZE as f32).contains(&lx) || !(0.0..CHUNK_SIZE as f32).contains(&lz) {
+            continue;
+        }
+        let scale = 1.6;
+        occupied.add(lx, lz, footprint(PropKind::Rock) * scale);
+        out.push(PropInstance {
+            pos: [lx, hf.sample_m(lx, lz) - 0.2, lz],
+            up: [0.0, 1.0, 0.0],
+            yaw: supply.yaw_dir[0],
+            scale,
+            kind: PropKind::Rock,
+            variant: ANCHOR_VARIANT,
+        });
+    }
     for cz in 0..cells {
         for cx in 0..cells {
             let mut d = Draws::new(&mut rng);
@@ -316,6 +346,12 @@ pub fn props(world: &World, hf: &Heightfield, trees: &[TreeInstance]) -> Vec<Pro
                     continue;
                 }
                 if !occupied.free(px, pz, radius) {
+                    continue;
+                }
+                let (pwx, pwz) = ((ox as f32) + px, (oz as f32) + pz);
+                if world.route().distance(pwx, pwz) < CLEAR + radius
+                    || world.route().on_pad(pwx, pwz, 3.0)
+                {
                     continue;
                 }
                 let (gx, gz) = gradient(hf, px, pz);

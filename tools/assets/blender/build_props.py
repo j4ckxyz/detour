@@ -61,8 +61,8 @@ built.append(finish("JerryCan", [
     lib.cylinder("jcs", 0.03, 0.08, (0.13, 0, 0.47), "z", M["black"], 12),
 ]))
 
-# Plank for bridges: 2.4 m.
-built.append(finish("Plank", [lib.box("pl", (-1.2, -0.125, 0), (1.2, 0.125, 0.05), M["plank"], bevel=0.008)], tile=1.2))
+# Plank for bridges: 5 m, matching rvgen::route::PLANK_LENGTH (gaps are sized to it).
+built.append(finish("Plank", [lib.box("pl", (-2.5, -0.15, 0), (2.5, 0.15, 0.07), M["plank"], bevel=0.008)], tile=1.2))
 
 # Engine oil bottle.
 bottle = lib.lathe("ob", [(0.0, 0.0), (0.0, 0.09), (0.22, 0.09), (0.25, 0.06), (0.26, 0.03), (0.285, 0.03)], M["yellow"], 16)

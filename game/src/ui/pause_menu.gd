@@ -18,6 +18,7 @@ var _bar := ProgressBar.new()
 var _notice := PanelContainer.new()
 var _notice_label := Label.new()
 var _mouse_before := Input.MOUSE_MODE_VISIBLE
+var _extras := VBoxContainer.new() # Built early: add_action() may run before _ready.
 
 
 func _ready() -> void:
@@ -82,6 +83,8 @@ func _build() -> void:
 	_auto.button_pressed = Updater.auto_update
 	_auto.toggled.connect(func(on: bool) -> void: Updater.auto_update = on)
 	box.add_child(_auto)
+	_extras.add_theme_constant_override("separation", 10)
+	box.add_child(_extras)
 	_quit.text = "Quit to desktop"
 	_quit.pressed.connect(func() -> void: get_tree().quit())
 	box.add_child(_quit)
@@ -92,6 +95,18 @@ func _build() -> void:
 	_notice_label.add_theme_color_override("font_color", TEXT)
 	_notice.add_child(_notice_label)
 	root.add_child(_notice)
+
+
+## Adds a button (above Quit) that closes the menu and runs `action`.
+func add_action(text: String, action: Callable) -> void:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 40)
+	b.add_theme_font_size_override("font_size", 17)
+	b.pressed.connect(func() -> void:
+		close()
+		action.call())
+	_extras.add_child(b)
 
 
 static func _style(margin: int) -> StyleBoxFlat:

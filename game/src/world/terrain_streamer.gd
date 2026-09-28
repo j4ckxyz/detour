@@ -205,6 +205,24 @@ func _refresh() -> void:
 			keep[coord] = true
 			wanted.append([dist, coord, _step_for(dist)])
 
+	# Whatever needs solid ground (the RV, players) keeps its chunks, even out of view.
+	var solid_radius := ceili((collision_distance + HALF_DIAGONAL) / CHUNK_SIZE)
+	for f: Node3D in collision_foci:
+		if not is_instance_valid(f):
+			continue
+		var c := _chunk_of(f.global_position)
+		for dz: int in range(-solid_radius, solid_radius + 1):
+			for dx: int in range(-solid_radius, solid_radius + 1):
+				var coord := c + Vector2i(dx, dz)
+				if keep.has(coord):
+					continue
+				var mid := (Vector2(coord) + Vector2(0.5, 0.5)) * CHUNK_SIZE
+				if mid.distance_to(Vector2(f.global_position.x, f.global_position.z)) - HALF_DIAGONAL > collision_distance:
+					continue
+				keep[coord] = true
+				var dist := focus_xz.distance_to(mid)
+				wanted.append([dist, coord, _step_for(dist)])
+
 	for coord: Vector2i in _chunks.keys():
 		if not keep.has(coord):
 			_free_chunk(coord)
@@ -230,6 +248,8 @@ func _refresh() -> void:
 		var need_mesh := chunk.shown_step != step and chunk.requested_step != step
 		if need_mesh or need_decor or need_heights:
 			var flags := (ChunkBuilder.DECOR if need_decor else 0) | (ChunkBuilder.HEIGHTS if need_heights else 0)
+			if need_collision:
+				flags |= ChunkBuilder.PRIORITY # Someone is standing (or about to) on it.
 			_builder.request(coord.x, coord.y, step if need_mesh else 0, flags)
 			if need_mesh:
 				chunk.requested_step = step

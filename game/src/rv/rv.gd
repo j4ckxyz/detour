@@ -86,6 +86,8 @@ var door_open := false:
 	set(open):
 		door_open = open
 		interior.set_door_open(open)
+## Optional `func(x: float, z: float) -> float`: how muddy the ground is (0..1).
+var surface_query: Callable
 ## Front and rear winches.
 var winches: Array[RVWinch] = []
 ## Seat name → {eye, stand} in RV space: where a seated player looks from, and where they
@@ -321,6 +323,9 @@ func _physics_process(dt: float) -> void:
 	_update_steering(dt, speed)
 	for wheel: RVWheel in wheels:
 		wheel.probe(self)
+		if surface_query.is_valid() and wheel.grounded:
+			wheel.mud = surface_query.call(wheel.contact.x, wheel.contact.z)
+			wheel.surface_grip = 1.0 - 0.6 * wheel.mud
 
 	# Drivetrain: the engine is coupled to the driven wheels' rolling speed. (Feeding it
 	# wheelspin too would couple the light axle to the flywheel through a stiff clutch,

@@ -27,3 +27,11 @@ Credit is not required, but we give it gladly. Models built from them live in
 | model `rocks_b` | [Rock Moss Set 02](https://polyhaven.com/a/rock_moss_set_02) | Kless Gyzen |
 | model `rocks_c` | [Boulder 01](https://polyhaven.com/a/boulder_01) | Rico Cilliers |
 | model `stump` | [Tree Stump 01](https://polyhaven.com/a/tree_stump_01) | Rob Tuytel |
+
+## Kenney (www.kenney.nl), CC0
+
+Low-poly models from Kenney's kits (Creative Commons Zero), fetched by
+`tools/assets/fetch_kenney.py` into `game/assets/models/kenney/<kit>/`:
+Nature Kit (tent, campfire, log stack, bushes, flowers, mushrooms, grass), Survival Kit
+(bedroll, signposts, workbench, barrel, crate, hammer), City Kit Suburban (house, fence,
+driveway) and City Kit Commercial (shop, awning).

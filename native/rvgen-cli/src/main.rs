@@ -6,6 +6,8 @@
 //! rvgen-cli png <code> <out.png> [radius]    shaded-relief preview of (2r)² chunks around 0,0
 //! rvgen-cli bench [chunks]                   time heightfield + mesh + scatter per chunk
 //! rvgen-cli golden                           print the golden table for tests/golden.rs
+//! rvgen-cli recode <code> [trip]             the same seed (and trip) for this generator version
+//! rvgen-cli trip <code>                      the trip: length, stations, obstacles, validation
 //! ```
 
 use std::fs::File;
@@ -34,6 +36,8 @@ fn main() -> ExitCode {
         Some("png") => cmd_png(&args[1..]),
         Some("bench") => cmd_bench(args.get(1).map(String::as_str)),
         Some("golden") => cmd_golden(),
+        Some("recode") => cmd_recode(&args[1..]),
+        Some("trip") => cmd_trip(&args[1..]),
         _ => Err(USAGE.to_string()),
     };
     match result {
@@ -46,7 +50,7 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str = "usage: rvgen-cli <new [short|medium|long] | hash <code> <cx> <cz> | \
-png <code> <out.png> [radius] | bench [chunks] | golden>";
+png <code> <out.png> [radius] | bench [chunks] | golden | recode <code> | trip <code>>";
 
 fn parse_trip(s: Option<&str>) -> Result<TripLength, String> {
     match s.unwrap_or("short") {
@@ -55,6 +59,47 @@ fn parse_trip(s: Option<&str>) -> Result<TripLength, String> {
         "long" => Ok(TripLength::Long),
         other => Err(format!("unknown trip length '{other}'")),
     }
+}
+
+fn cmd_recode(args: &[String]) -> Result<(), String> {
+    let code = SeedCode::parse(&arg::<String>(args, 0, "code")?).map_err(|e| e.to_string())?;
+    let trip = match args.get(1) {
+        Some(t) => parse_trip(Some(t))?,
+        None => code.trip,
+    };
+    println!("{}", SeedCode::new(trip, code.seed));
+    Ok(())
+}
+
+fn cmd_trip(args: &[String]) -> Result<(), String> {
+    let world = world_from(&arg::<String>(args, 0, "code")?)?;
+    let r = world.route();
+    println!(
+        "{}: {:.0} m of road, {} pads, {} obstacles",
+        world.code(),
+        r.length,
+        r.pads.len(),
+        r.obstacles.len()
+    );
+    for p in &r.pads {
+        println!("  {:>6.0} m  {:?}", p.s, p.kind);
+    }
+    for o in &r.obstacles {
+        println!(
+            "  {:>6.0} m  {:?}  length {:.1} m  size {:.2} m  difficulty {:.2}",
+            o.s, o.kind, o.length, o.size, o.difficulty
+        );
+    }
+    let problems = r.validate();
+    println!(
+        "validation: {}",
+        if problems.is_empty() {
+            "ok".to_string()
+        } else {
+            problems.join("; ")
+        }
+    );
+    Ok(())
 }
 
 fn world_from(code: &str) -> Result<World, String> {
@@ -110,7 +155,11 @@ fn cmd_png(args: &[String]) -> Result<(), String> {
                     let tint = world
                         .terrain()
                         .tint((ox + x as i32) as f32, (oz + z as i32) as f32);
-                    let c = ground_color(h, ny, tint);
+                    let (wx, wz) = ((ox + x as i32) as f32, (oz + z as i32) as f32);
+                    let mut c = ground_color(h, ny, tint);
+                    if world.route().road_at(wx, wz) > 0.5 {
+                        c = [0.85, 0.35, 0.2, 1.0];
+                    }
                     let px = ((cx + radius) * CHUNK_SIZE) as usize + x;
                     let pz = ((cz + radius) * CHUNK_SIZE) as usize + z;
                     let i = (pz * size + px) * 3;
@@ -225,6 +274,7 @@ fn cmd_golden() -> Result<(), String> {
         std::env::consts::OS,
         std::env::consts::ARCH
     );
+    println!("#[rustfmt::skip]");
     println!("const EXPECTED: &[Golden] = &[");
     for (trip, seed) in GOLDEN_SEEDS {
         let code = SeedCode::new(trip, seed);

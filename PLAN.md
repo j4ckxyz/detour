@@ -806,6 +806,10 @@ Status (2026-09-28):
     convex rocks) streamed around the RV, and cone stand-ins for distant trees.
   - Tests: `tests/rv_units.gd` (drivetrain, shifter) and `tests/rv_drive.tscn` (spawn, stall,
     pull away, shift, brake, handbrake, automatic, reverse) run headless.
+- **Adventure layer (2026-09-28, tracked in RV_THERE_YET_FEATURE_COMPARISON.md §16):** on-foot
+  player with the RV interior space (§6.3), seats, items; winches, planks, pushing; and the
+  trip (`rvgen::route`, GEN_VERSION 2): a carved road with gap/ledge/mud/climb obstacles and a
+  solvability validator, gas-station checkpoints with saves and restocks, camp and home.
 
 Original scope:
 - Set up the repo, pin Godot 4.7.2, and create the Rust workspace. Get `rvcore` loading in Godot on all

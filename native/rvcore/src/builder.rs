@@ -21,6 +21,8 @@ use crate::convert;
 const DECOR: i32 = 1;
 /// `request()` flag: also return the raw heights (for collision).
 const HEIGHTS: i32 = 2;
+/// `request()` flag: jump the queue (collision someone is waiting on).
+const PRIORITY: i32 = 4;
 
 struct Job {
     coord: ChunkCoord,
@@ -123,6 +125,9 @@ impl ChunkBuilder {
     /// `request()` flag: also return the raw heights (for collision).
     #[constant]
     const HEIGHTS: i32 = HEIGHTS;
+    /// `request()` flag: jump the queue (collision someone is waiting on).
+    #[constant]
+    const PRIORITY: i32 = PRIORITY;
 
     /// Starts `threads` workers (0 = one per spare CPU core) for seed `code`.
     #[func]
@@ -166,7 +171,8 @@ impl ChunkBuilder {
     }
 
     /// Queues a chunk. `step` is the mesh LOD spacing (1, 2, 4 or 8 m), or 0 for no mesh.
-    /// `flags` is a mix of `DECOR` and `HEIGHTS`. Jobs run in request order.
+    /// `flags` is a mix of `DECOR`, `HEIGHTS` and `PRIORITY`. Jobs run in request order,
+    /// except that `PRIORITY` ones go to the front.
     #[func]
     fn request(&mut self, cx: i32, cz: i32, step: i32, flags: i32) {
         let Some(shared) = &self.shared else {
@@ -184,17 +190,19 @@ impl ChunkBuilder {
             godot_error!("ChunkBuilder.request: nothing requested");
             return;
         }
-        shared
-            .queue
-            .lock()
-            .expect("queue poisoned")
-            .jobs
-            .push_back(Job {
-                coord: ChunkCoord::new(cx, cz),
-                step: step as u32,
-                decor: flags & DECOR != 0,
-                heights: flags & HEIGHTS != 0,
-            });
+        let job = Job {
+            coord: ChunkCoord::new(cx, cz),
+            step: step as u32,
+            decor: flags & DECOR != 0,
+            heights: flags & HEIGHTS != 0,
+        };
+        let mut queue = shared.queue.lock().expect("queue poisoned");
+        if flags & PRIORITY != 0 {
+            queue.jobs.push_front(job);
+        } else {
+            queue.jobs.push_back(job);
+        }
+        drop(queue);
         shared.wake.notify_one();
         self.in_flight += 1;
     }

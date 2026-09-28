@@ -18,6 +18,7 @@ pub mod hash;
 pub mod mesh;
 pub mod noise;
 pub mod rng;
+pub mod route;
 pub mod scatter;
 pub mod seed;
 pub mod terrain;
@@ -25,6 +26,7 @@ pub mod terrain;
 pub use chunk::{CHUNK_SIZE, CHUNK_VERTS, ChunkCoord, Heightfield};
 pub use seed::{GEN_VERSION, SeedCode, SeedCodeError, TripLength};
 
+use route::Route;
 use terrain::TerrainGen;
 
 /// A generated world: everything derivable from one seed code.
@@ -33,6 +35,7 @@ pub struct World {
     code: SeedCode,
     world_seed: u64,
     terrain: TerrainGen,
+    route: Route,
 }
 
 impl World {
@@ -40,10 +43,13 @@ impl World {
     pub fn new(code: SeedCode) -> Result<Self, SeedCodeError> {
         code.check_supported()?;
         let world_seed = code.world_seed();
+        let terrain = TerrainGen::new(world_seed);
+        let route = Route::generate(world_seed, code.trip, &terrain);
         Ok(Self {
             code,
             world_seed,
-            terrain: TerrainGen::new(world_seed),
+            terrain,
+            route,
         })
     }
 
@@ -59,9 +65,18 @@ impl World {
         &self.terrain
     }
 
-    /// Quantised height at an integer world grid point (1 m grid).
+    /// The trip: road, obstacles, stations.
+    pub fn route(&self) -> &Route {
+        &self.route
+    }
+
+    /// Quantised height at an integer world grid point (1 m grid), road and obstacles
+    /// included. This is the canonical, hashed value.
     pub fn height_q(&self, gx: i32, gz: i32) -> u16 {
-        self.terrain.height_q(gx, gz)
+        let (x, z) = (gx as f32, gz as f32);
+        let natural = self.terrain.height_m(x, z);
+        let h = self.route.shape(x, z, natural);
+        terrain::quantize(h)
     }
 
     /// Generates the full-resolution heightfield of one chunk.

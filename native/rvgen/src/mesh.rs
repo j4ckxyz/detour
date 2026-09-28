@@ -28,6 +28,8 @@ const GRASS_DRY: [f32; 3] = [0.56, 0.55, 0.30];
 const DIRT: [f32; 3] = [0.47, 0.37, 0.26];
 const ROCK: [f32; 3] = [0.52, 0.50, 0.47];
 const SNOW: [f32; 3] = [0.93, 0.94, 0.96];
+const ROAD: [f32; 3] = [0.58, 0.49, 0.36];
+const MUD: [f32; 3] = [0.27, 0.2, 0.13];
 
 fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     [
@@ -82,10 +84,20 @@ pub fn chunk_mesh(world: &World, hf: &Heightfield, step: u32) -> MeshData {
             let ny = 2.0 * s as f32;
             let len = (nx * nx + ny * ny + nz * nz).sqrt();
             let normal = [nx / len, ny / len, nz / len];
-            let tint = world.terrain().tint((ox + lx) as f32, (oz + lz) as f32);
+            let (wx, wz) = ((ox + lx) as f32, (oz + lz) as f32);
+            let tint = world.terrain().tint(wx, wz);
+            let mut color = ground_color(y, normal[1], tint);
+            let route = world.route();
+            let road = route.road_at(wx, wz);
+            if road > 0.0 {
+                let c = mix([color[0], color[1], color[2]], ROAD, road);
+                let m = route.mud_at(wx, wz);
+                let c = mix(c, MUD, m);
+                color = [c[0], c[1], c[2], 1.0];
+            }
             mesh.positions.push([lx as f32, y, lz as f32]);
             mesh.normals.push(normal);
-            mesh.colors.push(ground_color(y, normal[1], tint));
+            mesh.colors.push(color);
         }
     }
 

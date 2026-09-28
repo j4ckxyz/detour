@@ -4,9 +4,10 @@ A snapshot of the playable build (updated 2026-09-28), for comparing against *RV
 Everything below is implemented and running unless it's in [Not in the game yet](#not-in-the-game-yet).
 The long-term design is in [PLAN.md](PLAN.md).
 
-**In one line:** a single-player sandbox where you walk around, climb into and drive a heavy
-1970s motorhome (real clutch and gearbox) across endless procedurally generated pine hills,
-and carry stuff about. There are no objectives, trips or other players yet.
+**In one line:** a single-player road trip: from a camp, along a generated forest road, past
+washed-out bridges, ledges, mud and steep climbs, through gas-station checkpoints, to home, in
+a heavy 1970s motorhome (real clutch and gearbox) you can climb into, walk around, winch and
+push. No other players yet.
 
 ---
 
@@ -110,6 +111,42 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   the start; winch remote, first-aid kit and two burgers inside. Burgers heal 30 (eat with
   left click); the other items' uses arrive with their systems (winch, repairs, fuel).
 - **Health** is shown (100); nothing hurts you yet.
+
+## The trip
+
+Every seed makes a trip (a **Short** trip is ~2.4 km: camp → 2 gas stations → home; Medium and
+Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
+
+- **The road**: a winding dirt road heading home (east), carved into the hills with cut and
+  fill to a gentle grade (≤ 9 %), dirt-coloured so it's obvious where to go, cleared of trees
+  and rocks, with the forest crowding its edges (going round an obstacle through the trees is
+  hard). Deep cuts through hillsides leave rocky walls either side.
+- **Obstacles** get harder towards home, with a quiet stretch now and then:
+  - **Mud** (early): a soft dip where the tires grip at 40 % and drag hard. Keep your momentum,
+    lay planks, or winch.
+  - **Steep climbs** (5–9 m humps, ~25–30 % at their steepest): low gear and momentum, or
+    winch.
+  - **Washed-out bridges** (from mid-trip): a 3.8–4.4 m gap between two concrete abutments over
+    a 2–2.6 m deep trench. The RV can't cross (it noses in, even at speed). A pile of 4 planks
+    lies at the roadside 18–30 m before each one: lay two across, one under each wheel track.
+  - **Ledges** (from mid-trip): a sheer 1.1–1.7 m step up the road; the ground either side is
+    raised so you can't drive round. A big boulder waits at the top: hook the winch on and
+    reel yourself up.
+  - A **warning sign** stands 45 m before each obstacle.
+- **The generator guarantees solvability**: every gap has planks before it and fits a plank;
+  every ledge has an anchor within winch reach; obstacles are ≥ 120 m apart; the road's grade
+  outside obstacles stays in limits. Checked for 200 seeds in the Rust tests.
+- **The start camp**: tent, campfire, bedroll and log pile by the road; the starter items lie
+  by the RV.
+- **Gas stations** (checkpoints): a shop with a diner sign, a canopy over two pumps, a welding
+  bench, barrels and crates. Drive up to one and the game **saves**, says so, and **restocks**:
+  2 planks, a jerry can, 2 scrap metal, motor oil, 2 burgers and a spare tire in front of the
+  shop.
+- **Home**: a house with a fence and a big "HOME" sign. Arrive and the trip ends with a
+  summary: time, distance driven, stalls and winch rope reeled in.
+- **Saves**: quitting and relaunching continues from the last gas station (per seed; start
+  over with `-- --new` or the menu).
+- **Top of the screen**: the next stop and how far down the road it is, plus checkpoint notices.
 
 ## Winches, planks and pushing
 
@@ -263,6 +300,8 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   - Buttons: **Resume**, **Update now** (becomes **Restart to update**), **Update
     automatically** (on by default, remembered) and **Quit to desktop**.
   - A progress bar and status line appear while an update downloads.
+  - **Tow to the last checkpoint** (the RV and you go back to the last station; +15 min) and
+    **Restart this trip**.
 
 ## Updates
 
@@ -332,13 +371,9 @@ Downloaded builds keep themselves current from this repo's GitHub releases:
 Planned (see PLAN.md), roughly in the order they're coming:
 
 - **Players**: the roof ladder and roof, a visible body (for co-op), a hotbar/inventory.
-- **The trip**:
-  - A start camp, roads you can see, gas-station checkpoints (refuel, repair, restock,
-    revive, save) and home at the end.
-  - Trip length choice; a paper map for navigation.
-- **Obstacles you solve** (the winch, planks and pushing work already; the obstacles don't
-  exist yet):
-  - Gaps to bridge, ledges to winch up, fords, mud, rockslides, cliffs and steps, lava, ice.
+- **The trip**: refuelling and the welder at stations (with fuel and damage), a trip-length
+  choice in a menu, a paper map, route forks and loot detours.
+- **More obstacles**: fords, mud, rockslides, cliffs and steps, lava, ice.
   - A generator that guarantees every obstacle can be solved, with difficulty rising along
     the trip.
 - **Damage and upkeep**:
