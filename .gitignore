@@ -22,3 +22,6 @@ __pycache__/
 
 # Local agent / editor settings
 .claude/settings.local.json
+
+# Stamped by CI (tools/ci/write_build_info.sh)
+game/build_info.cfg

@@ -8,6 +8,8 @@ code here are original. See [PLAN.md](PLAN.md) for the full design and roadmap.
 
 **Status:** early development. You can drive the RV (clutch, 5-speed H-pattern, automatic)
 through a streamed, decorated world. Trips, co-op and the rest are on the way (PLAN.md §12).
+Everything the game does today, and every control, is listed in [CURRENT_GAME.md](CURRENT_GAME.md).
+Downloaded builds update themselves (Esc → *Update now*, or automatically on launch).
 
 ## Download
 
@@ -24,7 +26,8 @@ Check files against `SHA256SUMS` in the release.
 **Controls:** W/S throttle and brake, A/D steer, Space handbrake, Q clutch (hold it and move
 the mouse to work the H-pattern), E/Z or the mouse wheel to shift, 1–5 and R to pick a gear,
 T for manual/automatic, I to start the engine, L headlights, C chase/cab camera, Backspace to
-get back on the wheels, F1 help, F3 performance overlay.
+get back on the wheels, Esc menu, F1 help, F3 performance overlay. Full list, including
+controller buttons: [CURRENT_GAME.md](CURRENT_GAME.md#controls).
 
 ## Layout
 

@@ -11,7 +11,7 @@ const HELP := """W/S  throttle / brake     A/D  steer     Space  handbrake
 Q  clutch (hold + move mouse: H-pattern)     E/Z or wheel  shift up / down
 1-5, R  pick a gear     T  manual / automatic     I  start engine
 L  headlights     C  chase / cab camera     Backspace  back on the wheels
-Click  capture mouse     Esc  release     F1  this help     F3  perf"""
+Click  capture mouse     Esc  menu (updates, quit)     F1  this help     F3  perf"""
 
 var rv: RV
 

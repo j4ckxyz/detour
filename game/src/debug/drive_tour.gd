@@ -14,6 +14,7 @@ var _shot := 0
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS # Keeps touring while the pause menu is open.
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--shots="):
 			_dir = arg.trim_prefix("--shots=")
@@ -69,6 +70,9 @@ func _tour() -> void:
 	rv.headlights = true
 	await _seconds(0.3)
 	await _snap("clutch_gate_lights")
+	_pg.menu.open()
+	await _seconds(0.3)
+	await _snap("pause_menu")
 	print("TOUR done: %d shots in %s" % [_shot, ProjectSettings.globalize_path(_dir)])
 	get_tree().quit()
 

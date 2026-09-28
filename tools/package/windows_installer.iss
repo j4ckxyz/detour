@@ -44,3 +44,5 @@ Name: "{autodesktop}\Detour"; Filename: "{app}\Detour.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Detour.exe"; Description: "{cm:LaunchProgram,Detour}"; Flags: nowait postinstall skipifsilent
+; The in-game updater runs this installer with /SILENT: start the game again afterwards.
+Filename: "{app}\Detour.exe"; Flags: nowait; Check: WizardSilent

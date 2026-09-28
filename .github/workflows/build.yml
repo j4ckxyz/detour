@@ -67,6 +67,7 @@ jobs:
       - name: Export
         run: |
           mkdir -p export/linux
+          tools/ci/write_build_info.sh
           "${{ steps.godot.outputs.godot }}" --headless --path game --export-release "Linux" ../export/linux/detour.x86_64
           ls -la export/linux
           test -x export/linux/detour.x86_64 && test -f export/linux/librvcore.x86_64.so
@@ -105,9 +106,12 @@ jobs:
           key: import-macos-${{ hashFiles('game/assets/**', 'game/project.godot') }}
       - name: Import assets
         run: '"${{ steps.godot.outputs.godot }}" --headless --path game --import'
+      - name: Updater tests
+        run: '"${{ steps.godot.outputs.godot }}" --headless --path game --script res://tests/updater_units.gd'
       - name: Export
         run: |
           mkdir -p export/macos dist
+          tools/ci/write_build_info.sh
           "${{ steps.godot.outputs.godot }}" --headless --path game --export-release "macOS" ../export/macos/Detour.zip
           cd export/macos
           unzip -q Detour.zip
@@ -146,9 +150,12 @@ jobs:
           key: import-windows-${{ hashFiles('game/assets/**', 'game/project.godot') }}
       - name: Import assets
         run: '"${{ steps.godot.outputs.godot }}" --headless --path game --import'
+      - name: Updater tests
+        run: '"${{ steps.godot.outputs.godot }}" --headless --path game --script res://tests/updater_units.gd'
       - name: Export
         run: |
           mkdir -p export/windows dist
+          tools/ci/write_build_info.sh
           "${{ steps.godot.outputs.godot }}" --headless --path game --export-release "Windows" ../export/windows/Detour.exe
           ls -la export/windows
           test -f export/windows/Detour.exe && test -f export/windows/rvcore.x86_64.dll

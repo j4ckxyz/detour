@@ -1,7 +1,8 @@
 class_name RVCamera
 extends Camera3D
 ## Follows the RV: a chase view that trails behind and can be orbited, or the driver's eyes
-## in the cab. Click to capture the mouse, Esc to release, C (camera_toggle) to switch.
+## in the cab. Click to capture the mouse (the Esc menu releases it), C (camera_toggle) to
+## switch.
 
 enum Mode { CHASE, COCKPIT }
 
@@ -29,10 +30,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	var button := event as InputEventMouseButton
 	if button and button.pressed and button.button_index == MOUSE_BUTTON_LEFT:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		return
-	var key := event as InputEventKey
-	if key and key.pressed and key.physical_keycode == KEY_ESCAPE:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		return
 	if event.is_action_pressed(&"camera_toggle") and not event.is_echo():
 		mode = Mode.COCKPIT if mode == Mode.CHASE else Mode.CHASE

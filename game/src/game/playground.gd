@@ -37,6 +37,7 @@ var camera := RVCamera.new()
 var driver := RVDriverInput.new()
 var hud := RVHud.new()
 var overlay := PerfOverlay.new()
+var menu := PauseMenu.new()
 var rv: RV
 var is_spawned := false
 
@@ -80,6 +81,7 @@ func _ready() -> void:
 	overlay.extra_lines = _overlay_lines
 	overlay.visible = false
 	add_child(overlay)
+	add_child(menu)
 
 	_spawn_box.size = RV_HALF_EXTENTS * 2.0
 	_apply_preset(StringName(_args.get("preset", String(Graphics.detect_default()))))
