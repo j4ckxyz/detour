@@ -25,6 +25,7 @@ and carry stuff about. There are no objectives, trips or other players yet.
 | **Left click** | Use the held item (e.g. eat a burger) |
 | **Right click** | Throw the held item (inside the RV: put it down) |
 | **Q** / **G** | Drop the held item (inside the RV it's stowed and rides along) |
+| **R** | With the winch remote: switch between front and rear winch |
 | **F** | Get up from a seat |
 | **Esc** | Pause menu |
 
@@ -109,6 +110,23 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   the start; winch remote, first-aid kit and two burgers inside. Burgers heal 30 (eat with
   left click); the other items' uses arrive with their systems (winch, repairs, fuel).
 - **Health** is shown (100); nothing hurts you yet.
+
+## Winches, planks and pushing
+
+- **Two winches** (front and rear). At a winch, **E** takes the hook off the drum; carry it up
+  to 40 m (the cable pays out as you walk; past 40 m it's yanked out of your hands). Look at a
+  tree, rock, stump or log and **left click** to hook on. **E** on an anchored hook unhooks it;
+  **E** at the drum while holding the hook puts it back.
+- **Winch remote** (on the dashboard): hold **left click** to reel in, **right click** to pay
+  out, **R** to pick front/rear. Works on foot or from a seat. The motor pulls up to 60 kN at
+  0.5 m/s, slowing as the load rises; the rope only pulls when taut, sags when slack (drawn
+  as a cable), and snaps if yanked far past its limit (e.g. driving away at full power).
+  The HUD shows rope out and tension.
+- **Planks**: while holding one, a green ghost shows where it would go; **left click** lays it
+  along your view, resting on the ground at both ends (or continuing from the end of a plank
+  you're looking at). A laid plank is solid ground: the RV's wheels and players ride on it.
+  **E** picks it back up.
+- **Pushing**: walk into the RV to push it (3 kN per person, fading out by a brisk walk).
 
 ## The world
 
@@ -318,11 +336,9 @@ Planned (see PLAN.md), roughly in the order they're coming:
   - A start camp, roads you can see, gas-station checkpoints (refuel, repair, restock,
     revive, save) and home at the end.
   - Trip length choice; a paper map for navigation.
-- **Obstacles you solve**:
-  - The winch (front and rear, anchored to trees, rocks and cliffs).
-  - Pushing the RV.
-  - Laying planks across gaps.
-  - Fords, mud, rockslides, cliffs and steps, lava, ice.
+- **Obstacles you solve** (the winch, planks and pushing work already; the obstacles don't
+  exist yet):
+  - Gaps to bridge, ledges to winch up, fords, mud, rockslides, cliffs and steps, lava, ice.
   - A generator that guarantees every obstacle can be solved, with difficulty rising along
     the trip.
 - **Damage and upkeep**:

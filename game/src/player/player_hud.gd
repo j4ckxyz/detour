@@ -43,7 +43,7 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if player == null:
 		return
-	visible = not player.is_driving()
+	visible = not player.is_driving() or (player.held != null and player.held.kind == &"winch_remote")
 	_dot.visible = player.seat == &""
 	if player.seat != &"":
 		_prompt.text = "F  Get up"
@@ -53,7 +53,14 @@ func _process(_delta: float) -> void:
 		_prompt.text = ""
 	var bits: PackedStringArray = []
 	if player.held:
-		var hint := "LMB use · " if ItemLibrary.use_action(player.held.kind).is_valid() else ""
-		bits.append("Holding %s  (%sRMB throw · Q drop)" % [player.held.display_name(), hint])
+		var hint := ItemLibrary.use_hint(player.held, player)
+		var throw := "" if player.held.def.get("no_throw", false) else "RMB throw · "
+		bits.append("Holding %s  (%s%sQ drop)" % [player.held.display_name(), hint + " · " if hint != "" else "", throw])
+		if player.held.kind == &"winch_remote" and player.rv:
+			var w: RVWinch = player.rv.winches[player.winch_choice]
+			var state := "hooked, %.1f m out, %d kN" % [w.rope_length, roundi(w.tension / 1000.0)] if w.is_anchored() else "not hooked"
+			bits.append("%s winch: %s" % [w.label.capitalize(), state])
+	if player.pushing:
+		bits.append("Pushing!")
 	bits.append("Health %d" % roundi(player.health))
 	_status.text = "     ".join(bits)

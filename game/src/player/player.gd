@@ -30,6 +30,9 @@ const THROW_SPEED := 9.0
 ## Tallest ledge (a rock, a kerb, the cab step) walked up without jumping.
 const STEP_HEIGHT := 0.4
 const MAX_HEALTH := 100.0
+## Push on the RV per player (N), fading out by PUSH_FADE_SPEED (m/s).
+const PUSH_FORCE := 3000.0
+const PUSH_FADE_SPEED := 1.4
 
 ## The RV this player can board.
 var rv: RV
@@ -49,12 +52,17 @@ var target_prompt := ""
 
 var camera := Camera3D.new()
 var hand := Node3D.new()
+## Which winch the remote works (index into rv.winches).
+var winch_choice := 0
+## True while walking into the RV hard enough to push it.
+var pushing := false
 
 var _yaw := 0.0
 var _pitch := 0.0
 var _crouch := 0.0
 var _proxy := CharacterBody3D.new()
 var _prev_rv_velocity := Vector3.ZERO
+var _ghost := MeshInstance3D.new()
 
 
 func _init() -> void:
@@ -98,6 +106,19 @@ func _ready() -> void:
 	add_child(camera)
 	hand.name = "Hand"
 	camera.add_child(hand)
+	var ghost_material := StandardMaterial3D.new()
+	ghost_material.albedo_color = Color(0.6, 1.0, 0.6, 0.35)
+	ghost_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ghost_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var ghost_mesh := BoxMesh.new()
+	ghost_mesh.size = Vector3(ItemLibrary.PLANK_LENGTH, 0.05, 0.25)
+	ghost_mesh.material = ghost_material
+	_ghost.mesh = ghost_mesh
+	_ghost.top_level = true
+	_ghost.visible = false
+	_ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_ghost.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	add_child(_ghost)
 
 
 ## Looks towards `yaw` (radians, in the current frame).
@@ -119,6 +140,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_echo():
 		return
+	if event.is_action_pressed(&"winch_select") and held and held.kind == &"winch_remote" and rv:
+		winch_choice = (winch_choice + 1) % rv.winches.size()
+		get_viewport().set_input_as_handled()
+		return
 	if seat != &"":
 		if event.is_action_pressed(&"leave_seat"):
 			stand_up()
@@ -127,15 +152,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"interact") and target:
 		target.call(&"interact", self)
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed(&"use_item") and held and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	elif event.is_action_pressed(&"use_item") and held:
 		held.use(self)
-	elif event.is_action_pressed(&"throw_item") and held:
+	elif event.is_action_pressed(&"throw_item") and held and not held.def.get("no_throw", false):
 		throw_held()
 	elif event.is_action_pressed(&"drop_item") and held:
 		drop_held()
 
 
 func _physics_process(dt: float) -> void:
+	_work_winch_remote()
 	if seat != &"":
 		_follow_rv(_proxy.position)
 		return
@@ -153,14 +179,25 @@ func _physics_process(dt: float) -> void:
 func _process(_dt: float) -> void:
 	_place_camera()
 	_find_target()
+	_update_ghost()
+
+
+## Shows where a held plank would go.
+func _update_ghost() -> void:
+	var xf: Variant = ItemLibrary.plank_placement(self) if held and held.kind == &"plank" and seat == &"" else null
+	_ghost.visible = xf != null
+	if xf != null:
+		_ghost.global_transform = xf
 
 
 func _move_outside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
 	velocity = _walk(velocity, wish, speed, dt, is_on_floor(), jump, get_gravity())
 	var was_on_floor := is_on_floor()
+	var wished := velocity
 	move_and_slide()
 	if was_on_floor and is_on_wall():
 		_step_up(self, Vector3(velocity.x, 0.0, velocity.z) * dt)
+	_push_rv(wished, wish)
 	if rv and rv.door_open:
 		var local := rv.to_local(global_position)
 		var toward_rv := (rv.global_basis.inverse() * velocity).x < -0.2
@@ -189,6 +226,42 @@ func _move_inside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
 		leave_rv() # Fell out somehow: put them back in the world.
 	else:
 		_follow_rv(p)
+
+
+## Walking into the RV pushes it (PLAN.md §4.2): a scripted force at the contact, strongest
+## from a standstill and gone by a brisk walk, so pushing helps but never launches it.
+func _push_rv(wished: Vector3, wish: Vector2) -> void:
+	pushing = false
+	if rv == null or wish == Vector2.ZERO:
+		return
+	for i: int in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		if col.get_collider() != rv:
+			continue
+		var dir := Vector3(wished.x, 0.0, wished.z).normalized()
+		var into := -col.get_normal()
+		if dir.dot(into) < 0.5:
+			return
+		var along := rv.point_velocity(col.get_position()).dot(dir)
+		var fade := clampf(1.0 - along / PUSH_FADE_SPEED, 0.0, 1.0)
+		rv.apply_force(dir * PUSH_FORCE * fade, col.get_position() - rv.global_position)
+		pushing = fade > 0.0
+		return
+
+
+## The winch remote: hold Use to reel in, Throw to pay out (works from a seat too).
+func _work_winch_remote() -> void:
+	if rv == null:
+		return
+	var remote := held != null and held.kind == &"winch_remote" and input_enabled
+	for i: int in rv.winches.size():
+		var drive := 0
+		if remote and i == winch_choice:
+			if Input.is_action_pressed(&"use_item"):
+				drive = -1
+			elif Input.is_action_pressed(&"throw_item"):
+				drive = 1
+		rv.winches[i].drive = drive
 
 
 ## Lifts `body` onto a ledge it walked into, if there's room above and ground beyond.
@@ -270,8 +343,8 @@ func leave_rv() -> void:
 func sit(on: RV, seat_name: StringName) -> void:
 	if not inside or seat != &"" or on != rv:
 		return
-	if held and held.def.get("two_handed", false):
-		drop_held() # Can't drive holding a spare tire.
+	if held and not held.def.get("seated", false):
+		drop_held() # Hands free to drive (the winch remote can come along).
 	seat = seat_name
 	_yaw = 0.0
 	_pitch = -0.1

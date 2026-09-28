@@ -32,6 +32,24 @@ func _tour() -> void:
 	var player := _pg.player
 	await _seconds(2.5)
 	await _snap("on_foot")
+	# Hook the front winch onto the nearest rock or tree ahead, and hold a plank.
+	var anchor: Variant = _anchor_ahead(rv)
+	if anchor != null:
+		rv.winches[0].rope_length = 1.0
+		rv.winches[0].anchor(anchor)
+		rv.winches[0].rope_length += 1.5 # A little slack so it sags.
+	var plank := ItemLibrary.create(&"plank")
+	_pg.items.add_child(plank)
+	player.pick_up(plank)
+	player.look(player._yaw + 0.9, -0.55)
+	await _seconds(0.4)
+	await _snap("plank_ghost")
+	cam.current = true
+	cam.set_look(0.5, -0.35)
+	await _seconds(0.6)
+	await _snap("winch_rope")
+	player.camera.current = true
+	player.drop_held()
 	rv.door_open = true
 	await _seconds(1.2)
 	await _snap("door_open")
@@ -105,3 +123,24 @@ func _snap(label: String) -> void:
 	var path := _dir.path_join("%02d_%s.png" % [_shot, label])
 	var err := get_viewport().get_texture().get_image().save_png(path)
 	print("SHOT %s (%s)" % [path, error_string(err)])
+
+
+func _anchor_ahead(rv: RV) -> Variant:
+	var sphere := SphereShape3D.new()
+	sphere.radius = 30.0
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = sphere
+	q.collision_mask = TerrainStreamer.WORLD_LAYER
+	q.transform = Transform3D(Basis.IDENTITY, rv.global_position)
+	var best: Variant = null
+	var best_d := INF
+	for hit: Dictionary in rv.get_world_3d().direct_space_state.intersect_shape(q, 256):
+		var body := hit["collider"] as StaticBody3D
+		if body == null or int(hit["shape"]) == TerrainStreamer.GROUND_SHAPE:
+			continue
+		var p := body.to_global(body.shape_owner_get_transform(body.shape_find_owner(int(hit["shape"]))).origin)
+		var d := p.distance_to(rv.global_position)
+		if rv.to_local(p).z < -6.0 and d < best_d:
+			best = p + Vector3.UP * 0.5
+			best_d = d
+	return best

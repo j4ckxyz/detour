@@ -30,6 +30,12 @@ func display_name() -> String:
 func interact_prompt(player: Player) -> String:
 	if holder != null:
 		return ""
+	var winch := winch_of()
+	if winch:
+		if winch.state == RVWinch.State.STOWED:
+			return "" # The drum's own prompt handles it.
+		if player.held == null and winch.state == RVWinch.State.ANCHORED:
+			return "Unhook the %s winch" % winch.label
 	if player.held != null:
 		return "Hands full (%s)" % player.held.display_name()
 	return "Pick up %s" % display_name()
@@ -41,7 +47,7 @@ func interact(player: Player) -> void:
 
 
 func interact_reach() -> float:
-	return 2.4
+	return def.get("reach", 2.4)
 
 
 ## Called by the holder's Use button. Returns true if something happened.
@@ -50,8 +56,20 @@ func use(player: Player) -> bool:
 	return action.is_valid() and action.call(self, player)
 
 
+## The winch this item is the hook of, if it is one.
+func winch_of() -> RVWinch:
+	return get_meta(&"winch") if has_meta(&"winch") else null
+
+
+func is_placed() -> bool:
+	return get_meta(&"placed", false)
+
+
 ## Takes the item into a hand (frozen, no collision) under `hand`.
 func grab(player: Player, hand: Node3D) -> void:
+	set_meta(&"placed", false)
+	if winch_of():
+		winch_of().on_hook_grabbed()
 	holder = player
 	freeze = true
 	collision_layer = 0
@@ -73,6 +91,23 @@ func release(world_parent: Node, xf: Transform3D, velocity: Vector3) -> void:
 	freeze = false
 	linear_velocity = velocity
 	angular_velocity = Vector3.ZERO
+	if winch_of():
+		winch_of().on_hook_released()
+
+
+## Sets the item down as solid ground (a plank bridge or ramp): static, on the world layer
+## so the RV's wheels and players ride on it.
+func place(parent: Node, xf: Transform3D) -> void:
+	holder = null
+	reparent(parent, false)
+	global_transform = xf
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	reset_physics_interpolation()
+	freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+	freeze = true
+	collision_layer = TerrainStreamer.WORLD_LAYER
+	collision_mask = 0
+	set_meta(&"placed", true)
 
 
 ## Puts the item down inside the RV at `local` (RV space), where it rides along frozen.

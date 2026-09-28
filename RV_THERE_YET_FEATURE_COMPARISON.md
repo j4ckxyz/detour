@@ -2103,10 +2103,10 @@ Legend:
 | Item throwing | ✅ DONE (M1) |
 | Inventory | MISSING |
 | RV storage | 🟡 PARTIAL (M1: items put down inside ride along; no slots yet) |
-| Winch | MISSING |
-| Winch controller | MISSING |
-| Planks | MISSING |
-| Push RV | MISSING |
+| Winch | ✅ DONE (M2) |
+| Winch controller | ✅ DONE (M2) |
+| Planks | ✅ DONE (M2) |
+| Push RV | ✅ DONE (M2) |
 | Finite route | MISSING |
 | Objective | MISSING |
 | Checkpoints | MISSING |

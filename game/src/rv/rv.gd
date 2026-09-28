@@ -86,6 +86,8 @@ var door_open := false:
 	set(open):
 		door_open = open
 		interior.set_door_open(open)
+## Front and rear winches.
+var winches: Array[RVWinch] = []
 ## Seat name → {eye, stand} in RV space: where a seated player looks from, and where they
 ## stand up.
 var seats: Dictionary[StringName, Dictionary] = {}
@@ -121,6 +123,13 @@ func _ready() -> void:
 	_gear_lever = _marker("GearStick")
 	_gear_lever_rest = _gear_lever.basis
 	_build_interior() # Needs driver_eye.
+	for which: String in ["Front", "Rear"]:
+		var winch := RVWinch.new()
+		winch.name = "Winch" + which
+		winch.position = _local("WinchMount_" + which)
+		add_child(winch)
+		winch.setup(self, which.to_lower(), _marker("WinchDrum_" + which))
+		winches.append(winch)
 
 	drivetrain.stalled.connect(engine_stalled.emit)
 	drivetrain.started.connect(engine_started.emit)
@@ -350,6 +359,8 @@ func _physics_process(dt: float) -> void:
 		excess += wheel.excess_drive
 	_update_wheelspin(dt, axle_torque, excess, driven_on_ground.is_empty())
 
+	for winch: RVWinch in winches:
+		winch.step(dt)
 	_anti_roll(wheels[0], wheels[1], 26000.0)
 	_anti_roll(wheels[2], wheels[3], 18000.0)
 	apply_central_force(-linear_velocity * linear_velocity.length() * DRAG)

@@ -41,6 +41,7 @@ var _defaults: Dictionary[StringName, Array] = {
 	&"use_item": [_mouse(MOUSE_BUTTON_LEFT), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)],
 	&"throw_item": [_mouse(MOUSE_BUTTON_RIGHT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)],
 	&"drop_item": [_key(KEY_Q), _key(KEY_G), _button(JOY_BUTTON_B)],
+	&"winch_select": [_key(KEY_R), _button(JOY_BUTTON_Y)],
 	# In a seat.
 	&"leave_seat": [_key(KEY_F), _button(JOY_BUTTON_DPAD_RIGHT)],
 }
