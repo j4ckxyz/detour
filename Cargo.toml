@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = [
+    "native/rvgen",
+    "native/rvcore",
+    "native/rvgen-cli",
+    "server/relay",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+rust-version = "1.94"
+
+[workspace.dependencies]
+rvgen = { path = "native/rvgen" }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+# Keep unwinding: godot-rust turns a panic inside a #[func] into a Godot error instead of a crash.

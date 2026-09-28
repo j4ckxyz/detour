@@ -1,0 +1,27 @@
+{
+  "models": {
+    "log": "dead_tree_trunk",
+    "rocks_a": "rock_moss_set_01",
+    "rocks_b": "rock_moss_set_02",
+    "rocks_c": "boulder_01",
+    "stump": "tree_stump_01"
+  },
+  "textures": {
+    "bark": "pine_bark",
+    "counter": "wood_table_worn",
+    "dark_metal": "metal_plate_02",
+    "fabric": "fabric_pattern_07",
+    "fabric_plaid": "fabric_pattern_05",
+    "floor": "laminate_floor_02",
+    "ground_dirt": "forrest_ground_01",
+    "ground_grass": "leafy_grass",
+    "ground_rock": "rock_face_03",
+    "ground_snow": "snow_02",
+    "metal": "blue_metal_plate",
+    "needles": "forest_leaves_03",
+    "paint": "green_metal_rust",
+    "plank": "weathered_brown_planks",
+    "rubber": "rubberized_track",
+    "wall_panel": "japanese_cedar_planks"
+  }
+}

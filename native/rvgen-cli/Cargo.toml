@@ -1,0 +1,11 @@
+[package]
+name = "rvgen-cli"
+version = "0.1.0"
+description = "Headless tool: seed codes, chunk hashes, heightmap PNGs"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rvgen.workspace = true
+png = "0.18"

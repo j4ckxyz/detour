@@ -1,0 +1,164 @@
+//! `WorldGen`: synchronous access to the generator (seed codes, hashes, heights, one-off
+//! chunks). Streaming uses `ChunkBuilder` instead so the main thread never waits.
+
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use godot::prelude::*;
+use rvgen::{ChunkCoord, GEN_VERSION, SeedCode, TripLength, World, mesh, scatter};
+
+use crate::convert;
+
+/// Deterministic world generator bound to one seed code.
+#[derive(GodotClass)]
+#[class(base=RefCounted, init)]
+pub struct WorldGen {
+    world: Option<World>,
+}
+
+static ENTROPY_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn trip_from(index: i32) -> TripLength {
+    TripLength::from_index(index.clamp(0, 2) as u8).unwrap_or(TripLength::Short)
+}
+
+#[godot_api]
+impl WorldGen {
+    /// Generator version baked into seed codes and saves.
+    #[func]
+    fn gen_version() -> i32 {
+        GEN_VERSION as i32
+    }
+
+    /// A fresh random seed code. `trip`: 0 = short, 1 = medium, 2 = long.
+    #[func]
+    fn random_code(trip: i32) -> GString {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(0);
+        let entropy = nanos
+            ^ ENTROPY_COUNTER
+                .fetch_add(1, Ordering::Relaxed)
+                .rotate_left(32);
+        GString::from(
+            SeedCode::from_entropy(trip_from(trip), entropy)
+                .to_string()
+                .as_str(),
+        )
+    }
+
+    /// Human-readable problem with `code`, or an empty string if it can be played.
+    #[func]
+    fn code_error(code: GString) -> GString {
+        let result = SeedCode::parse(&code.to_string()).and_then(|c| c.check_supported());
+        match result {
+            Ok(()) => GString::new(),
+            Err(e) => GString::from(e.to_string().as_str()),
+        }
+    }
+
+    /// Binds this generator to `code`. Returns false (and logs why) if the code is invalid.
+    #[func]
+    fn load(&mut self, code: GString) -> bool {
+        match SeedCode::parse(&code.to_string()).and_then(World::new) {
+            Ok(world) => {
+                self.world = Some(world);
+                true
+            }
+            Err(e) => {
+                godot_error!("WorldGen: bad seed code '{code}': {e}");
+                false
+            }
+        }
+    }
+
+    /// The normalised seed code, or "" if nothing is loaded.
+    #[func]
+    fn get_code(&self) -> GString {
+        self.world
+            .as_ref()
+            .map(|w| GString::from(w.code().to_string().as_str()))
+            .unwrap_or_default()
+    }
+
+    /// Content hash of one chunk, as 16 hex digits. Peers compare these on join.
+    #[func]
+    fn chunk_hash(&self, cx: i32, cz: i32) -> GString {
+        match self.world() {
+            Some(w) => convert::hash_hex(w.heightfield(ChunkCoord::new(cx, cz)).content_hash()),
+            None => GString::new(),
+        }
+    }
+
+    /// 129 × 129 heights in metres for `HeightMapShape3D.map_data`.
+    #[func]
+    fn chunk_heights(&self, cx: i32, cz: i32) -> PackedFloat32Array {
+        match self.world() {
+            Some(w) => PackedFloat32Array::from(
+                w.heightfield(ChunkCoord::new(cx, cz))
+                    .heights_m()
+                    .as_slice(),
+            ),
+            None => PackedFloat32Array::new(),
+        }
+    }
+
+    /// Mesh arrays for one chunk at LOD spacing `step` (1, 2, 4 or 8 m).
+    #[func]
+    fn chunk_mesh(&self, cx: i32, cz: i32, step: i32) -> VarArray {
+        let Some(w) = self.world() else {
+            return VarArray::new();
+        };
+        if !mesh::LOD_STEPS.contains(&(step as u32)) {
+            godot_error!(
+                "WorldGen.chunk_mesh: step must be one of {:?}",
+                mesh::LOD_STEPS
+            );
+            return VarArray::new();
+        }
+        let hf = w.heightfield(ChunkCoord::new(cx, cz));
+        convert::mesh_arrays(&mesh::chunk_mesh(w, &hf, step as u32))
+    }
+
+    /// Trees in one chunk, packed as `[x, y, z, yaw, scale, kind] * n` (chunk-local).
+    #[func]
+    fn chunk_trees(&self, cx: i32, cz: i32) -> PackedFloat32Array {
+        match self.world() {
+            Some(w) => {
+                let hf = w.heightfield(ChunkCoord::new(cx, cz));
+                convert::trees_packed(&scatter::trees(w, &hf))
+            }
+            None => PackedFloat32Array::new(),
+        }
+    }
+
+    /// Props in one chunk, packed as `[3×4 transform, kind, variant] * n` (chunk-local; see
+    /// `ChunkBuilder.poll`).
+    #[func]
+    fn chunk_props(&self, cx: i32, cz: i32) -> PackedFloat32Array {
+        match self.world() {
+            Some(w) => {
+                let hf = w.heightfield(ChunkCoord::new(cx, cz));
+                let trees = scatter::trees(w, &hf);
+                convert::props_packed(&scatter::props(w, &hf, &trees))
+            }
+            None => PackedFloat32Array::new(),
+        }
+    }
+
+    /// Terrain height in metres at a world position (matches the collision shape).
+    #[func]
+    fn height_at(&self, x: f32, z: f32) -> f32 {
+        self.world().map_or(0.0, |w| w.height_at(x, z))
+    }
+}
+
+impl WorldGen {
+    fn world(&self) -> Option<&World> {
+        if self.world.is_none() {
+            godot_error!("WorldGen: call load(code) first");
+        }
+        self.world.as_ref()
+    }
+}

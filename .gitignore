@@ -1,0 +1,24 @@
+# Rust
+/target/
+
+# Godot
+game/.godot/
+game/bin/**/*.dylib
+game/bin/**/*.so
+game/bin/**/*.dll
+game/bin/**/*.pdb
+/export/
+
+# OS / editors
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Asset pipeline (re-downloadable / regenerated)
+art-src/cache/
+art-src/build/
+__pycache__/
+
+# Local agent / editor settings
+.claude/settings.local.json

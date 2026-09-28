@@ -1,0 +1,42 @@
+# systemd unit for detour-relay (Raspberry Pi / OptiPlex).
+#
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin detour
+#   sudo install -m 755 detour-relay /usr/local/bin/
+#   sudo install -m 644 detour-relay.service /etc/systemd/system/
+#   sudo systemctl enable --now detour-relay
+#
+# Then forward UDP 24650 on your router to this machine. Optional friends-only password:
+#   sudo systemctl edit detour-relay   ->   [Service] Environment=DETOUR_RELAY_PASSWORD=...
+
+[Unit]
+Description=Detour game relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=detour
+Group=detour
+ExecStart=/usr/local/bin/detour-relay
+Environment=DETOUR_RELAY_BIND=0.0.0.0:24650
+Restart=on-failure
+RestartSec=2
+
+# Sandboxing: the relay only needs one UDP socket.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+MemoryMax=64M
+
+[Install]
+WantedBy=multi-user.target

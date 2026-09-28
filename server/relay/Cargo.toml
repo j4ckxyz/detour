@@ -1,0 +1,11 @@
+[package]
+name = "detour-relay"
+version = "0.1.0"
+description = "Tiny game-agnostic ENet relay for Detour rooms (runs on a Raspberry Pi)"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rusty_enet = "0.4"
+getrandom = "0.4"

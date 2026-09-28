@@ -1,0 +1,29 @@
+{
+  "_comment": "CC0 assets from Poly Haven (https://polyhaven.com), picked by eye from the catalogue. 'prefer' ids are tried first; 'search' is only a fallback if an asset disappears. Resolved ids are pinned in assets.lock.json.",
+  "resolution": "1k",
+  "textures": {
+    "paint":        {"prefer": ["green_metal_rust"], "search": ["painted metal"]},
+    "rubber":       {"prefer": ["rubberized_track"], "search": ["rubber"]},
+    "metal":        {"prefer": ["blue_metal_plate"], "search": ["metal plate"]},
+    "dark_metal":   {"prefer": ["metal_plate_02"], "search": ["metal plate"]},
+    "wall_panel":   {"prefer": ["japanese_cedar_planks"], "search": ["wood panel"]},
+    "floor":        {"prefer": ["laminate_floor_02"], "search": ["laminate"]},
+    "fabric":       {"prefer": ["fabric_pattern_07"], "search": ["fabric pattern"]},
+    "fabric_plaid": {"prefer": ["fabric_pattern_05"], "search": ["fabric pattern"]},
+    "counter":      {"prefer": ["wood_table_worn"], "search": ["wood table"]},
+    "plank":        {"prefer": ["weathered_brown_planks"], "search": ["planks"]},
+    "bark":         {"prefer": ["pine_bark"], "search": ["bark"]},
+    "needles":      {"prefer": ["forest_leaves_03"], "search": ["forest leaves"]},
+    "ground_grass": {"prefer": ["leafy_grass"], "search": ["grass"]},
+    "ground_dirt":  {"prefer": ["forrest_ground_01"], "search": ["forest ground"]},
+    "ground_rock":  {"prefer": ["rock_face_03"], "search": ["rock face"]},
+    "ground_snow":  {"prefer": ["snow_02"], "search": ["snow"]}
+  },
+  "models": {
+    "rocks_a":  {"prefer": ["rock_moss_set_01"], "search": ["rock moss"]},
+    "rocks_b":  {"prefer": ["rock_moss_set_02"], "search": ["rock moss"]},
+    "rocks_c":  {"prefer": ["boulder_01"], "search": ["boulder"]},
+    "stump":    {"prefer": ["tree_stump_01"], "search": ["stump"]},
+    "log":      {"prefer": ["dead_tree_trunk"], "search": ["dead tree"]}
+  }
+}

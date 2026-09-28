@@ -1,0 +1,14 @@
+[package]
+name = "rvcore"
+version = "0.1.0"
+description = "Detour GDExtension: exposes rvgen and native hot paths to Godot"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+rvgen.workspace = true
+godot = { version = "0.5.5", features = ["api-4-7"] }

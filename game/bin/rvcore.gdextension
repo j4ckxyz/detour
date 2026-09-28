@@ -1,0 +1,12 @@
+[configuration]
+
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.7
+reloadable = true
+
+[libraries]
+
+; Built by tools/build_native.py (CI builds all three; see .github/workflows/build.yml).
+macos = "res://bin/macos/librvcore.dylib"
+linux.x86_64 = "res://bin/linux/librvcore.x86_64.so"
+windows.x86_64 = "res://bin/windows/rvcore.x86_64.dll"

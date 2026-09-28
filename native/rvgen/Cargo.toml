@@ -1,0 +1,9 @@
+[package]
+name = "rvgen"
+version = "0.1.0"
+description = "Deterministic, engine-independent world generation for Detour"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
