@@ -4,15 +4,33 @@ A snapshot of the playable build (updated 2026-09-28), for comparing against *RV
 Everything below is implemented and running unless it's in [Not in the game yet](#not-in-the-game-yet).
 The long-term design is in [PLAN.md](PLAN.md).
 
-**In one line:** a single-player sandbox where you drive a heavy 1970s motorhome, with a real
-clutch and gearbox, across endless procedurally generated pine hills scattered with rocks,
-stumps, logs and trees. There are no objectives, trips or other players yet.
+**In one line:** a single-player sandbox where you walk around, climb into and drive a heavy
+1970s motorhome (real clutch and gearbox) across endless procedurally generated pine hills,
+and carry stuff about. There are no objectives, trips or other players yet.
 
 ---
 
 ## Controls
 
-### Keyboard and mouse
+### On foot (keyboard and mouse)
+
+| Key | Action |
+|---|---|
+| **W A S D** / arrows | Walk |
+| **Shift** (hold) | Sprint |
+| **Ctrl** (hold) | Crouch |
+| **Space** | Jump |
+| **Mouse** | Look |
+| **E** | Interact with what you're looking at: open/close the door, sit in a seat (the driver's seat takes the wheel), pick up an item |
+| **Left click** | Use the held item (e.g. eat a burger) |
+| **Right click** | Throw the held item (inside the RV: put it down) |
+| **Q** / **G** | Drop the held item (inside the RV it's stowed and rides along) |
+| **F** | Get up from a seat |
+| **Esc** | Pause menu |
+
+Walk through the open side door to get in or out; small ledges and rocks are stepped over.
+
+### Driving (keyboard and mouse)
 
 | Key | Action |
 |---|---|
@@ -38,7 +56,12 @@ stumps, logs and trees. There are no objectives, trips or other players yet.
 | **F3** | Show/hide the performance overlay |
 | **F5** / **F6** / **F7** / **F8** | Graphics preset: potato / low / medium / high |
 
-### Controller (Xbox layout; other pads map to the same positions)
+### Controller on foot
+
+Left stick walk, right stick look, **A** jump, **L3** sprint, **R3** crouch, **X** interact,
+**RT** use item, **LT** throw, **B** drop, **D-pad right** get up from a seat, **Start** menu.
+
+### Controller driving (Xbox layout; other pads map to the same positions)
 
 | Button | Action |
 |---|---|
@@ -65,6 +88,27 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
 - **Drive tour** (`src/debug/drive_tour.tscn`): drives itself and saves screenshots.
 
 ---
+
+## On foot
+
+- **First-person player** with walking (4.2 m/s), sprinting (7 m/s), crouching and jumping; steps
+  up ledges up to 40 cm; collides with the terrain, rocks, trees and the RV's hull.
+- **Interaction**: a crosshair and an "E  …" prompt for whatever you're looking at within reach
+  (doors, seats, items).
+- **The RV's side door** opens and closes (animated). Walk through it to get in; walk out to
+  leave. The shut door blocks the way.
+- **Inside the RV** you walk around its real interior while it drives: the interior is its own
+  physics space in the RV's frame, so it's rock-steady however the RV bounces. You feel it
+  lean (gravity pulls you to the low side) and brake (you stumble forward a little).
+- **Seats**: driver (takes the wheel and the driving cameras; the parking brake goes on when
+  you get up at low speed), passenger and two dinette seats (look around from them).
+- **Items**: pick up, carry (one at a time; big ones like planks, tires and jerry cans are
+  held two-handed and dropped if you sit), drop, throw (heavier things go less far) and use.
+  Put something down inside the RV and it stays where you put it and rides along.
+  Items in the world: planks, jerry can, scrap metal, spare tire and motor oil by the RV at
+  the start; winch remote, first-aid kit and two burgers inside. Burgers heal 30 (eat with
+  left click); the other items' uses arrive with their systems (winch, repairs, fuel).
+- **Health** is shown (100); nothing hurts you yet.
 
 ## The world
 
@@ -269,10 +313,7 @@ Downloaded builds keep themselves current from this repo's GitHub releases:
 
 Planned (see PLAN.md), roughly in the order they're coming:
 
-- **Players**:
-  - On-foot first-person characters.
-  - Getting in and out of the RV, walking inside it while it moves, the roof ladder, seats.
-  - Picking up, carrying and throwing items.
+- **Players**: the roof ladder and roof, a visible body (for co-op), a hotbar/inventory.
 - **The trip**:
   - A start camp, roads you can see, gas-station checkpoints (refuel, repair, restock,
     revive, save) and home at the end.

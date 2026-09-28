@@ -10,6 +10,8 @@ extends RigidBody3D
 ## Emitted when the engine stalls or starts, for UI and sound.
 signal engine_stalled
 signal engine_started
+## A seat's occupant changed (seat names: &"driver", &"passenger", &"dinette_front", ...).
+signal seat_used(seat: StringName, player: Player)
 
 const MODEL_COLLISION := "res://assets/models/rv_collision.glb"
 ## Physics layer of vehicles.
@@ -72,6 +74,21 @@ var _steering_rest := Transform3D.IDENTITY
 var _steering_axis := Vector3.UP
 var _gear_lever: Node3D
 var _gear_lever_rest := Basis.IDENTITY
+var _door: Node3D
+var _door_rest := Basis.IDENTITY
+var _door_angle := 0.0
+
+## The inside, as its own physics world (see `RVInterior`).
+var interior := RVInterior.new()
+## Items put down inside ride here, frozen (see `Item`).
+var stash := Node3D.new()
+var door_open := false:
+	set(open):
+		door_open = open
+		interior.set_door_open(open)
+## Seat name → {eye, stand} in RV space: where a seated player looks from, and where they
+## stand up.
+var seats: Dictionary[StringName, Dictionary] = {}
 
 @onready var model: Node3D = $Model
 
@@ -103,6 +120,7 @@ func _ready() -> void:
 	_steering_axis = Vector3(0.0, sin(deg_to_rad(25.0)), -cos(deg_to_rad(25.0)))
 	_gear_lever = _marker("GearStick")
 	_gear_lever_rest = _gear_lever.basis
+	_build_interior() # Needs driver_eye.
 
 	drivetrain.stalled.connect(engine_stalled.emit)
 	drivetrain.started.connect(engine_started.emit)
@@ -170,6 +188,47 @@ func _build_wheels() -> void:
 		wheel.visual_rest = visual.basis
 		add_child(wheel)
 		wheels.append(wheel)
+
+
+func _build_interior() -> void:
+	interior.build(load(MODEL_COLLISION) as PackedScene)
+	add_child(interior)
+	stash.name = "Stash"
+	add_child(stash)
+	_door = _marker("Door_Entry")
+	_door_rest = _door.basis
+	var door := Interactable.new()
+	door.name = "DoorHandle"
+	door.position = Vector3(interior.door_x_outer, interior.floor_y + 0.8, (interior.door_z.x + interior.door_z.y) * 0.5)
+	door.reach = 2.4
+	door.prompt_for = func(_p: Player) -> String: return "Close door" if door_open else "Open door"
+	door.used.connect(func(_p: Player) -> void: door_open = not door_open)
+	add_child(door)
+
+	# (seat, marker, label, how far behind the seat the player stands up)
+	var seat_specs: Array[Array] = [
+		[&"driver", "Seat_Driver", "Drive", Vector3(0.0, 0.0, 0.55)],
+		[&"passenger", "Seat_Passenger", "Sit", Vector3(0.0, 0.0, 0.55)],
+		[&"dinette_front", "Seat_DinetteFront", "Sit", Vector3(0.55, 0.0, 0.0)],
+		[&"dinette_rear", "Seat_DinetteRear", "Sit", Vector3(0.55, 0.0, 0.0)],
+	]
+	for spec: Array in seat_specs:
+		var seat_pos := _local(spec[1])
+		var eye := seat_pos + Vector3(0.0, 0.62, 0.02)
+		if spec[0] == &"driver":
+			eye = driver_eye.origin
+		var stand := seat_pos + (spec[3] as Vector3)
+		stand.y = interior.floor_y + 0.05
+		seats[spec[0]] = {"eye": eye, "stand": stand}
+		var seat := Interactable.new()
+		seat.name = "Seat_" + String(spec[0])
+		seat.position = seat_pos + Vector3(0.0, 0.3, 0.0)
+		seat.reach = 1.6
+		var label: String = spec[2]
+		var seat_name: StringName = spec[0]
+		seat.prompt_for = func(p: Player) -> String: return label if p.inside and p.seat == &"" else ""
+		seat.used.connect(func(p: Player) -> void: p.sit(self, seat_name))
+		add_child(seat)
 
 
 func _build_headlights() -> void:
@@ -357,6 +416,13 @@ func _anti_roll(left: RVWheel, right: RVWheel, stiffness: float) -> void:
 	var up := global_basis.y
 	apply_force(up * force, left.global_position - global_position)
 	apply_force(-up * force, right.global_position - global_position)
+
+
+func _process(delta: float) -> void:
+	var target := deg_to_rad(-100.0) if door_open else 0.0
+	if not is_equal_approx(_door_angle, target):
+		_door_angle = move_toward(_door_angle, target, delta * 4.0)
+		_door.basis = Basis(Vector3.UP, _door_angle) * _door_rest
 
 
 func _update_cab_visuals() -> void:

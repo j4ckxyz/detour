@@ -29,6 +29,20 @@ var _defaults: Dictionary[StringName, Array] = {
 	&"camera_look_up": [_axis(JOY_AXIS_RIGHT_Y, -1.0)],
 	&"camera_look_down": [_axis(JOY_AXIS_RIGHT_Y, 1.0)],
 	&"toggle_help": [_key(KEY_F1)],
+	# On foot.
+	&"move_forward": [_key(KEY_W), _key(KEY_UP), _axis(JOY_AXIS_LEFT_Y, -1.0)],
+	&"move_back": [_key(KEY_S), _key(KEY_DOWN), _axis(JOY_AXIS_LEFT_Y, 1.0)],
+	&"move_left": [_key(KEY_A), _key(KEY_LEFT), _axis(JOY_AXIS_LEFT_X, -1.0)],
+	&"move_right": [_key(KEY_D), _key(KEY_RIGHT), _axis(JOY_AXIS_LEFT_X, 1.0)],
+	&"jump": [_key(KEY_SPACE), _button(JOY_BUTTON_A)],
+	&"sprint": [_key(KEY_SHIFT), _button(JOY_BUTTON_LEFT_STICK)],
+	&"crouch": [_key(KEY_CTRL), _button(JOY_BUTTON_RIGHT_STICK)],
+	&"interact": [_key(KEY_E), _button(JOY_BUTTON_X)],
+	&"use_item": [_mouse(MOUSE_BUTTON_LEFT), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)],
+	&"throw_item": [_mouse(MOUSE_BUTTON_RIGHT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)],
+	&"drop_item": [_key(KEY_Q), _key(KEY_G), _button(JOY_BUTTON_B)],
+	# In a seat.
+	&"leave_seat": [_key(KEY_F), _button(JOY_BUTTON_DPAD_RIGHT)],
 }
 
 

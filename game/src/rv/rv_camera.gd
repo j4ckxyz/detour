@@ -27,9 +27,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	var button := event as InputEventMouseButton
-	if button and button.pressed and button.button_index == MOUSE_BUTTON_LEFT:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if not current:
 		return
 	if event.is_action_pressed(&"camera_toggle") and not event.is_echo():
 		mode = Mode.COCKPIT if mode == Mode.CHASE else Mode.CHASE

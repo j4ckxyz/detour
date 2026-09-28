@@ -29,6 +29,24 @@ func _tour() -> void:
 		await get_tree().process_frame
 	var rv := _pg.rv
 	var cam := _pg.camera
+	var player := _pg.player
+	await _seconds(2.5)
+	await _snap("on_foot")
+	rv.door_open = true
+	await _seconds(1.2)
+	await _snap("door_open")
+	player.board(rv.to_local(player.global_position))
+	player.look(0.4, -0.15) # Looking forward towards the cab and dinette.
+	await _seconds(0.5)
+	await _snap("inside")
+	for n: Node in rv.stash.get_children():
+		if n is Item and (n as Item).kind == &"burger":
+			player.pick_up(n)
+			break
+	player.look(PI, -0.2) # Back towards the kitchen and bed.
+	await _seconds(0.5)
+	await _snap("inside_holding")
+	player.take_wheel()
 	_pg.driver.enabled = false
 	await _seconds(2.5) # Let the view stream in and the RV settle.
 	await _snap("parked_chase")

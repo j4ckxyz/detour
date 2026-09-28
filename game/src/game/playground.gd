@@ -1,7 +1,7 @@
 class_name Playground
 extends Node3D
-## Drive the RV through a generated world. Phase 1 playground: becomes the game scene once
-## trips, players and netcode land.
+## Walk, board and drive the RV through a generated world. Becomes the game scene once trips
+## and netcode land.
 ##
 ## User arguments (after `--`):
 ##   --seed=CODE      world seed code
@@ -38,6 +38,10 @@ var driver := RVDriverInput.new()
 var hud := RVHud.new()
 var overlay := PerfOverlay.new()
 var menu := PauseMenu.new()
+var player := Player.new()
+var player_hud := PlayerHud.new()
+## Loose items in the world.
+var items := Node3D.new()
 var rv: RV
 var is_spawned := false
 
@@ -60,7 +64,10 @@ func _ready() -> void:
 	rv.global_position = START + Vector3.UP * (world.height_at(START.x, START.z) + 1.0)
 	rv.set_automatic(_args.has("automatic"))
 
+	items.name = "Items"
+	add_child(items)
 	driver.rv = rv
+	driver.enabled = false # Until someone sits in the driver's seat.
 	driver.reset_requested.connect(_on_reset_requested)
 	add_child(driver)
 	camera.rv = rv
@@ -76,7 +83,15 @@ func _ready() -> void:
 		return
 
 	hud.rv = rv
+	hud.visible = false
 	add_child(hud)
+	player.name = "Player"
+	player.rv = rv
+	player.world_items = items
+	player.seat_changed.connect(_on_seat_changed)
+	player_hud.player = player
+	player_hud.visible = false
+	add_child(player_hud)
 	overlay.streamer = streamer
 	overlay.extra_lines = _overlay_lines
 	overlay.visible = false
@@ -85,6 +100,11 @@ func _ready() -> void:
 
 	_spawn_box.size = RV_HALF_EXTENTS * 2.0
 	_apply_preset(StringName(_args.get("preset", String(Graphics.detect_default()))))
+
+
+func _exit_tree() -> void:
+	if not player.is_inside_tree():
+		player.free() # Quit before spawning.
 
 
 func _parse_args() -> void:
@@ -97,6 +117,7 @@ func _parse_args() -> void:
 
 func _apply_preset(preset: StringName) -> void:
 	lighting.apply_preset(preset, get_viewport(), streamer, camera)
+	player.camera.far = camera.far
 
 
 func _overlay_lines() -> String:
@@ -104,6 +125,11 @@ func _overlay_lines() -> String:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	var button := event as InputEventMouseButton
+	if button and button.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		get_viewport().set_input_as_handled()
+		return
 	var key := event as InputEventKey
 	if key and key.pressed and not key.echo and PRESET_KEYS.has(key.physical_keycode):
 		_apply_preset(PRESET_KEYS[key.physical_keycode])
@@ -117,8 +143,64 @@ func _physics_process(_dt: float) -> void:
 		push_warning("No clear, level spot near %s; dropping the RV there anyway." % _spawn_near)
 		spot = Transform3D(Basis.IDENTITY, _spawn_near + Vector3.UP * (world.height_at(_spawn_near.x, _spawn_near.z) + 1.0))
 	_place_rv(spot)
+	_spawn_player()
+	_spawn_starter_items()
 	is_spawned = true
 	spawned.emit()
+
+
+## Puts the player on foot by the RV's door, facing it.
+func _spawn_player() -> void:
+	var door := Vector3(rv.interior.door_x_outer + 1.6, 0.0, (rv.interior.door_z.x + rv.interior.door_z.y) * 0.5)
+	var at := rv.to_global(door)
+	at.y = world.height_at(at.x, at.z) + 0.1
+	add_child(player)
+	player.global_position = at
+	var to_rv := rv.global_position - at
+	player.look(atan2(-to_rv.x, -to_rv.z), -0.1)
+	player.camera.current = true
+	player_hud.visible = true
+	streamer.focus = player
+	streamer.collision_foci = [rv, player]
+
+
+## A few things to find: planks and fuel by the RV, the winch remote and first aid inside.
+func _spawn_starter_items() -> void:
+	var outside: Array[Array] = [
+		[&"plank", Vector3(3.0, 0.0, 1.0)], [&"plank", Vector3(3.0, 0.0, 1.4)],
+		[&"jerrycan", Vector3(2.6, 0.0, -2.2)], [&"scrap_metal", Vector3(3.2, 0.0, -1.6)],
+		[&"spare_tire", Vector3(-2.8, 0.0, 0.5)], [&"motor_oil", Vector3(2.4, 0.0, 2.4)],
+	]
+	for spec: Array in outside:
+		var item := ItemLibrary.create(spec[0])
+		var at := rv.to_global(spec[1])
+		at.y = world.height_at(at.x, at.z) + 0.3
+		items.add_child(item)
+		item.global_position = at
+	var inside: Array[Array] = [
+		[&"winch_remote", Vector3(-0.3, 1.34, -2.35)], [&"first_aid", Vector3(-0.85, 1.6, -0.62)],
+		[&"burger", Vector3(-0.7, 1.6, -0.5)], [&"burger", Vector3(-0.95, 1.6, -0.45)],
+	]
+	for spec: Array in inside:
+		var item := ItemLibrary.create(spec[0])
+		rv.stash.add_child(item)
+		item.stow(rv, Transform3D(Basis.IDENTITY, spec[1]))
+
+
+func _on_seat_changed(seat: StringName) -> void:
+	var driving := seat == &"driver"
+	driver.enabled = driving
+	hud.visible = driving
+	camera.current = driving
+	player.camera.current = not driving
+	if not driving:
+		rv.throttle = 0.0
+		rv.brake = 0.0
+		rv.steer_input = 0.0
+		rv.clutch_input = 0.0
+		rv.handbrake = false
+		if absf(rv.forward_speed()) < 1.0:
+			rv.parking_brake = true
 
 
 func _on_reset_requested() -> void:
