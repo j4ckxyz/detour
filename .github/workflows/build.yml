@@ -113,7 +113,7 @@ jobs:
           unzip -q Detour.zip
           codesign --verify --deep --strict Detour.app
           for f in Detour.app/Contents/MacOS/Detour Detour.app/Contents/Frameworks/librvcore.dylib; do
-            lipo "$f" -verify_arch arm64 x86_64
+            for arch in arm64 x86_64; do lipo "$f" -verify_arch "$arch"; done
           done
           cp Detour.zip ../../dist/Detour-macos-universal.zip
       - uses: actions/upload-artifact@v4
