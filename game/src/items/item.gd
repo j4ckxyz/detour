@@ -36,13 +36,13 @@ func interact_prompt(player: Player) -> String:
 			return "" # The drum's own prompt handles it.
 		if player.held == null and winch.state == RVWinch.State.ANCHORED:
 			return "Unhook the %s winch" % winch.label
-	if player.held != null:
+	if not player.can_pick_up(self):
 		return "Hands full (%s)" % player.held.display_name()
 	return "Pick up %s" % display_name()
 
 
 func interact(player: Player) -> void:
-	if holder == null and player.held == null:
+	if holder == null and player.can_pick_up(self):
 		player.pick_up(self)
 
 

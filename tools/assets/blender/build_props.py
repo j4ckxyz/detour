@@ -61,6 +61,16 @@ built.append(finish("JerryCan", [
     lib.cylinder("jcs", 0.03, 0.08, (0.13, 0, 0.47), "z", M["black"], 12),
 ]))
 
+# Cordless drill (for wheel bolts): body, grip, chuck and bit, battery. Pointing along +Y.
+built.append(finish("Drill", [
+    lib.box("dr_body", (-0.035, -0.08, 0.14), (0.035, 0.09, 0.21), M["yellow"], bevel=0.015),
+    lib.box("dr_grip", (-0.028, -0.06, 0.04), (0.028, -0.005, 0.15), M["black"], bevel=0.012),
+    lib.box("dr_batt", (-0.04, -0.085, 0.0), (0.04, 0.01, 0.045), M["black"], bevel=0.01),
+    lib.cylinder("dr_chuck", 0.022, 0.05, (0, 0.115, 0.175), "y", M["black"], 10),
+    lib.cylinder("dr_bit", 0.006, 0.06, (0, 0.17, 0.175), "y", M["rim"], 6),
+    lib.box("dr_trig", (-0.008, -0.005, 0.1), (0.008, 0.01, 0.135), M["red"]),
+]))
+
 # Plank for bridges: 5 m, matching rvgen::route::PLANK_LENGTH (gaps are sized to it).
 built.append(finish("Plank", [lib.box("pl", (-2.5, -0.15, 0), (2.5, 0.15, 0.07), M["plank"], bevel=0.008)], tile=1.2))
 

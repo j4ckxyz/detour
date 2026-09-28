@@ -40,7 +40,16 @@ var rv: RV
 var world_items: Node
 var input_enabled := true
 var sensitivity := 0.0025
-var held: Item
+## The hotbar: small things pocket into the other slots, the selected one is in your hand.
+## Big things (two-handed) need an empty hand and can't be pocketed.
+const SLOTS := 4
+var slots: Array[Item] = [null, null, null, null]
+var selected := 0
+var held: Item:
+	get:
+		return slots[selected]
+	set(item):
+		slots[selected] = item
 ## &"" when standing, else the seat name (see RV.seats).
 var seat := &""
 ## In the RV's interior space (walking inside, or seated).
@@ -54,6 +63,8 @@ var camera := Camera3D.new()
 var hand := Node3D.new()
 ## Which winch the remote works (index into rv.winches).
 var winch_choice := 0
+var message := ""
+var message_time := 0.0
 ## True while walking into the RV hard enough to push it.
 var pushing := false
 
@@ -63,6 +74,7 @@ var _crouch := 0.0
 var _proxy := CharacterBody3D.new()
 var _prev_rv_velocity := Vector3.ZERO
 var _ghost := MeshInstance3D.new()
+var _tool_timer := 0.0
 
 
 func _init() -> void:
@@ -149,6 +161,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			stand_up()
 			get_viewport().set_input_as_handled()
 		return
+	for i: int in SLOTS:
+		if event.is_action_pressed(StringName("slot_%d" % (i + 1))):
+			select_slot(i)
+			get_viewport().set_input_as_handled()
+			return
+	if event.is_action_pressed(&"slot_next") or event.is_action_pressed(&"slot_prev"):
+		var step := 1 if event.is_action_pressed(&"slot_next") else -1
+		select_slot(wrapi(selected + step, 0, SLOTS))
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed(&"interact") and target:
 		target.call(&"interact", self)
 		get_viewport().set_input_as_handled()
@@ -162,6 +184,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(dt: float) -> void:
 	_work_winch_remote()
+	_work_held_tool(dt)
 	if seat != &"":
 		_follow_rv(_proxy.position)
 		return
@@ -176,7 +199,8 @@ func _physics_process(dt: float) -> void:
 		_move_outside(dt, wish, speed, jump)
 
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
+	message_time = maxf(0.0, message_time - dt)
 	_place_camera()
 	_find_target()
 	_update_ghost()
@@ -250,6 +274,16 @@ func _push_rv(wished: Vector3, wish: Vector2) -> void:
 
 
 ## The winch remote: hold Use to reel in, Throw to pay out (works from a seat too).
+## Tools you hold the button down for (the drill): ticks while Use is held.
+func _work_held_tool(dt: float) -> void:
+	_tool_timer = maxf(0.0, _tool_timer - dt)
+	if held == null or not input_enabled or seat != &"" or not Input.is_action_pressed(&"use_item"):
+		return
+	var action := ItemLibrary.hold_action(held.kind)
+	if action.is_valid() and _tool_timer <= 0.0:
+		_tool_timer = action.call(held, self)
+
+
 func _work_winch_remote() -> void:
 	if rv == null:
 		return
@@ -371,10 +405,53 @@ func take_wheel() -> void:
 
 
 func pick_up(item: Item) -> void:
+	var big := bool(item.def.get("two_handed", false))
 	if held:
-		return
+		if big or held.def.get("two_handed", false):
+			return # Big things need a free hand.
+		var free := slots.find(null)
+		if free < 0:
+			return
+		select_slot(free)
 	held = item
 	item.grab(self, hand)
+	item.visible = true
+
+
+## Whether there's room to pick `item` up.
+func can_pick_up(item: Item) -> bool:
+	if held == null:
+		return true
+	if item.def.get("two_handed", false) or held.def.get("two_handed", false):
+		return false
+	return slots.has(null)
+
+
+## Switches the hand to another slot (not while carrying something big).
+func select_slot(i: int) -> void:
+	if i == selected or (held and held.def.get("two_handed", false)):
+		return
+	if held:
+		held.visible = false
+	selected = i
+	if held:
+		held.visible = true
+
+
+## The first pocketed (or held) item of a kind, or null.
+func find_item(kind: StringName) -> Item:
+	for it: Item in slots:
+		if it and it.kind == kind:
+			return it
+	return null
+
+
+## Uses up an item from the hotbar (scrap for a repair, an empty oil bottle...).
+func consume(item: Item) -> void:
+	var i := slots.find(item)
+	if i >= 0:
+		slots[i] = null
+	item.queue_free()
 
 
 func drop_held() -> void:
@@ -416,9 +493,20 @@ func _stow(item: Item) -> void:
 
 func eat(item: Item) -> void:
 	health = minf(MAX_HEALTH, health + 30.0)
-	if held == item:
-		held = null
-	item.queue_free()
+	consume(item)
+
+
+## A short message for the player (shown by the HUD for a few seconds).
+func say(text: String) -> void:
+	message = text
+	message_time = 4.0
+
+
+## What of the RV the crosshair is on (see RVDamage.aim), within arm's reach.
+func aim_rv() -> Dictionary:
+	if rv == null or inside:
+		return {}
+	return rv.damage.aim(camera.global_position, -camera.global_basis.z, 2.8)
 
 
 func _place_camera() -> void:

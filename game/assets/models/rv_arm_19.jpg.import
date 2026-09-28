@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bcopdm54c7fuf"
-path="res://.godot/imported/rv_normal_21.jpg-c869075efff2c1ad37faabbe21181ad2.ctex"
+uid="uid://de13l2lvoqs3r"
+path="res://.godot/imported/rv_arm_19.jpg-afdcccf2995c014f25eb3945760fbdc7.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "b71a65f1e511dbc9ecf81cdaaca0f251"
+"md5": "c301bfec4608607c7e745272219516e4"
 }
 
 [deps]
 
-source_file="res://assets/models/rv_normal_21.jpg"
-dest_files=["res://.godot/imported/rv_normal_21.jpg-c869075efff2c1ad37faabbe21181ad2.ctex"]
+source_file="res://assets/models/rv_arm_19.jpg"
+dest_files=["res://.godot/imported/rv_arm_19.jpg-afdcccf2995c014f25eb3945760fbdc7.ctex"]
 
 [params]
 

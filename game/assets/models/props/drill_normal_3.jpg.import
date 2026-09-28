@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bcopdm54c7fuf"
-path="res://.godot/imported/rv_normal_21.jpg-c869075efff2c1ad37faabbe21181ad2.ctex"
+uid="uid://b1vr0vs4rrh55"
+path="res://.godot/imported/drill_normal_3.jpg-94e6c64c37c0cf8c43a2546a1877513a.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "b71a65f1e511dbc9ecf81cdaaca0f251"
+"md5": "415ee89722920bf318132ac6fbd041c1"
 }
 
 [deps]
 
-source_file="res://assets/models/rv_normal_21.jpg"
-dest_files=["res://.godot/imported/rv_normal_21.jpg-c869075efff2c1ad37faabbe21181ad2.ctex"]
+source_file="res://assets/models/props/drill_normal_3.jpg"
+dest_files=["res://.godot/imported/drill_normal_3.jpg-94e6c64c37c0cf8c43a2546a1877513a.ctex"]
 
 [params]
 

@@ -58,6 +58,7 @@ var headlights := false:
 @export var tire_force_height := 0.35
 
 var drivetrain := RVDrivetrain.new()
+var damage := RVDamage.new()
 var gear_stick := RVGearStick.new()
 var wheels: Array[RVWheel] = []
 ## First-person camera point (the driver's eyes), in RV space.
@@ -107,6 +108,8 @@ func _ready() -> void:
 	angular_damp = 0.4
 	can_sleep = false
 	continuous_cd = true
+	contact_monitor = true # For impact damage (see _integrate_forces).
+	max_contacts_reported = 12
 	collision_layer = VEHICLE_LAYER
 	collision_mask = TerrainStreamer.WORLD_LAYER | VEHICLE_LAYER
 	var surface := PhysicsMaterial.new()
@@ -133,6 +136,10 @@ func _ready() -> void:
 		winch.setup(self, which.to_lower(), _marker("WinchDrum_" + which))
 		winches.append(winch)
 
+	damage.name = "Damage"
+	add_child(damage)
+	damage.setup(self)
+	drivetrain.can_start = damage.can_start
 	drivetrain.stalled.connect(engine_stalled.emit)
 	drivetrain.started.connect(engine_started.emit)
 	drivetrain.gear_changed.connect(gear_stick.set_gear)
@@ -321,11 +328,14 @@ func _physics_process(dt: float) -> void:
 			service_brake = throttle
 
 	_update_steering(dt, speed)
-	for wheel: RVWheel in wheels:
+	drivetrain.power_scale = damage.tick(dt, drive_throttle)
+	for i: int in wheels.size():
+		var wheel := wheels[i]
 		wheel.probe(self)
+		wheel.surface_grip = damage.wheel_grip(i)
 		if surface_query.is_valid() and wheel.grounded:
 			wheel.mud = surface_query.call(wheel.contact.x, wheel.contact.z)
-			wheel.surface_grip = 1.0 - 0.6 * wheel.mud
+			wheel.surface_grip *= 1.0 - 0.6 * wheel.mud
 
 	# Drivetrain: the engine is coupled to the driven wheels' rolling speed. (Feeding it
 	# wheelspin too would couple the light axle to the flywheel through a stiff clutch,
@@ -362,6 +372,10 @@ func _physics_process(dt: float) -> void:
 			wheel_brake += HANDBRAKE_FORCE * 0.5
 		wheel.apply_forces(self, dt, wheel_drive, wheel_brake)
 		excess += wheel.excess_drive
+		# A hard landing on one wheel (far past its share of the weight) hurts it.
+		var slam := wheel.load / maxf(1.0, wheel.spring_rate * (wheel.travel - RIDE_LENGTH))
+		if slam > 4.0:
+			damage.damage_wheel(wheels.find(wheel), (slam - 4.0) * 4.0)
 	_update_wheelspin(dt, axle_torque, excess, driven_on_ground.is_empty())
 
 	for winch: RVWinch in winches:
@@ -373,6 +387,14 @@ func _physics_process(dt: float) -> void:
 	for wheel: RVWheel in wheels:
 		wheel.update_visual(self, dt, _axle_spin if wheel.driven else 0.0)
 	_update_cab_visuals()
+
+
+func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	for i: int in state.get_contact_count():
+		var impulse := state.get_contact_impulse(i).length()
+		if impulse > RVDamage.IMPACT_THRESHOLD:
+			var at := to_local(state.get_contact_local_position(i))
+			damage.hit(at, impulse, state.get_contact_local_normal(i))
 
 
 func _automatic_selector(dt: float, speed: float) -> void:

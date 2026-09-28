@@ -25,3 +25,7 @@ __pycache__/
 
 # Stamped by CI (tools/ci/write_build_info.sh)
 game/build_info.cfg
+
+# Secrets (API keys for asset generation)
+.env
+.env.*

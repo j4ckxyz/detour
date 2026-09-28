@@ -124,6 +124,31 @@ func _process(_delta: float) -> void:
 	if d.grinding > 0.0:
 		bits.append("GRIND — press the clutch to shift")
 		warn = true
+	var dmg := rv.damage
+	bits.append("fuel %d L" % roundi(dmg.fuel))
+	bits.append("oil %d%%" % roundi(dmg.oil * 100.0))
+	bits.append("frame %d%%" % roundi(dmg.frame))
+	if dmg.temperature > 0.8:
+		bits.append("ENGINE OVERHEATING")
+		warn = true
+	if dmg.fuel < 5.0:
+		bits.append("FUEL LOW" if dmg.fuel > 0.0 else "OUT OF FUEL")
+		warn = true
+	if dmg.oil < 0.15:
+		bits.append("OIL LOW")
+		warn = true
+	if d.no_start and not d.running:
+		bits.append("won't start: " + ("no fuel" if dmg.fuel <= 0.0 else "engine seized"))
+		warn = true
+	var loose := 0
+	for i: int in 4:
+		if not dmg.wheel_on[i] or dmg.bolts[i] < RVDamage.BOLTS or dmg.tires[i] <= 0.0:
+			loose += 1
+	if loose > 0:
+		bits.append("%d wheel%s need attention" % [loose, "s" if loose > 1 else ""])
+		warn = true
+	if dmg.missing_parts() > 0:
+		bits.append("%d part%s missing" % [dmg.missing_parts(), "s" if dmg.missing_parts() > 1 else ""])
 	_status.text = "   ".join(bits)
 	_status.add_theme_color_override("font_color", WARN if warn else DIM)
 

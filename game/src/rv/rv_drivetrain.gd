@@ -43,6 +43,10 @@ const TORQUE_CURVE: Array[Vector2] = [
 
 var automatic := false
 var running := true
+## Engine health/heat factor on torque (1 = healthy; see RVDamage.tick).
+var power_scale := 1.0
+## Optional `func() -> bool`: whether the engine can start at all (fuel, not seized).
+var can_start: Callable
 var rpm := IDLE_RPM
 var gear := 0
 ## 0 = pedal up (engaged), 1 = pedal down (disengaged). Smoothed from the input.
@@ -105,6 +109,11 @@ func crank() -> void:
 	if running or _crank_timer >= 0.0:
 		return
 	_crank_timer = 0.0
+	no_start = can_start.is_valid() and not can_start.call()
+
+
+## The last crank couldn't catch (no fuel, seized engine), for the HUD.
+var no_start := false
 
 
 func is_cranking() -> bool:
@@ -131,7 +140,7 @@ func step(dt: float, throttle: float, clutch_input: float, wheel_omega: float) -
 		var open := maxf(throttle, governor)
 		if rpm > REDLINE_RPM or _auto_shift_timer > 0.0:
 			open = governor # Rev limiter; the automatic also backs off while it shifts.
-		engine_torque = max_torque(rpm) * open - friction_torque(rpm) * (1.0 - open)
+		engine_torque = max_torque(rpm) * open * power_scale - friction_torque(rpm) * (1.0 - open)
 	elif _crank_timer >= 0.0:
 		_crank_timer += dt
 		engine_torque = (CRANK_RPM - rpm) * 2.0 # Starter motor.
@@ -152,7 +161,7 @@ func step(dt: float, throttle: float, clutch_input: float, wheel_omega: float) -
 
 	if _crank_timer >= CRANK_SECONDS:
 		_crank_timer = -1.0
-		if e < 0.3:
+		if e < 0.3 and not no_start:
 			running = true
 			rpm = maxf(rpm, IDLE_RPM)
 			started.emit()

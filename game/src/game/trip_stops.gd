@@ -125,7 +125,17 @@ static func _station(index: int, stations: int) -> Node3D:
 		_place(st, _block(Vector3(0.7, 0.2, 1.4), Color(0.6, 0.6, 0.58)), Vector3(x, 0.0, -1.5)) # Island.
 		_place(st, _block(Vector3(0.55, 1.6, 0.4), Color(0.8, 0.18, 0.12)), Vector3(x, 0.2, -1.5)) # Pump.
 		_place(st, _block(Vector3(0.45, 0.35, 0.42), Color(0.95, 0.95, 0.9), false), Vector3(x, 1.8, -1.5))
+		var pump := Interactable.new()
+		pump.name = "Pump%d" % roundi(x)
+		pump.reach = 2.4
+		pump.add_to_group(&"fuel_pumps")
+		_place(st, pump, Vector3(x, 1.2, -1.5))
 	_place(st, model("survival/workbench", 1.1, 1), Vector3(6.2, 0.0, 6.0), -PI / 2.0)
+	var welder := Interactable.new()
+	welder.name = "Welder"
+	welder.reach = 2.4
+	welder.add_to_group(&"welders")
+	_place(st, welder, Vector3(6.2, 1.0, 6.0))
 	var weld := _label("WELDER", 48)
 	weld.position = Vector3(6.2, 1.7, 5.4)
 	st.add_child(weld)

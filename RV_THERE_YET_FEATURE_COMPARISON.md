@@ -2101,7 +2101,7 @@ Legend:
 | Item pickup | ✅ DONE (M1) |
 | Item carrying | ✅ DONE (M1) |
 | Item throwing | ✅ DONE (M1) |
-| Inventory | MISSING |
+| Inventory | ✅ DONE (M4: 4-slot hotbar) |
 | RV storage | 🟡 PARTIAL (M1: items put down inside ride along; no slots yet) |
 | Winch | ✅ DONE (M2) |
 | Winch controller | ✅ DONE (M2) |
@@ -2112,14 +2112,14 @@ Legend:
 | Checkpoints | ✅ DONE (M3) |
 | Gas stations | ✅ DONE (M3: checkpoint, save, restock; refuel/welder come with fuel & damage) |
 | Saving/checkpoint progress | ✅ DONE (M3) |
-| RV body damage | MISSING |
-| Tire damage | MISSING |
-| Engine damage | MISSING |
-| Frame damage | MISSING |
-| Repairs | MISSING |
-| Spare tires | MISSING |
-| Fuel | MISSING |
-| Jerry cans | MISSING |
+| RV body damage | ✅ DONE (M4: 16 detachable parts) |
+| Tire damage | ✅ DONE (M4) |
+| Engine damage | ✅ DONE (M4: oil, heat, seizing) |
+| Frame damage | ✅ DONE (M4) |
+| Repairs | ✅ DONE (M4: hammer+scrap, refit, drill, oil, welder) |
+| Spare tires | ✅ DONE (M4) |
+| Fuel | ✅ DONE (M4) |
+| Jerry cans | ✅ DONE (M4) |
 | Player health | MISSING |
 | Downed state | MISSING |
 | Revive | MISSING |

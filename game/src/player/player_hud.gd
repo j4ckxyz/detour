@@ -10,6 +10,8 @@ var player: Player
 var _dot := Label.new()
 var _prompt := Label.new()
 var _status := Label.new()
+var _hotbar := Label.new()
+var _message := Label.new()
 
 
 func _ready() -> void:
@@ -38,6 +40,21 @@ func _ready() -> void:
 	_status.offset_top = -44.0
 	_status.offset_bottom = -16.0
 	_status.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	for label: Label in [_hotbar, _message]:
+		label.add_theme_color_override("font_color", TEXT)
+		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		label.add_theme_constant_override("outline_size", 6)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		add_child(label)
+	_hotbar.add_theme_font_size_override("font_size", 14)
+	_hotbar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_hotbar.offset_top = -72.0
+	_hotbar.offset_bottom = -48.0
+	_message.add_theme_font_size_override("font_size", 18)
+	_message.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_message.offset_top = 64.0
+	_message.offset_bottom = 90.0
 
 
 func _process(_delta: float) -> void:
@@ -64,3 +81,11 @@ func _process(_delta: float) -> void:
 		bits.append("Pushing!")
 	bits.append("Health %d" % roundi(player.health))
 	_status.text = "     ".join(bits)
+	var bar: PackedStringArray = []
+	for i: int in Player.SLOTS:
+		var it := player.slots[i]
+		var label := it.display_name() if it else "—"
+		bar.append(("[%d %s]" if i == player.selected else " %d %s ") % [i + 1, label])
+	_hotbar.text = "  ".join(bar)
+	_message.visible = player.message_time > 0.0
+	_message.text = player.message

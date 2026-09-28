@@ -27,6 +27,7 @@ push. No other players yet.
 | **Right click** | Throw the held item (inside the RV: put it down) |
 | **Q** / **G** | Drop the held item (inside the RV it's stowed and rides along) |
 | **R** | With the winch remote: switch between front and rear winch |
+| **1**–**4** / **mouse wheel** | Pick a hotbar slot (small items pocket; big ones need an empty hand) |
 | **F** | Get up from a seat |
 | **Esc** | Pause menu |
 
@@ -147,6 +148,35 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
 - **Saves**: quitting and relaunching continues from the last gas station (per seed; start
   over with `-- --new` or the menu).
 - **Top of the screen**: the next stop and how far down the road it is, plus checkpoint notices.
+
+## Damage, repairs and supplies
+
+- **The RV comes apart**: 16 separate parts (hood, grille, both bumpers, six lower skirt
+  panels, both wing mirrors, the door step, roof AC, ladder and awning). Knocks above a
+  threshold dent the parts nearest the hit; at 0 % a part **falls off** and lies on the ground
+  as something you can pick up. Big hits also chip the **frame**, and head-ons hurt the
+  **engine**.
+- **Wheels**: hard hits and landings wear the tire (a **flat** grips badly) and shake **bolts**
+  loose (5 per wheel). Wheels on their last bolt wobble off when you drive; a wheel with no
+  bolts left **comes off** and rolls away.
+- **Engine**: burns **fuel** (60 L tank, 40 L at the start; harder driving burns more),
+  slowly uses **oil** (faster when damaged or with the hood gone). Low oil makes it
+  **overheat**: less power, then it cooks itself and **seizes**. Out of fuel or seized, it
+  won't start.
+- **Repairs** (look at the spot, left click):
+  - **Hammer + scrap metal** (scrap in your pockets): patch a dented part (+50 %) or rebuild a
+    missing one.
+  - **Carry a fallen part back** and use it on its spot to refit it (no scrap needed).
+  - **Spare tire** (or the wheel that came off) on an empty hub or a flat; then hold left click
+    with the **power drill** to screw its 5 bolts in, one at a time.
+  - **Motor oil** into the engine bay (front, under the hood). **Jerry can** (20 L) into the
+    fuel cap (left side); refill it at a pump.
+  - At gas stations: the **pump** fills the RV (parked close) or your jerry can; the
+    **welder** restores the frame and looks the engine over.
+- **Dashboard line** (driving HUD): fuel, oil, frame, plus warnings for overheating, low fuel
+  or oil, wheels needing attention and missing parts.
+- **Hotbar**: 4 slots; small items pocket, big ones (planks, tires, jerry cans, RV parts) need
+  an empty hand. The RV starts with a hammer, drill and 2 scrap inside.
 
 ## Winches, planks and pushing
 
@@ -376,12 +406,6 @@ Planned (see PLAN.md), roughly in the order they're coming:
 - **More obstacles**: fords, mud, rockslides, cliffs and steps, lava, ice.
   - A generator that guarantees every obstacle can be solved, with difficulty rising along
     the trip.
-- **Damage and upkeep**:
-  - Flat tires and spare-tire swaps.
-  - Engine oil leaks and overheating.
-  - Body damage patched with scrap metal (welded at stations), parts falling off, and hammer
-    repairs.
-  - Fuel use and jerry cans.
 - **Danger**: health, burgers, snake venom and antidote, downed players revived with an
   EpiPen; bears (bear spray), snakes and eagles.
 - **World variety**: more biomes (red rock canyon, swamp, alpine, volcanic), rivers and lakes,

@@ -65,6 +65,7 @@ func build() -> void:
 		var node := TripStops.build(int(p["kind"]), i, station_count())
 		add_child(node)
 		node.global_transform = _pad_transform(p)
+	_wire_station_services()
 	for supply: Dictionary in data.get("supplies", []):
 		if int(supply["kind"]) == 0:
 			_spawn_planks(supply)
@@ -116,6 +117,44 @@ func _pad_transform(p: Dictionary) -> Transform3D:
 	var facing := Vector3(dir.z, 0.0, -dir.x) * side
 	pos.y = world.height_at(pos.x, pos.z)
 	return Transform3D(Basis.looking_at(facing if facing.length() > 0.1 else dir, Vector3.UP), pos)
+
+
+## Pumps fill the RV (parked close) or a held jerry can; the welder fixes the frame.
+func _wire_station_services() -> void:
+	for n: Node in get_tree().get_nodes_in_group(&"fuel_pumps"):
+		var pump := n as Interactable
+		if pump == null or not is_ancestor_of(pump):
+			continue
+		pump.prompt_for = func(player: Player) -> String:
+			if player.held and player.held.kind == &"jerrycan":
+				return "Fill the jerry can"
+			if _rv_near(pump, 14.0):
+				return "Fill up the RV (%d / %d L)" % [roundi(rv.damage.fuel), roundi(RVDamage.TANK)]
+			return "Pump (park the RV closer to fill up)"
+		pump.used.connect(func(player: Player) -> void:
+			if player.held and player.held.kind == &"jerrycan":
+				player.held.set_meta(&"fuel", ItemLibrary.JERRY_CAN_LITRES)
+				player.held.def["name"] = "Jerry can (20 L)"
+				player.say("Jerry can filled.")
+			elif _rv_near(pump, 14.0):
+				rv.damage.add_fuel(RVDamage.TANK)
+				player.say("Tank full."))
+	for n: Node in get_tree().get_nodes_in_group(&"welders"):
+		var welder := n as Interactable
+		if welder == null or not is_ancestor_of(welder):
+			continue
+		welder.prompt_for = func(_player: Player) -> String:
+			if not _rv_near(welder, 28.0):
+				return "Welder (bring the RV closer)"
+			return "Weld the RV's frame (%d%%)" % roundi(rv.damage.frame)
+		welder.used.connect(func(player: Player) -> void:
+			if _rv_near(welder, 28.0):
+				rv.damage.weld()
+				player.say("Frame welded good as new; the mechanic looked the engine over too."))
+
+
+func _rv_near(node: Node3D, radius: float) -> bool:
+	return rv.global_position.distance_to(node.global_position) < radius
 
 
 func _spawn_planks(supply: Dictionary) -> void:

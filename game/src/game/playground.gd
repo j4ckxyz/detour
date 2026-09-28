@@ -224,6 +224,8 @@ func _spawn_starter_items() -> void:
 	var inside: Array[Array] = [
 		[&"winch_remote", Vector3(-0.3, 1.34, -2.35)], [&"first_aid", Vector3(-0.85, 1.6, -0.62)],
 		[&"burger", Vector3(-0.7, 1.6, -0.5)], [&"burger", Vector3(-0.95, 1.6, -0.45)],
+		[&"hammer", Vector3(0.85, 1.8, -1.1)], [&"drill", Vector3(0.85, 1.8, -1.35)],
+		[&"scrap_metal", Vector3(0.0, 0.9, -0.9)], [&"scrap_metal", Vector3(0.0, 0.9, -1.4)],
 	]
 	for spec: Array in inside:
 		var item := ItemLibrary.create(spec[0])

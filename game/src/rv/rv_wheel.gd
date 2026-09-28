@@ -51,6 +51,8 @@ var spin_speed := 0.0
 var surface_grip := 1.0
 ## 0..1: how muddy the ground under the tire is (less grip, much more drag).
 var mud := 0.0
+## Off the RV (bolts shaken out): no contact, no forces.
+var detached := false
 
 var _cast := ShapeCast3D.new()
 var _prev_length := -1.0
@@ -75,7 +77,7 @@ func _ready() -> void:
 ## Finds the ground under the wheel and its speed relative to it.
 func probe(body: RV) -> void:
 	_cast.force_shapecast_update()
-	grounded = _cast.is_colliding()
+	grounded = _cast.is_colliding() and not detached
 	if grounded:
 		contact = _cast.get_collision_point(0)
 		normal = _cast.get_collision_normal(0)

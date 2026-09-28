@@ -69,6 +69,16 @@ TILES = {
 
 root = lib.empty("RV", (0, 0, 0))
 exterior, interior = [], []
+# Parts that can be knocked off in game: name -> objects (joined into "Part_<name>" nodes with
+# their origin at their centre; see the game's RVDamage).
+detachable: dict[str, list] = {}
+
+
+def detach(name, obj, smooth=35.0):
+    lib.box_uv(obj, TILES)
+    lib.smooth_by_angle(obj, smooth)
+    detachable.setdefault(name, []).append(obj)
+    return obj
 
 
 def part(obj, bucket, smooth=35.0):
@@ -161,16 +171,27 @@ lib.cut(hood, [
     lib.cylinder("arch_hl", 0.50, 0.6, (-1.0, FRONT_AXLE, WHEEL_R), "x", M["trim"], 24),
     lib.cylinder("arch_hr", 0.50, 0.6, (1.0, FRONT_AXLE, WHEEL_R), "x", M["trim"], 24),
 ])
-part(hood, exterior, 30.0)
-part(lib.box("Grille", (-0.55, 3.44, 0.72), (0.55, 3.475, 1.05), M["grille"], bevel=0.01), exterior)
+detach("Hood", hood, 30.0)
+detach("Grille", lib.box("Grille", (-0.55, 3.44, 0.72), (0.55, 3.475, 1.05), M["grille"], bevel=0.01))
 for side in (-1, 1):
     part(lib.cylinder(f"Headlamp{side}", 0.11, 0.05, (side * 0.76, 3.465, 0.92), "y", M["headlight"], 16), exterior)
     part(lib.cylinder(f"HeadlampRing{side}", 0.13, 0.03, (side * 0.76, 3.445, 0.92), "y", M["chrome"], 16), exterior)
     part(lib.box(f"Indicator{side}", (side * 0.92 - 0.06, 3.45, 0.70), (side * 0.92 + 0.06, 3.47, 0.78), M["amber"]), exterior)
     part(lib.box(f"Taillight{side}", (side * 1.02 - 0.08, LIV_Y0 - 0.02, 1.00), (side * 1.02 + 0.08, LIV_Y0, 1.38), M["taillight"]), exterior)
     part(lib.box(f"Marker{side}", (side * HW - 0.01, 1.10, 2.95), (side * HW + 0.01, 1.20, 3.02), M["amber"]), exterior)
-part(lib.box("BumperFront", (-1.12, 3.42, 0.42), (1.12, 3.62, 0.66), M["chrome"], bevel=0.03), exterior)
-part(lib.box("BumperRear", (-1.15, LIV_Y0 - 0.18, 0.50), (1.15, LIV_Y0, 0.72), M["chassis"], bevel=0.02), exterior)
+detach("BumperFront", lib.box("BumperFront", (-1.12, 3.42, 0.42), (1.12, 3.62, 0.66), M["chrome"], bevel=0.03))
+detach("BumperRear", lib.box("BumperRear", (-1.15, LIV_Y0 - 0.18, 0.50), (1.15, LIV_Y0, 0.72), M["chassis"], bevel=0.02))
+# Lower skirt panels (70s two-tone), clear of the wheel arches and the door.
+for name, side, y0, y1 in (("SkirtLF", -1, 0.30, 1.25), ("SkirtLR", -1, -3.45, -2.10), ("SkirtLM", -1, -1.00, -0.02),
+                           ("SkirtRF", 1, 0.84, 1.25), ("SkirtRR", 1, -3.45, -2.10), ("SkirtRM", 1, -1.00, 0.02)):
+    x0, x1 = (side * HW, side * (HW + 0.025)) if side > 0 else (side * (HW + 0.025), side * HW)
+    detach(name, lib.box(name, (x0, y0, LIV_Z0 + 0.02), (x1, y1, LIV_Z0 + 0.34), M["stripe_b"], bevel=0.01))
+# Wing mirrors on the cab corners.
+for name, side in (("MirrorL", -1), ("MirrorR", 1)):
+    arm = lib.box(name + "arm", (side * CAB_HW - 0.02, 2.30, 1.55), (side * (CAB_HW + 0.18) + 0.02, 2.34, 1.59), M["chrome"])
+    glass = lib.box(name + "head", (side * (CAB_HW + 0.18) - 0.05, 2.28, 1.42), (side * (CAB_HW + 0.18) + 0.05, 2.34, 1.72), M["plastic"], bevel=0.01)
+    detach(name, arm)
+    detach(name, glass)
 
 # --- 70s stripes (skip the door opening on the right) ------------------------------------------------
 stripes = [(1.25, "stripe_y"), (1.36, "stripe_o"), (1.47, "stripe_b")]
@@ -188,8 +209,8 @@ for side in (-1, 1):
 part(lib.cylinder("AxleFront", 0.05, 1.9, (0, FRONT_AXLE, WHEEL_R), "x", M["chassis"], 8), exterior)
 part(lib.cylinder("AxleRear", 0.07, 2.0, (0, REAR_AXLE, WHEEL_R), "x", M["chassis"], 8), exterior)
 part(lib.box("FuelTank", (-0.95, -0.80, 0.45), (-0.62, 0.20, 0.72), M["chassis"], bevel=0.03), exterior)
-part(lib.box("Step", (HW - 0.02, 0.10, 0.45), (HW + 0.25, 0.75, 0.50), M["chassis"]), exterior)
-part(lib.box("RoofAC", (-0.40, -0.60, LIV_Z1), (0.40, 0.20, LIV_Z1 + 0.26), M["appliance"], bevel=0.05), exterior)
+detach("Step", lib.box("Step", (HW - 0.02, 0.10, 0.45), (HW + 0.25, 0.75, 0.50), M["chassis"]))
+detach("RoofAC", lib.box("RoofAC", (-0.40, -0.60, LIV_Z1), (0.40, 0.20, LIV_Z1 + 0.26), M["appliance"], bevel=0.05))
 part(lib.box("RoofVent", (-0.25, -2.4, LIV_Z1), (0.25, -2.0, LIV_Z1 + 0.10), M["plastic"], bevel=0.02), exterior)
 for side in (-1, 1):
     part(lib.box(f"RackRail{side}", (side * 0.90 - 0.03, -3.35, LIV_Z1 + 0.05), (side * 0.90 + 0.03, -1.40, LIV_Z1 + 0.10), M["chrome"]), exterior)
@@ -199,13 +220,13 @@ for y in (-3.1, -2.4, -1.7):
     part(lib.box(f"RackBar{y}", (-0.93, y, LIV_Z1 + 0.05), (0.93, y + 0.05, LIV_Z1 + 0.10), M["chrome"]), exterior)
 LADDER_X = (0.55, 0.95)
 for x in LADDER_X:
-    part(lib.cylinder(f"LadderRail{x}", 0.02, 2.55, (x, LIV_Y0 - 0.08, 0.95 + 2.55 / 2), "z", M["chrome"], 8), exterior)
+    detach("Ladder", lib.cylinder(f"LadderRail{x}", 0.02, 2.55, (x, LIV_Y0 - 0.08, 0.95 + 2.55 / 2), "z", M["chrome"], 8))
     for z in (1.1, 3.25):
-        part(lib.box(f"LadderStandoff{x}{z}", (x - 0.015, LIV_Y0 - 0.08, z), (x + 0.015, LIV_Y0, z + 0.03), M["chrome"]), exterior)
+        detach("Ladder", lib.box(f"LadderStandoff{x}{z}", (x - 0.015, LIV_Y0 - 0.08, z), (x + 0.015, LIV_Y0, z + 0.03), M["chrome"]))
 for i in range(8):
     z = 1.05 + i * 0.30
-    part(lib.cylinder(f"Rung{i}", 0.017, LADDER_X[1] - LADDER_X[0], ((LADDER_X[0] + LADDER_X[1]) / 2, LIV_Y0 - 0.08, z), "x", M["chrome"], 8), exterior)
-part(lib.cylinder("Awning", 0.07, 3.6, (HW + 0.05, -1.0, 3.02), "y", M["appliance"], 12), exterior)
+    detach("Ladder", lib.cylinder(f"Rung{i}", 0.017, LADDER_X[1] - LADDER_X[0], ((LADDER_X[0] + LADDER_X[1]) / 2, LIV_Y0 - 0.08, z), "x", M["chrome"], 8))
+detach("Awning", lib.cylinder("Awning", 0.07, 3.6, (HW + 0.05, -1.0, 3.02), "y", M["appliance"], 12))
 
 # --- living interior ------------------------------------------------------------------------------
 IN = HW - WALL                     # interior half width
@@ -373,6 +394,18 @@ for name, y, sign in (("Front", 3.66, 1), ("Rear", LIV_Y0 - 0.24, -1)):
     drum.parent = root
     movers.append(drum)
     lib.empty(f"WinchMount_{name}", (0, y + sign * 0.14, 0.58), root)
+
+# --- detachable parts: one node each, origin at the centre of its bounds ------------------------
+for name, objs in detachable.items():
+    joined = lib.join(objs, "Part_" + name) if len(objs) > 1 else objs[0]
+    lib.update()
+    corners = [joined.matrix_world @ Vector(c) for c in joined.bound_box]
+    centre = sum(corners, Vector()) / 8
+    joined.data.transform(lib.Matrix.Translation(-centre))
+    joined.location = centre
+    joined.name = "Part_" + name
+    joined.parent = root
+    movers.append(joined)
 
 # --- join static geometry -----------------------------------------------------------------------
 body = lib.join(exterior, "Body")
