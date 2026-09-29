@@ -16,7 +16,7 @@ func _ready() -> void:
 	menu._refresh_play()
 	_check(menu._status.text != "", "a bad seed code is explained (%s)" % menu._status.text)
 	_check(not menu._check_seed(), "and can't be played")
-	menu._seed.text = "DT4-00000-000DG"
+	menu._seed.text = "DT5-00000-000ZG"
 	menu._refresh_play()
 	_check(menu._status.text == "" and menu._check_seed(), "a good seed code is accepted")
 	_check(WorldGen.code_error(menu._chosen_seed()) == "", "the chosen seed is playable")
@@ -26,7 +26,7 @@ func _ready() -> void:
 	_check(MainMenu._split_address("10.0.0.2:4000", 1) == ["10.0.0.2", 4000] and MainMenu._split_address("host", 7) == ["host", 7], "addresses split into host and port")
 	_check(menu._lan.get_child_count() >= 1, "the LAN games list is shown")
 	# Saved trips are listed, to carry on or delete.
-	var code := "DT4-00000-000DG"
+	var code := "DT5-00000-000ZG"
 	var had := Saves.read(code)
 	Saves.write(code, {"gen": WorldGen.gen_version(), "seed": code, "checkpoint": 1, "stations": 2,
 		"elapsed": 600.0, "hours": 14.0, "progress": 0.4, "saved_at": Time.get_unix_time_from_system()})

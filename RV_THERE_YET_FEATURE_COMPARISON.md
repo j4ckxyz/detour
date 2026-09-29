@@ -2107,7 +2107,9 @@ Legend:
 | Winch controller | ✅ DONE (M2) |
 | Planks | ✅ DONE (M2) |
 | Push RV | ✅ DONE (M2) |
-| Finite route | ✅ DONE (M3; M10: the road runs along a walled valley, closed behind the camp and past home: no driving off into nowhere) |
+| Finite route | ✅ DONE (M3; M10: the road runs along a walled valley, closed behind the camp and past home: no driving off into nowhere; M11: 4–5.5 km short trips on a surveyed, winding road through a wide valley that pinches at obstacles, telephone poles along it) |
+| Bridges and jump puzzles | ✅ DONE (M11: timber bridges with a hole to jump off a kicker or plank over, two-beam crossings to line up on, gully jumps, steep hills with a tempting side track; generator-checked and driven in tests) |
+| Places to explore | ✅ DONE (M11: cabins, fire lookout towers, wrecks, lookout hills off the road, with supplies) |
 | Objective | ✅ DONE (M3: reach home) |
 | Checkpoints | ✅ DONE (M3) |
 | Gas stations | ✅ DONE (M3: checkpoint, save, restock; refuel/welder come with fuel & damage) |

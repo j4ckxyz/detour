@@ -85,11 +85,28 @@ fn cmd_trip(args: &[String]) -> Result<(), String> {
         println!("  {:>6.0} m  {:?}", p.s, p.kind);
     }
     for o in &r.obstacles {
+        let hole = if o.hole > 0.0 {
+            format!("  hole {:.1} m at {:+.1} m", o.hole, o.hole_at)
+        } else {
+            String::new()
+        };
         println!(
-            "  {:>6.0} m  {:?}  length {:.1} m  size {:.2} m  difficulty {:.2}",
+            "  {:>6.0} m  {:?}  length {:.1} m  size {:.2} m  difficulty {:.2}{hole}",
             o.s, o.kind, o.length, o.size, o.difficulty
         );
     }
+    for p in &r.pois {
+        println!(
+            "  place: {:?} at ({:.0}, {:.0})",
+            p.kind, p.pos[0], p.pos[2]
+        );
+    }
+    println!(
+        "{} side tracks, {} lakes, {} caves",
+        r.spurs.len(),
+        r.lakes.len(),
+        r.caves.len()
+    );
     let problems = r.validate();
     println!(
         "validation: {}",

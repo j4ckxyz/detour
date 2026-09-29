@@ -69,6 +69,7 @@ func _ford(o: Dictionary) -> void:
 		waded = maxf(waded, _rv.wading)
 		if _progress() > float(o["s"]) + 20.0:
 			break
+
 		await get_tree().physics_frame
 	_stop()
 	_check(waded > 0.1, "the RV waded through (%.2f m)" % waded)
@@ -76,7 +77,7 @@ func _ford(o: Dictionary) -> void:
 	await _w.hold(0.5)
 	# Off the road the river is deep: the engine drowns.
 	var side := Vector3(-(o["dir"] as Vector3).z, 0.0, (o["dir"] as Vector3).x)
-	var deep := pos + side * 22.0
+	var deep := pos + side * 13.0 # (The valley's walls pinch in past ~20 m.)
 	_rv.drivetrain.running = true
 	_pg._place_rv(Transform3D(_rv.global_basis, Vector3(deep.x, _pg.world.height_at(deep.x, deep.z) + 0.6, deep.z)))
 	await _w.hold(2.0)
@@ -113,7 +114,7 @@ func _swim(o: Dictionary) -> void:
 		return
 	var pos: Vector3 = o["pos"]
 	var side := Vector3(-(o["dir"] as Vector3).z, 0.0, (o["dir"] as Vector3).x)
-	var deep := pos + side * 25.0
+	var deep := pos + side * 13.0
 	var level := _pg.world.water_level(deep.x, deep.z)
 	_player.global_position = Vector3(deep.x, level - 0.5, deep.z)
 	_player.velocity = Vector3.ZERO

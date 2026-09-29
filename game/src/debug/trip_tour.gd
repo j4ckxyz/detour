@@ -1,6 +1,7 @@
 extends Node
 ## Screenshot tour of a trip's places: the camp, two people by the RV, the valley wall behind
-## the camp, the road, the valley's walls, a washed-out gap, a gas station and home. (It uses
+## the camp, the road, the valley's walls, the first of each kind of obstacle, the places off
+## the road, a gas station and home. (It uses
 ## the chase camera, which only these debug tours can.)
 ##
 ##   godot --path game res://src/debug/trip_tour.tscn -- --shots=/tmp/trip
@@ -60,27 +61,41 @@ func _tour() -> void:
 		cam.set_look(side, 0.0)
 		await _seconds(0.8)
 		await _snap("valley_wall")
-	for o: Dictionary in trip.data["obstacles"]:
-		if int(o["kind"]) == 0:
-			await _go(float(o["s"]) - 12.0)
-			cam.set_look(0.3, -0.35)
+	# The first of each kind of obstacle, from a little way back.
+	var shots := {0: "washed_out_gap", 1: "ledge", 2: "mud", 6: "bridge", 7: "beams", 8: "jump", 9: "hill"}
+	for kind: int in shots:
+		for o: Dictionary in trip.data["obstacles"]:
+			if int(o["kind"]) != kind:
+				continue
+			var back := float(o["length"]) * 0.5 + (16.0 if kind in [6, 7] else 12.0)
+			if kind == 9:
+				back = 30.0
+			await _go(float(o["s"]) - back)
+			cam.set_look(0.35 if kind != 9 else 0.0, -0.3 if kind != 9 else -0.05)
 			await _seconds(0.5)
-			await _snap("washed_out_gap")
+			await _snap(shots[kind])
+			if kind in [0, 6, 7, 8]: # And from the side, up close.
+				var pos: Vector3 = o["pos"]
+				var dir: Vector3 = o["dir"]
+				var right := dir.cross(Vector3.UP).normalized()
+				await _look_from(pos + right * 12.0 - dir * 6.0 + Vector3.UP * 5.0, pos + Vector3.DOWN * 1.5, shots[kind] + "_side")
+			if kind == 9 and not (trip.data["spurs"] as Array).is_empty():
+				cam.set_look(0.9, -0.1)
+				await _seconds(0.5)
+				await _snap("hill_side_track")
 			break
-	for o: Dictionary in trip.data["obstacles"]:
-		if int(o["kind"]) == 1:
-			await _go(float(o["s"]) - 12.0)
-			cam.set_look(0.3, -0.25)
-			await _seconds(0.5)
-			await _snap("ledge")
-			break
-	for o: Dictionary in trip.data["obstacles"]:
-		if int(o["kind"]) == 2:
-			await _go(float(o["s"]) - 10.0)
-			cam.set_look(0.2, -0.3)
-			await _seconds(0.5)
-			await _snap("mud")
-			break
+	# Places off the road, from the road.
+	var seen := {}
+	for p: Dictionary in trip.data.get("pois", []):
+		if seen.has(int(p["kind"])):
+			continue
+		seen[int(p["kind"])] = true
+		var at: Vector3 = p["pos"]
+		await _go(_nearest_s(at) - 10.0)
+		var road := _pg.rv.global_position
+		var eye := road + (at - road) * 0.35 + Vector3.UP * 6.0
+		at.y = _pg.world.height_at(at.x, at.z) + 2.0
+		await _look_from(eye, at, ["cabin", "tower", "wreck", "lookout"][int(p["kind"])])
 	await _go(float(trip.pad(1)["s"]) - 18.0)
 	cam.set_look(-0.9 * float(trip.pad(1)["side"]), -0.15)
 	await _seconds(0.8)
@@ -101,6 +116,29 @@ func _go(s: float) -> void:
 		await get_tree().physics_frame
 		waited += 1
 	await _seconds(2.5) # Let the view stream in.
+
+
+## A shot from a free camera at `eye` looking at `target`.
+func _look_from(eye: Vector3, target: Vector3, label: String) -> void:
+	var free := Camera3D.new()
+	free.fov = 70.0
+	free.far = 2000.0
+	add_child(free)
+	free.global_transform = Transform3D(Basis.looking_at(target - eye, Vector3.UP), eye)
+	free.current = true
+	await _seconds(0.6)
+	await _snap(label)
+	free.queue_free()
+	_pg.camera.current = true
+
+
+func _nearest_s(at: Vector3) -> float:
+	var pts: PackedVector3Array = _pg.trip.data["points"]
+	var best := 0
+	for i: int in pts.size():
+		if Vector2(pts[i].x - at.x, pts[i].z - at.z).length() < Vector2(pts[best].x - at.x, pts[best].z - at.z).length():
+			best = i
+	return best * 8.0
 
 
 func _seconds(s: float) -> void:

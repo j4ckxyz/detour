@@ -4,6 +4,7 @@
 use godot::prelude::*;
 
 mod builder;
+mod cache;
 mod convert;
 mod worldgen;
 

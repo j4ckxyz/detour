@@ -12,6 +12,20 @@ const PAD_CAMP := 0
 const PAD_STATION := 1
 const PAD_HOME := 2
 const BIOME_NAMES: Array[String] = ["the Pine Woods", "Muddy Bayou", "Red Rock Canyon", "Frostpeak Pass"]
+## What each kind of place off the road might hold (kind, weight): a cabin, a fire lookout
+## tower, a wreck, a hill with a view.
+const POI_LOOT: Array = [
+	[[&"burger", 2], [&"soda", 2], [&"first_aid", 1], [&"jerrycan", 1], [&"plank", 1], [&"epipen", 1], [&"motor_oil", 1]],
+	[[&"bear_spray", 2], [&"first_aid", 1], [&"burger", 1], [&"soda", 1], [&"antidote", 1], [&"scrap_metal", 1]],
+	[[&"scrap_metal", 4], [&"spare_tire", 1], [&"motor_oil", 2], [&"jerrycan", 1]],
+	[[&"burger", 2], [&"soda", 2], [&"patty", 1]],
+]
+## Obstacle kinds (`WorldGen.trip()`).
+const GAP := 0
+const BRIDGE := 6
+const BEAMS := 7
+const JUMP := 8
+const HILL := 9
 ## What a cave might hold (kind, weight).
 const CAVE_LOOT: Array[Array] = [
 	[&"scrap_metal", 3], [&"plank", 2], [&"burger", 2], [&"soda", 2], [&"jerrycan", 1],
@@ -80,8 +94,8 @@ func station_count() -> int:
 	return pads().size() - 2
 
 
-## Builds the stops, plank piles and warning signs (after the ground under them has
-## streamed in, so things sit on it).
+## Builds the stops, plank piles, bridges and beams, telephone poles and the places off the
+## road (after the ground under the start has streamed in, so things sit on it).
 func build(spawn_items: bool = true) -> void:
 	for i: int in pads().size():
 		var p: Dictionary = pads()[i]
@@ -94,8 +108,17 @@ func build(spawn_items: bool = true) -> void:
 		if int(supplies[i]["kind"]) == 0 and spawn_items:
 			_spawn_planks(i, supplies[i])
 	for o: Dictionary in data.get("obstacles", []):
-		if int(o["kind"]) == 0:
-			_add_abutments(o)
+		match int(o["kind"]):
+			GAP:
+				_add_abutments(o)
+			BRIDGE:
+				_add_structure(TripStructures.bridge(o, data["deck_kicker"]), o)
+			BEAMS:
+				_add_structure(TripStructures.beams(o, float(data["beam_width"]), float(data["beam_offset"])), o)
+	add_child(TripStructures.poles(_pole_spots()))
+	var pois: Array = data.get("pois", [])
+	for i: int in pois.size():
+		_build_poi(i, pois[i], spawn_items)
 	var water := WaterBodies.new()
 	water.name = "Water"
 	add_child(water)
@@ -103,6 +126,80 @@ func build(spawn_items: bool = true) -> void:
 	var caves: Array = data.get("caves", [])
 	for i: int in caves.size():
 		_build_cave(i, caves[i], spawn_items)
+
+
+func _add_structure(node: Node3D, o: Dictionary) -> void:
+	add_child(node)
+	node.global_transform = TripStructures.frame(o)
+
+
+## Where telephone poles stand: every so often along the road on its right, up the hills
+## too, but not at the crossings (the line's down there) or the stops.
+func _pole_spots() -> Array[Transform3D]:
+	var out: Array[Transform3D] = []
+	var pts: PackedVector3Array = data["points"]
+	var length := float(data["length"])
+	var s := 40.0
+	while s < length - 40.0:
+		var clear := true
+		for o: Dictionary in data.get("obstacles", []):
+			var reach := float(o["length"]) * 0.5 + 30.0
+			if int(o["kind"]) == HILL: # Poles all the way up it.
+				continue
+			if absf(float(o["s"]) - s) < reach:
+				clear = false
+		for p: Dictionary in pads():
+			if absf(float(p["s"]) - s) < 28.0:
+				clear = false
+		for sp: Dictionary in data.get("spurs", []):
+			if absf(float(sp["from_s"]) - s) < 16.0:
+				clear = false
+		if clear:
+			var xf := road_transform(s)
+			var at := xf.origin + xf.basis.x * TripStructures.POLE_OFFSET
+			at.y = world.height_at(at.x, at.z)
+			out.append(Transform3D(xf.basis, at))
+		s += TripStructures.POLE_SPACING
+	return out
+
+
+## A place off the road (a cabin, a tower, a wreck, a hill with a view), with a few things
+## left there (the same for the same seed).
+func _build_poi(index: int, p: Dictionary, stock: bool) -> void:
+	var kind := int(p["kind"])
+	var node := TripStructures.poi(kind)
+	node.name = "%s%d" % [node.name, index]
+	add_child(node)
+	var pos: Vector3 = p["pos"]
+	pos.y = world.height_at(pos.x, pos.z)
+	node.global_transform = Transform3D(Basis.looking_at(p["dir"], Vector3.UP), pos)
+	if stock:
+		_stock(node, POI_LOOT[kind], node.get_meta(&"loot_spots"), "%s:poi%d" % [world.get_code(), index])
+
+
+## Leaves a few things from `table` at `spots` (local to `node`), seeded by `key`.
+func _stock(node: Node3D, table: Array, spots: Array, key: String) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(key)
+	var total := 0
+	for e: Array in table:
+		total += int(e[1])
+	for k: int in 2 + rng.randi() % (spots.size() - 1):
+		var roll := rng.randi() % total
+		var kind: StringName = table[0][0]
+		for e: Array in table:
+			roll -= int(e[1])
+			if roll < 0:
+				kind = e[0]
+				break
+		var item := ItemLibrary.create(kind)
+		items.add_child(item)
+		var local: Vector3 = spots[k % spots.size()] + Vector3(rng.randf_range(-0.25, 0.25), 0.0, rng.randf_range(-0.25, 0.25))
+		var at := node.global_transform * local
+		at.y = maxf(at.y, world.height_at(at.x, at.z)) + item.base_offset + 0.05
+		item.global_position = at
+		item.freeze = true # Waits there until picked up.
+		item.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 
 
 ## A cave off the road, stocked with a few random supplies (the same for the same seed).

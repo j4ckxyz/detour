@@ -2,19 +2,25 @@
 //! chunks). Streaming uses `ChunkBuilder` instead so the main thread never waits.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use godot::prelude::*;
-use rvgen::route::{PLANK_LENGTH, RIVER_HALF, ROAD_HALF_WIDTH, SAMPLE};
+use rvgen::route::{
+    BEAM_OFFSET, BEAM_WIDTH, DECK_KICKER, KICKER, PLANK_LENGTH, RIVER_HALF, ROAD_HALF_WIDTH, SAMPLE,
+};
 use rvgen::{ChunkCoord, GEN_VERSION, SeedCode, TripLength, World, mesh, scatter};
 
+use crate::cache::{self, Progress};
 use crate::convert;
 
 /// Deterministic world generator bound to one seed code.
 #[derive(GodotClass)]
 #[class(base=RefCounted, init)]
 pub struct WorldGen {
-    world: Option<World>,
+    world: Option<Arc<World>>,
+    loading: Option<Arc<Mutex<Progress>>>,
+    load_error: String,
 }
 
 static ENTROPY_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -59,10 +65,40 @@ impl WorldGen {
         }
     }
 
-    /// Binds this generator to `code`. Returns false (and logs why) if the code is invalid.
+    /// Any text as a seed (like Minecraft): `{code, error}`. A seed code is itself, a whole
+    /// number is that seed, anything else (the first 20 characters) is hashed; blank text
+    /// gives an empty code (roll a new trip). `trip`: 0 short, 1 medium, 2 long (a typed
+    /// seed code keeps its own).
+    #[func]
+    fn code_from_text(text: GString, trip: i32) -> VarDictionary {
+        let mut d = VarDictionary::new();
+        let (code, error) = match SeedCode::from_text(trip_from(trip), &text.to_string()) {
+            None => (String::new(), String::new()),
+            Some(Ok(c)) => (c.to_string(), String::new()),
+            Some(Err(e)) => (String::new(), e.to_string()),
+        };
+        d.set("code", code.as_str());
+        d.set("error", error.as_str());
+        d
+    }
+
+    /// The longest text `code_from_text` reads.
+    #[func]
+    fn text_seed_max() -> i32 {
+        rvgen::seed::TEXT_SEED_MAX as i32
+    }
+
+    /// Whether the world for `code` has been built already this session (loading is instant).
+    #[func]
+    fn is_cached(code: GString) -> bool {
+        SeedCode::parse(&code.to_string()).is_ok_and(|c| cache::cached(c).is_some())
+    }
+
+    /// Binds this generator to `code`, building its world now if it hasn't been. Returns
+    /// false (and logs why) if the code is invalid.
     #[func]
     fn load(&mut self, code: GString) -> bool {
-        match SeedCode::parse(&code.to_string()).and_then(World::new) {
+        match cache::world_for(&code.to_string()) {
             Ok(world) => {
                 self.world = Some(world);
                 true
@@ -72,6 +108,60 @@ impl WorldGen {
                 false
             }
         }
+    }
+
+    /// Starts building the world for `code` on a background thread; follow it with
+    /// `load_progress`, `load_stage` and `poll_load`.
+    #[func]
+    fn begin_load(&mut self, code: GString) {
+        self.loading = Some(cache::load_in_background(&code.to_string()));
+    }
+
+    /// 0..1: how far the background load has got.
+    #[func]
+    fn load_progress(&self) -> f32 {
+        self.loading
+            .as_ref()
+            .and_then(|l| l.lock().ok().map(|p| p.fraction))
+            .unwrap_or(0.0)
+    }
+
+    /// What the background load is doing ("Surveying routes", ...).
+    #[func]
+    fn load_stage(&self) -> GString {
+        self.loading
+            .as_ref()
+            .and_then(|l| l.lock().ok().map(|p| GString::from(p.stage.as_str())))
+            .unwrap_or_default()
+    }
+
+    /// 0 while the background load runs, 1 once it's done (the world is bound), -1 if it
+    /// failed (see `load_error`).
+    #[func]
+    fn poll_load(&mut self) -> i32 {
+        let Some(loading) = &self.loading else {
+            return if self.world.is_some() { 1 } else { -1 };
+        };
+        let result = loading.lock().ok().and_then(|mut p| p.result.take());
+        match result {
+            None => 0,
+            Some(Ok(world)) => {
+                self.world = Some(world);
+                self.loading = None;
+                1
+            }
+            Some(Err(e)) => {
+                self.load_error = e;
+                self.loading = None;
+                -1
+            }
+        }
+    }
+
+    /// Why the last background load failed.
+    #[func]
+    fn load_error(&self) -> GString {
+        GString::from(self.load_error.as_str())
     }
 
     /// The normalised seed code, or "" if nothing is loaded.
@@ -161,8 +251,15 @@ impl WorldGen {
     ///   (0 woods, 1 bayou, 2 canyon, 3 mountain pass).
     ///
     /// Obstacle kinds also include 4 ford (a river across the road: `length` is the channel
-    /// width, `size` the water depth) and 5 ice (a frozen pond: `length` its radius, `size`
-    /// how far below the road it lies).
+    /// width, `size` the water depth), 5 ice (a frozen pond: `length` its radius, `size`
+    /// how far below the road it lies), 6 bridge (over a ravine `length` wide, `size` deep;
+    /// its deck has a hole `hole` long centred `hole_at` along it, with a little kicker of
+    /// `deck_kicker` (height, length) before), 7 beams (two narrow beams, `beam_width` wide at
+    /// ±`beam_offset`, across a ravine) and 8 jump (a gully with a `kicker` ramp before its
+    /// lip) and 9 hill (a steep climb `length` long rising `size`).
+    ///
+    /// Also `pois`: [{kind: 0 cabin | 1 tower | 2 wreck | 3 lookout, pos, dir, radius}] and
+    /// `spurs` (side tracks to nowhere): [{from_s, points}].
     #[func]
     fn trip(&self) -> VarDictionary {
         let mut d = VarDictionary::new();
@@ -199,6 +296,8 @@ impl WorldGen {
             e.set("length", o.length);
             e.set("size", o.size);
             e.set("difficulty", o.difficulty);
+            e.set("hole", o.hole);
+            e.set("hole_at", o.hole_at);
             obstacles.push(&e.to_variant());
         }
         let mut supplies = VarArray::new();
@@ -226,6 +325,29 @@ impl WorldGen {
             e.set("biome", c.biome as i32);
             caves.push(&e.to_variant());
         }
+        let mut pois = VarArray::new();
+        for p in &r.pois {
+            let mut e = VarDictionary::new();
+            e.set("kind", p.kind as i32);
+            e.set("pos", v3(p.pos));
+            e.set("dir", dir3(p.dir));
+            e.set("radius", p.radius);
+            pois.push(&e.to_variant());
+        }
+        let mut spurs = VarArray::new();
+        for sp in &r.spurs {
+            let mut e = VarDictionary::new();
+            let points: PackedVector3Array = sp
+                .xz
+                .iter()
+                .zip(&sp.h)
+                .step_by(every)
+                .map(|(p, &h)| Vector3::new(p[0], h, p[1]))
+                .collect();
+            e.set("from_s", sp.from_s);
+            e.set("points", &points.to_variant());
+            spurs.push(&e.to_variant());
+        }
         let biomes: PackedInt32Array = w
             .terrain()
             .biomes()
@@ -233,6 +355,12 @@ impl WorldGen {
             .iter()
             .map(|b| *b as i32)
             .collect();
+        d.set("pois", &pois.to_variant());
+        d.set("spurs", &spurs.to_variant());
+        d.set("kicker", Vector2::new(KICKER[0], KICKER[1]));
+        d.set("deck_kicker", Vector2::new(DECK_KICKER[0], DECK_KICKER[1]));
+        d.set("beam_width", BEAM_WIDTH);
+        d.set("beam_offset", BEAM_OFFSET);
         d.set("lakes", &lakes.to_variant());
         d.set("caves", &caves.to_variant());
         d.set("biomes", &biomes.to_variant());
@@ -274,6 +402,13 @@ impl WorldGen {
             .map_or(0, |w| w.terrain().biomes().at(x, z) as i32)
     }
 
+    /// How far outside the valley floor a point is (metres; <= 0 on the floor, where you
+    /// can walk; past it the walls rise).
+    #[func]
+    fn outside_valley(&self, x: f32, z: f32) -> f32 {
+        self.world().map_or(0.0, |w| w.route().outside_valley(x, z))
+    }
+
     /// Distance along the road of the closest road point, or -1 if well away from it.
     #[func]
     fn road_progress(&self, x: f32, z: f32) -> f32 {
@@ -296,6 +431,6 @@ impl WorldGen {
         if self.world.is_none() {
             godot_error!("WorldGen: call load(code) first");
         }
-        self.world.as_ref()
+        self.world.as_deref()
     }
 }

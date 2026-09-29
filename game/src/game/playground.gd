@@ -18,7 +18,7 @@ extends Node3D
 ## Emitted once the RV has been placed on solid ground and can drive.
 signal spawned
 
-const DEFAULT_SEED := "DT4-00000-000DG" # A short trip: woods, mud and climbs, a river ford, gaps, a ledge, then mountain ice.
+const DEFAULT_SEED := "DT5-00000-000ZG" # A short trip: woods, mud, gaps and a bridge with a hole; canyon: a climb, a ledge, a ford; the pass: ice, beams and a hill.
 const START := Vector3(64.0, 0.0, 64.0)
 const RV_SCENE := preload("res://src/rv/rv.tscn")
 const MAIN_MENU := "res://src/ui/main_menu.tscn"

@@ -2,8 +2,8 @@ class_name Wildlife
 extends Node3D
 ## Puts the trip's animals out (PLAN.md §4.5), the same ones for the same seed: snakes by the
 ## obstacles (where you have to get out), bears in the woods beside them (on the valley floor,
-## short of its walls), eagles over the gas stations. There are more, and meaner, the further along the road you get. Animals far from
-## everyone don't think.
+## never up its walls), eagles over the gas stations. There are more, and meaner, the further
+## along the road you get. Animals far from everyone don't think.
 
 ## Animals within this of a player or the RV are awake (m).
 const AWAKE_RADIUS := 170.0
@@ -41,7 +41,9 @@ func populate() -> void:
 			var along := dir * (reach + _rng.randf_range(3.0, 12.0)) * (1.0 if _rng.randf() < 0.5 else -1.0)
 			_add(Snake.new(), pos + along + side * _side() * (half + _rng.randf_range(0.8, 4.0)), SNAKE_CLEARANCE)
 		if _rng.randf() < 0.1 + 0.6 * t:
-			_add(Bear.new(), pos + dir * _rng.randf_range(-20.0, 20.0) + side * _side() * _rng.randf_range(20.0, 34.0), BEAR_CLEARANCE)
+			# Just off the road where the valley pinches in, before or after it.
+			var along_bear := dir * (reach + _rng.randf_range(10.0, 26.0)) * _side()
+			_add(Bear.new(), pos + along_bear + side * _side() * _rng.randf_range(9.0, 16.0), BEAR_CLEARANCE)
 	# Along the way, between obstacles.
 	var points: PackedVector3Array = data.get("points", PackedVector3Array())
 	var step := 250.0
@@ -73,7 +75,8 @@ func _side() -> float:
 func _add(animal: Animal, at: Vector3, clearance: float) -> void:
 	# Who lives where: no snakes in the snowy pass, no bears in the dry canyon.
 	var biome := world.biome_at(at.x, at.z)
-	if (animal is Snake and biome == 3) or (animal is Bear and biome == 2) or world.water_level(at.x, at.z) > -1000.0:
+	var walled := world.outside_valley(at.x, at.z) > -4.0 # Up a valley wall.
+	if (animal is Snake and biome == 3) or (animal is Bear and (biome == 2 or walled)) or world.water_level(at.x, at.z) > -1000.0:
 		animal.free()
 		return
 	for p: Dictionary in data.get("pads", []):

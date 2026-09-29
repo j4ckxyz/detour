@@ -13,7 +13,7 @@ use std::time::Instant;
 use godot::prelude::*;
 use rvgen::mesh::{self, MeshData};
 use rvgen::scatter::{self, PropInstance, TreeInstance};
-use rvgen::{ChunkCoord, SeedCode, World};
+use rvgen::{ChunkCoord, World};
 
 use crate::convert;
 
@@ -133,8 +133,8 @@ impl ChunkBuilder {
     #[func]
     fn start(&mut self, code: GString, threads: i32) -> bool {
         self.stop();
-        let world = match SeedCode::parse(&code.to_string()).and_then(World::new) {
-            Ok(w) => Arc::new(w),
+        let world = match crate::cache::world_for(&code.to_string()) {
+            Ok(w) => w,
             Err(e) => {
                 godot_error!("ChunkBuilder: bad seed code '{code}': {e}");
                 return false;

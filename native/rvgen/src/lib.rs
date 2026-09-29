@@ -42,10 +42,19 @@ pub struct World {
 impl World {
     /// Builds the world for `code`. Fails if the code was made by a different generator version.
     pub fn new(code: SeedCode) -> Result<Self, SeedCodeError> {
+        Self::new_with_progress(code, &mut |_, _| {})
+    }
+
+    /// Like [`World::new`], telling `progress(fraction, what)` how it's going (0..1).
+    pub fn new_with_progress(
+        code: SeedCode,
+        progress: &mut dyn FnMut(f32, &str),
+    ) -> Result<Self, SeedCodeError> {
         code.check_supported()?;
         let world_seed = code.world_seed();
+        progress(0.0, "Raising the land");
         let terrain = TerrainGen::new(world_seed, code.trip);
-        let route = Route::generate(world_seed, code.trip, &terrain);
+        let route = Route::generate_with(world_seed, code.trip, &terrain, progress);
         Ok(Self {
             code,
             world_seed,

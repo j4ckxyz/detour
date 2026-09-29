@@ -12,8 +12,11 @@ use crate::hash;
 /// [`SeedCode::check_supported`] instead of silently producing a different world.
 /// Bumped on any generator change that alters worlds (v2: trips with roads and obstacles;
 /// v3: biomes, fords, ice, lakes and caves; v4: the road's walled valley, bridge planks off in
-/// the trees).
-pub const GEN_VERSION: u16 = 4;
+/// the trees; v5: long winding trips through a wide valley, bridges, beams, jumps and hills,
+/// places to explore).
+pub const GEN_VERSION: u16 = 5;
+/// Longest text [`SeedCode::from_text`] reads (the rest is ignored).
+pub const TEXT_SEED_MAX: usize = 20;
 
 const PREFIX: &str = "DT";
 const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -100,6 +103,32 @@ impl SeedCode {
     /// Fresh code from arbitrary entropy (time, OS randomness, ...).
     pub fn from_entropy(trip: TripLength, entropy: u64) -> Self {
         Self::new(trip, hash::mix64(entropy))
+    }
+
+    /// Any text as a seed, like Minecraft: a seed code is itself, a whole number is that
+    /// seed, and anything else (up to [`TEXT_SEED_MAX`] characters, spaces at the ends
+    /// ignored) is hashed. Blank text is `None` (roll a new trip). A code with a typo or for
+    /// another generator version is an error, not a new seed.
+    pub fn from_text(trip: TripLength, text: &str) -> Option<Result<Self, SeedCodeError>> {
+        let text: String = text.trim().chars().take(TEXT_SEED_MAX).collect();
+        let text = text.trim();
+        if text.is_empty() {
+            return None;
+        }
+        match Self::parse(text) {
+            Ok(code) => return Some(code.check_supported().map(|_| code)),
+            Err(e @ (SeedCodeError::BadChecksum | SeedCodeError::BadTrip)) => return Some(Err(e)),
+            Err(_) => {}
+        }
+        if text.len() <= 13 && text.bytes().all(|b| b.is_ascii_digit()) {
+            let n: u64 = text.parse().unwrap_or(0);
+            return Some(Ok(Self::new(trip, n)));
+        }
+        // FNV-1a over the UTF-8, mixed so similar words land far apart.
+        Some(Ok(Self::new(
+            trip,
+            hash::mix64(hash::fnv1a64(text.as_bytes())),
+        )))
     }
 
     /// The 64-bit seed all generation derives from.
@@ -261,6 +290,38 @@ mod tests {
             SeedCode::parse("DT1-UUUUU-UUUUU"),
             Err(SeedCodeError::BadChar('U'))
         );
+    }
+
+    #[test]
+    fn any_text_is_a_seed() {
+        let t = TripLength::Short;
+        assert_eq!(SeedCode::from_text(t, "   "), None);
+        let a = SeedCode::from_text(t, "Hello world").unwrap().unwrap();
+        assert_eq!(SeedCode::from_text(t, " Hello world ").unwrap(), Ok(a));
+        assert_ne!(SeedCode::from_text(t, "hello world").unwrap(), Ok(a));
+        assert_eq!(
+            SeedCode::from_text(t, "12345").unwrap(),
+            Ok(SeedCode::new(t, 12345))
+        );
+        // Only the first 20 characters count.
+        let long = SeedCode::from_text(t, "abcdefghijklmnopqrstuvwxyz").unwrap();
+        assert_eq!(
+            long,
+            SeedCode::from_text(t, "abcdefghijklmnopqrst").unwrap()
+        );
+        // A code is itself (its own trip length wins); a typo'd code is an error.
+        let code = SeedCode::new(TripLength::Long, 99);
+        assert_eq!(SeedCode::from_text(t, &code.to_string()).unwrap(), Ok(code));
+        let text = code.to_string();
+        let last = text.chars().last().unwrap();
+        let typo = format!(
+            "{}{}",
+            &text[..text.len() - 1],
+            if last == '0' { '1' } else { '0' }
+        );
+        assert!(SeedCode::from_text(t, &typo).unwrap().is_err());
+        // Non-ASCII is fine.
+        assert!(SeedCode::from_text(t, "café ☕").unwrap().is_ok());
     }
 
     #[test]

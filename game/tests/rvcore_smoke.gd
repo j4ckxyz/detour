@@ -3,8 +3,8 @@ extends SceneTree
 ##   godot --headless --path game --script res://tests/rvcore_smoke.gd
 
 ## Must match native/rvgen/tests/golden.rs.
-const GOLDEN_CODE := "DT4-00000-0000R"
-const GOLDEN_HASH_0_0 := "7346631d78843d77"
+const GOLDEN_CODE := "DT5-00000-0000Y"
+const GOLDEN_HASH_0_0 := "381b4b3c62390169"
 
 var _failures: PackedStringArray = []
 
@@ -15,7 +15,7 @@ func _initialize() -> void:
 	_check(gen.load(GOLDEN_CODE), "load golden code")
 	_check(gen.get_code() == GOLDEN_CODE, "code round-trips")
 	_check(gen.chunk_hash(0, 0) == GOLDEN_HASH_0_0, "golden hash via GDExtension: %s" % gen.chunk_hash(0, 0))
-	_check(WorldGen.code_error("DT4-00000-0000M") != "", "typo detected")
+	_check(WorldGen.code_error("DT5-00000-0000M") != "", "typo detected")
 	_check(WorldGen.code_error(WorldGen.random_code(1)) == "", "random code valid")
 	_check(gen.chunk_heights(0, 0).size() == 129 * 129, "heights size")
 	var arrays := gen.chunk_mesh(0, 0, 4)
@@ -60,6 +60,37 @@ func _initialize() -> void:
 		prop_count += int(r["prop_count"])
 	_check(prop_count > 0, "8 chunks have props")
 	builder.stop()
+
+	# Any text is a seed; a typed code is itself; blank is a new trip.
+	var hello: Dictionary = WorldGen.code_from_text("hello world", 0)
+	_check(String(hello["code"]).begins_with("DT%d-" % WorldGen.gen_version()) and hello["error"] == "", "text seeds: %s" % hello)
+	_check(WorldGen.code_from_text("  hello world ", 0)["code"] == hello["code"], "text seeds ignore spaces at the ends")
+	_check(WorldGen.code_from_text(GOLDEN_CODE, 2)["code"] == GOLDEN_CODE, "a code is itself")
+	_check(WorldGen.code_from_text("", 0)["code"] == "", "blank is a new trip")
+	_check(WorldGen.code_from_text("DT5-00000-0000M", 0)["error"] != "", "a code with a typo is an error")
+	_check(WorldGen.text_seed_max() == 20, "text seeds up to 20 characters")
+
+	# Loading in the background, with progress; the world is shared once built.
+	var fresh: String = WorldGen.code_from_text("background load", 1)["code"]
+	_check(not WorldGen.is_cached(fresh), "not built yet")
+	var bg := WorldGen.new()
+	bg.begin_load(fresh)
+	var stages: Dictionary = {}
+	deadline = Time.get_ticks_msec() + 20000
+	var state := 0
+	while state == 0 and Time.get_ticks_msec() < deadline:
+		state = bg.poll_load()
+		stages[bg.load_stage()] = bg.load_progress()
+		OS.delay_msec(1)
+	_check(state == 1 and bg.get_code() == fresh, "background load finished (%d)" % state)
+	_check(WorldGen.is_cached(fresh), "and is kept for the chunk builder")
+	var trip := bg.trip()
+	_check((trip["obstacles"] as Array).size() > 5 and trip.has("pois") and trip.has("spurs"), "the trip has obstacles, places and side tracks")
+	var p0: Vector3 = (trip["points"] as PackedVector3Array)[10]
+	_check(bg.outside_valley(p0.x, p0.z) < 0.0 and bg.outside_valley(p0.x, p0.z + 600.0) > 0.0, "the road's on the valley floor, far off it isn't")
+	var bad := WorldGen.new()
+	bad.begin_load("DT5-00000-0000M")
+	_check(bad.poll_load() == -1 and bad.load_error() != "", "a bad code fails to load: %s" % bad.load_error())
 
 	if _failures.is_empty():
 		print("rvcore smoke: all checks passed")

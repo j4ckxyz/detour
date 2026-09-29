@@ -19,3 +19,8 @@ rvgen = { path = "native/rvgen" }
 lto = "fat"
 codegen-units = 1
 # Keep unwinding: godot-rust turns a panic inside a #[func] into a Godot error instead of a crash.
+
+# The generator is heavy (route surveys, valley walls): tests and dev builds run it
+# optimised. Rust has no fast-math, so this changes speed only, never results.
+[profile.dev.package.rvgen]
+opt-level = 3

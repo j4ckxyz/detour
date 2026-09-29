@@ -181,13 +181,13 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
 
 ## The trip
 
-Every seed makes a trip (a **Short** trip is ~2.4 km: camp → 2 gas stations → home; Medium and
-Long have 5 and 11 stations). The default seed is `DT4-00000-000DG`.
+Every seed makes a trip (a **Short** trip is ~4–5.5 km: camp → 2 gas stations → home, each
+stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed is
+`DT5-00000-000ZG`.
 
-- **Biomes**: every trip starts in **the Pine Woods** and ends in **Frostpeak Pass** (the
-  hardest); in between come the **Muddy Bayou** and **Red Rock Canyon** in a seeded order
-  (short trips see one of the two). The biome changes near each gas station, blending over
-  ~180 m, and the top of the screen says "Entering ..." as you cross.
+- **Biomes**: the four biomes come in a seeded order (any can come first; short trips see
+  three of them). The biome changes near each gas station, blending over ~180 m, and the top
+  of the screen says "Entering ..." as you cross.
   - *Pine Woods*: rolling forested hills (the original terrain).
   - *Muddy Bayou*: low and flat, olive-green ground, bayou trees and dead snags, ponds beside
     the road, lots of mud and river fords.
@@ -196,26 +196,52 @@ Long have 5 and 11 stations). The default seed is `DT4-00000-000DG`.
   - *Frostpeak Pass*: 18 m higher with bigger relief, snow on everything but steep rock, snowy
     firs, frozen lakes; ice, climbs and ledges.
 
-- **The road**: a winding dirt road heading home (east), carved into the hills with cut and
-  fill to a gentle grade (≤ 9 %), dirt-coloured so it's obvious where to go, cleared of trees
-  and rocks, with the forest crowding its edges. Deep cuts through hillsides leave rocky walls
-  either side.
-- **The valley**: the road runs along a valley floor 40–58 m either side of it; past that,
-  cliffs rise 24–45 m over ~12 m (far too steep to drive or climb) to a craggy crest, so the
-  road is the only way to go. The valley is closed off behind the camp and past home, and
-  opens out into bays round the side lakes and caves. A washed-out bridge's gully and a ledge's
-  raised ground run right across the valley into its walls, so there's no driving round them.
-  (Checked in the Rust tests by flood-filling everywhere you could stand from the camp.)
+- **The road** is surveyed, not just drawn: the generator walks ten candidate routes east
+  across the land, each meandering its own way (swinging up to ~70° off east, with dead
+  straight runs now and then), and keeps the best: little cutting and filling, no mountains
+  looming over it, real hills to climb and straights for bridges and jumps, and never passing
+  near an earlier stretch of itself. It's a dirt road carved in with cut and fill (≤ 9 %
+  outside the hills), cleared of trees and rocks, with the forest crowding its edges. It
+  leaves the camp on a level straight.
+- **Telephone poles** follow the road on its right every ~48 m, wired pole to pole: up the
+  hills too, never down the side tracks, and down where a crossing's washed out. They're
+  solid (and something to hook the winch on).
+- **The valley**: the road runs along a wide valley floor, 70–130 m either side of it between
+  obstacles (room for lakes, caves and places to look round), pinching in to ~20 m at every
+  obstacle so there's no way round. Past the floor, cliffs rise 24–45 m over ~12 m (far too
+  steep to drive or climb) to a craggy crest. The valley is closed off behind the camp and
+  past home, and opens into bays round the side places. Gullies, ravines and a ledge's raised
+  ground run right across the pinch into the walls. (Checked in the Rust tests by
+  flood-filling everywhere you could stand from the camp.)
+- **Places off the road** where the valley's wide, to go and look round (each with a few
+  things left there, the same for the same seed): an abandoned **log cabin**, a **fire
+  lookout tower** you can see from the road (with a shed at its foot), a rusting **wreck**
+  (scrap, a tire, oil), and a **hill with a view** with a bench and a picnic on top.
 - **Obstacles** get harder towards home, with a quiet stretch now and then:
   - **Mud** (early): a soft dip where the tires grip at 40 % and drag hard. Keep your momentum,
     lay planks, or winch.
   - **Steep climbs** (5–9 m humps, ~25–30 % at their steepest): low gear and momentum, or
     winch.
-  - **Washed-out bridges** (from mid-trip): a 3.8–4.4 m gap between two concrete abutments over
-    a 2–2.6 m deep trench. The RV can't cross (it noses in, even at speed). What's left of the
-    bridge, 4 planks, lies in a heap off in the trees 8–16 m from the road, 12–40 m before it
-    (on the side that's easiest to walk to): find them, and lay two across, one under each
-    wheel track.
+  - **Washed-out bridges** (from the start): a 3.8–4.4 m gap between two concrete abutments over
+    a 2–2.6 m deep trench, on a level straight. The RV can't cross (it noses in, even at
+    speed). What's left of the bridge, 2–3 planks, lies in a heap off in the trees 7–14 m from
+    the road, 12–40 m before it (on the side that's easiest to walk to): find them, and lay two
+    across, one under each wheel track.
+  - **Old timber bridges** (from ~12 % in): a 20–28 m trestle bridge with rails, over an
+    8–10 m deep ravine, with a 3.4–4.2 m **hole in its deck** and a low kicker board just
+    before it. Creep onto it and the front drops in. Take a run at it in third (~40 km/h+) off
+    the kicker and you jump the hole; or find the 3 planks off in the trees and lay two across
+    the hole. (The tests jump it at 42 km/h and cross on planks.)
+  - **Two beams** (from ~20 % in): a 9–14 m ravine crossed by two narrow timber beams, 45 cm
+    wide, one under each wheel track. Line up dead straight and creep: 0.7 m off-line and the
+    wheels drop off.
+  - **Jumps** (from ~28 % in): a 5.6–7 m gully across a long, dead straight, level run-up, with
+    a 0.8 m kicker ramp at its lip and the far side 1.5 m lower. Too wide for planks: get up to
+    speed (~45 km/h in third or fourth) and fly it. At a crawl you drop in.
+  - **Hills**: where the land rises, the road goes straight up it (up to 22 %, rising 14–30 m
+    over 160 m), with the poles marching up beside it. At its foot a fainter side track heads
+    off downhill, the easy way, to a dead end. Full throttle in a low gear gets you up; a
+    boulder waits halfway up and another at the top if you need the winch.
   - **Ledges** (from mid-trip): a sheer 1.1–1.7 m step up the road; the ground either side is
     raised so you can't drive round. A big boulder waits at the top: hook the winch on and
     reel yourself up.
@@ -228,11 +254,16 @@ Long have 5 and 11 stations). The default seed is `DT4-00000-000DG`.
     ice gives full grip under that wheel; 4 planks lie off in the trees before each pond and a
     boulder to winch from waits beyond it.
   - Nothing warns you: there are no signs before obstacles.
-- **The generator guarantees solvability**: every gap has planks before it and fits a plank;
-  every ledge has an anchor within winch reach; every icy pond has planks and an anchor; fords
-  are never deeper than 0.8 m; lakes and caves never touch the road; obstacles are ≥ 120 m
-  apart; the road's grade outside obstacles stays in limits. Checked for 200 seeds in the
-  Rust tests.
+- **The generator guarantees solvability**: every gap and bridge has planks near it and fits
+  a plank; every jump has a straight, level run-up and is makeable at ~45 km/h (and not at a
+  crawl); bridges and beams sit on level straights; every ledge has an anchor within winch
+  reach, every hill one halfway and one at the top; every icy pond has planks and an anchor;
+  fords are never deeper than 0.8 m and are level through; the valley pinches in at every
+  obstacle; lakes, caves and places never touch the road; obstacles are ≥ 80 m apart; the
+  road never comes back near itself; the grade outside obstacles stays in limits. Checked for
+  160 seeds in the Rust tests; `tests/crossings.tscn` drives the RV over the default trip's
+  bridge (creeping, jumping, on planks), its beams (lined up and off-line), its hill, and a
+  jump.
 - **Lakes**: ponds 12–30 m across beside the road in the bayou (with a dark bed; swim in them)
   and frozen lakes in the pass (walkable, slippery ice).
 - **Caves**: in the woods and the canyon, a cave in a clearing off the road on most stretches
@@ -309,7 +340,7 @@ Long have 5 and 11 stations). The default seed is `DT4-00000-000DG`.
 ## The world
 
 ### Generation
-- **Seed codes** like `DT4-00000-000DG`: generator version, trip length and a 40-bit seed in
+- **Seed codes** like `DT5-00000-000ZG`: generator version, trip length and a 40-bit seed in
   Crockford base32, with a typo check. The default seed is fixed; `-- --seed=CODE` picks another.
 - **Deterministic everywhere**: the same seed builds bit-identical terrain, trees and props on
   macOS (Apple Silicon), Linux and Windows (x86_64). CI checks this on every push with golden
