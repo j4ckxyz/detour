@@ -97,8 +97,11 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
 
 - **First-person player** with walking (4.2 m/s), sprinting (7 m/s), crouching and jumping; steps
   up ledges up to 40 cm; collides with the terrain, rocks, trees and the RV's hull.
-- **Interaction**: a crosshair and an "E  …" prompt for whatever you're looking at within reach
-  (doors, seats, items).
+- **Interaction**: a crosshair and a short "E  …" label for whatever you're looking at within
+  reach: an item's name, "Open", "Sit", "Put it here", "Winch hook". The HUD never explains how
+  to solve anything: what you're holding shows its name, plus a terse action ("LMB fit", "LMB
+  pour", "LMB lay") only while you're aiming at somewhere it would work. Working out where the
+  fuel cap is, what the hammer needs, or where the planks went is up to you.
 - **The RV's side door** opens and closes (animated). Walk through it to get in; walk out to
   leave. The shut door blocks the way.
 - **Inside the RV** you walk around its real interior while it drives: the interior is its own
@@ -129,7 +132,7 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   is 24 minutes). The top of the screen shows "Day 1, 14:05 · Rain". Tows cost an hour.
 - **Day and night**: the sun rises in the east at 06:00 and sets in the west at 18:00; dawn
   and dusk tint the sky and sunlight orange; nights are dark blue under a faint moon. Use the
-  RV's headlights and your **flashlight** (**L** on foot; the HUD reminds you when it's dark).
+  RV's headlights and your **flashlight** (**L** on foot).
 - **Weather** comes in 3-hour spells, the same for everyone on a seed (the first morning is
   always fine): clear, cloudy, rain, fog or storms. In Frostpeak Pass wet spells are snow; Red
   Rock Canyon stays dry (clouds instead of rain, no fog).
@@ -168,13 +171,13 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   - **Bear spray** (6 puffs): left click sprays a 7 m cone that sends bears and snakes off
     (and makes an eagle drop what it's carrying). The RV driving at an animal scares it off
     too.
-  - The HUD warns you: "*rattle rattle*", "A BEAR!", "An eagle's diving at you!" (until
+  - The HUD shows what you'd hear: "*rattle rattle*", "*ROAR*", "*SCREECH*" (until
     sounds land). `-- --peaceful` turns wildlife off.
 
 ## The trip
 
 Every seed makes a trip (a **Short** trip is ~2.4 km: camp → 2 gas stations → home; Medium and
-Long have 5 and 11 stations). The default seed is `DT3-0EHYA-0MEKW`.
+Long have 5 and 11 stations). The default seed is `DT4-00000-000DG`.
 
 - **Biomes**: every trip starts in **the Pine Woods** and ends in **Frostpeak Pass** (the
   hardest); in between come the **Muddy Bayou** and **Red Rock Canyon** in a seeded order
@@ -190,16 +193,24 @@ Long have 5 and 11 stations). The default seed is `DT3-0EHYA-0MEKW`.
 
 - **The road**: a winding dirt road heading home (east), carved into the hills with cut and
   fill to a gentle grade (≤ 9 %), dirt-coloured so it's obvious where to go, cleared of trees
-  and rocks, with the forest crowding its edges (going round an obstacle through the trees is
-  hard). Deep cuts through hillsides leave rocky walls either side.
+  and rocks, with the forest crowding its edges. Deep cuts through hillsides leave rocky walls
+  either side.
+- **The valley**: the road runs along a valley floor 40–58 m either side of it; past that,
+  cliffs rise 24–45 m over ~12 m (far too steep to drive or climb) to a craggy crest, so the
+  road is the only way to go. The valley is closed off behind the camp and past home, and
+  opens out into bays round the side lakes and caves. A washed-out bridge's gully and a ledge's
+  raised ground run right across the valley into its walls, so there's no driving round them.
+  (Checked in the Rust tests by flood-filling everywhere you could stand from the camp.)
 - **Obstacles** get harder towards home, with a quiet stretch now and then:
   - **Mud** (early): a soft dip where the tires grip at 40 % and drag hard. Keep your momentum,
     lay planks, or winch.
   - **Steep climbs** (5–9 m humps, ~25–30 % at their steepest): low gear and momentum, or
     winch.
   - **Washed-out bridges** (from mid-trip): a 3.8–4.4 m gap between two concrete abutments over
-    a 2–2.6 m deep trench. The RV can't cross (it noses in, even at speed). A pile of 4 planks
-    lies at the roadside 18–30 m before each one: lay two across, one under each wheel track.
+    a 2–2.6 m deep trench. The RV can't cross (it noses in, even at speed). What's left of the
+    bridge, 4 planks, lies in a heap off in the trees 8–16 m from the road, 12–40 m before it
+    (on the side that's easiest to walk to): find them, and lay two across, one under each
+    wheel track.
   - **Ledges** (from mid-trip): a sheer 1.1–1.7 m step up the road; the ground either side is
     raised so you can't drive round. A big boulder waits at the top: hook the winch on and
     reel yourself up.
@@ -209,9 +220,9 @@ Long have 5 and 11 stations). The default seed is `DT3-0EHYA-0MEKW`.
     stalls and damages the engine. You can swim in it.
   - **Ice** (the pass): the road drops ~1.4–2 m into a frozen pond 14–18 m across, and climbs
     out up a ~15 % ramp that's icy at the bottom. Tires get 15 % grip on ice. A plank laid on
-    ice gives full grip under that wheel; 4 planks wait before each pond and a boulder to winch
-    from waits beyond it.
-  - A **warning sign** stands 45 m before each obstacle.
+    ice gives full grip under that wheel; 4 planks lie off in the trees before each pond and a
+    boulder to winch from waits beyond it.
+  - Nothing warns you: there are no signs before obstacles.
 - **The generator guarantees solvability**: every gap has planks before it and fits a plank;
   every ledge has an anchor within winch reach; every icy pond has planks and an anchor; fords
   are never deeper than 0.8 m; lakes and caves never touch the road; obstacles are ≥ 120 m
@@ -226,14 +237,20 @@ Long have 5 and 11 stations). The default seed is `DT3-0EHYA-0MEKW`.
 - **The start camp**: tent, campfire, bedroll and log pile by the road; the starter items lie
   by the RV.
 - **Gas stations** (checkpoints): a shop with a diner sign, a canopy over two pumps, a welding
-  bench, barrels and crates. Drive up to one and the game **saves**, says so, and **restocks**:
+  bench, barrels and crates. Drive up to one and the game **saves** and **restocks**:
   2 planks, a jerry can, 2 scrap metal, motor oil, 2 burgers, a spare tire, 2 frozen patties,
   a soda, an EpiPen, an antidote and bear spray in front of the shop. There's a grill too.
 - **Home**: a house with a fence and a big "HOME" sign. Arrive and the trip ends with a
-  summary: time, distance driven, stalls and winch rope reeled in.
-- **Saves**: quitting and relaunching continues from the last gas station (per seed; start
-  over with `-- --new` or the menu). A save keeps the RV's state (damage, missing parts,
-  wheels and bolts, fuel, oil, gearbox), everything stowed in it and your hotbar.
+  summary: time, distance driven, stalls and winch rope reeled in. The save is kept as a
+  finished record (listed on the main menu; it can be started again, not continued).
+- **Saves** (one per seed, in `user://saves`; solo and when hosting): the trip **autosaves**
+  every minute, on reaching a gas station, on leaving to the menu and on quitting (a brief
+  "Saved" shows top right). Continuing carries on from exactly where you were: the RV where it
+  stood (put back upright), its state (damage, missing parts, wheels and bolts, fuel, oil,
+  gearbox), everything stowed in it, **everything lying about the world** (dropped and thrown
+  things, laid planks, what's left in caves and at stations, parts that fell off the RV), your
+  health and hotbar, and the clock. **Tow to the last checkpoint** still goes back to the last
+  gas station. Start over with `-- --new`, the menu, or **Restart this trip**.
 - **Top of the screen**: the next stop and how far down the road it is, plus checkpoint notices.
 
 ## Damage, repairs and supplies
@@ -287,7 +304,7 @@ Long have 5 and 11 stations). The default seed is `DT3-0EHYA-0MEKW`.
 ## The world
 
 ### Generation
-- **Seed codes** like `DT3-0EHYA-0MEKW`: generator version, trip length and a 40-bit seed in
+- **Seed codes** like `DT4-00000-000DG`: generator version, trip length and a 40-bit seed in
   Crockford base32, with a typo check. The default seed is fixed; `-- --seed=CODE` picks another.
 - **Deterministic everywhere**: the same seed builds bit-identical terrain, trees and props on
   macOS (Apple Silicon), Linux and Windows (x86_64). CI checks this on every push with golden
@@ -410,6 +427,11 @@ Long have 5 and 11 stations). The default seed is `DT3-0EHYA-0MEKW`.
 
 - **Main menu** (the game starts here; `-- --seed=CODE`, `--play` or `--new` skip it):
   - **You**: your name and jacket colour (remembered).
+  - **Your trips** (when there are saves): each saved trip, most recent first, with how far
+    along it is ("Short trip · past gas station 1 of 2 · 40% of the way · day 1, 14:05 · 12
+    min played · 3 min ago"), and **Continue** (solo), **Host** (carry on together) and
+    **Delete** (press twice). Finished trips say how long they took and offer **Again**.
+    Saves from an older world generator are listed but can't be continued.
   - **Play solo**: a seed code (blank for a new trip) and the trip length (short, medium,
     long). It says "Continue this trip" when there's a save for that seed.
   - **Host a game**: on this network / direct IP (UDP port 24652), or through a relay server

@@ -1,13 +1,14 @@
 class_name TripHud
 extends CanvasLayer
 ## Top-of-screen trip line: the next stop and how far along the road it is, checkpoint
-## notices, and the summary at the end.
+## notices, a brief "Saved" in the corner, and the summary at the end.
 
 var trip: Trip
 var weather: Weather
 
 var _line := Label.new()
 var _notice := Label.new()
+var _saved := Label.new()
 
 
 func _ready() -> void:
@@ -25,6 +26,14 @@ func _ready() -> void:
 	_line.offset_top = 10.0
 	_notice.add_theme_font_size_override("font_size", 24)
 	_notice.offset_top = 40.0
+	_saved.text = "Saved"
+	_saved.add_theme_font_size_override("font_size", 14)
+	_saved.add_theme_color_override("font_color", Color(0.98, 0.95, 0.86))
+	_saved.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_saved.add_theme_constant_override("outline_size", 5)
+	_saved.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 14)
+	_saved.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	add_child(_saved)
 
 
 func _process(_delta: float) -> void:
@@ -50,3 +59,5 @@ func _process(_delta: float) -> void:
 		_line.text += "\n%s%s" % [", ".join(names), code]
 	_notice.visible = trip.notice_time > 0.0
 	_notice.text = trip.notice
+	_saved.visible = trip.saved_flash > 0.0
+	_saved.modulate.a = clampf(trip.saved_flash, 0.0, 1.0)

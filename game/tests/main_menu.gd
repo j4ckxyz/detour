@@ -25,6 +25,22 @@ func _ready() -> void:
 	_check(MainMenu._looks_like_code("K7M2QX") and not MainMenu._looks_like_code("10.0.0.2"), "room codes vs addresses")
 	_check(MainMenu._split_address("10.0.0.2:4000", 1) == ["10.0.0.2", 4000] and MainMenu._split_address("host", 7) == ["host", 7], "addresses split into host and port")
 	_check(menu._lan.get_child_count() >= 1, "the LAN games list is shown")
+	# Saved trips are listed, to carry on or delete.
+	var code := "DT4-00000-000DG"
+	var had := Saves.read(code)
+	Saves.write(code, {"gen": WorldGen.gen_version(), "seed": code, "checkpoint": 1, "stations": 2,
+		"elapsed": 600.0, "hours": 14.0, "progress": 0.4, "saved_at": Time.get_unix_time_from_system()})
+	menu._refresh_trips()
+	await get_tree().process_frame
+	_check(menu._trips.get_child_count() >= 2, "your saved trips are listed")
+	_check(Saves.describe(Saves.read(code)).contains("gas station 1 of 2"), "saying how far along: %s" % Saves.describe(Saves.read(code)))
+	menu._seed.text = code
+	menu._refresh_play()
+	_check(menu._play.text == "Continue this trip", "and the seed box offers to continue it")
+	if had.is_empty():
+		Saves.delete(code)
+	else:
+		Saves.write(code, had)
 	menu.queue_free()
 	if _failures.is_empty():
 		print("main menu: all checks passed")

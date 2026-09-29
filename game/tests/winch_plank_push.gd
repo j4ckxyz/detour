@@ -49,7 +49,7 @@ func _winch() -> void:
 	await _w.walk_to(_rv.to_global(Vector3(0.0, 0.0, -5.2)), 0.3)
 	_w.face(winch.global_position)
 	await _w.hold(0.2)
-	_check(_player.target_prompt == "Take the front winch hook", "front winch offers its hook (got '%s')" % _player.target_prompt)
+	_check(_player.target_prompt == "Winch hook", "front winch offers its hook (got '%s')" % _player.target_prompt)
 	await _w.press(&"interact")
 	_check(_player.held == winch.hook and winch.state == RVWinch.State.HELD, "holding the front hook")
 

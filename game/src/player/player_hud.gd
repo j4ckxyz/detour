@@ -1,13 +1,13 @@
 class_name PlayerHud
 extends CanvasLayer
 ## On-foot HUD: a crosshair, what you can interact with, what you're holding, and health.
+## It names things and says what a button does right now; it doesn't explain how to solve
+## anything (see ItemLibrary.use_hint).
 
 const TEXT := Color(0.96, 0.93, 0.86)
 const DIM := Color(0.96, 0.93, 0.86, 0.7)
 
 var player: Player
-## Set by the game when it's dark out (the HUD then mentions the flashlight).
-var dark := false
 
 var _dot := Label.new()
 var _prompt := Label.new()
@@ -89,21 +89,18 @@ func _process(_delta: float) -> void:
 	var bits: PackedStringArray = []
 	if player.held:
 		var hint := ItemLibrary.use_hint(player.held, player)
-		var throw := "" if player.held.def.get("no_throw", false) else "RMB throw · "
-		bits.append("Holding %s  (%s%sQ drop)" % [player.held.display_name(), hint + " · " if hint != "" else "", throw])
+		bits.append(player.held.display_name() + ("  (%s)" % hint if hint != "" else ""))
 		if player.held.kind == &"winch_remote" and player.rv:
 			var w: RVWinch = player.rv.winches[player.winch_choice]
 			var state := "hooked, %.1f m out, %d kN" % [w.rope_length, roundi(w.tension / 1000.0)] if w.is_anchored() else "not hooked"
 			bits.append("%s winch: %s" % [w.label.capitalize(), state])
 	if player.pushing:
 		bits.append("Pushing!")
-	if dark and not player.flashlight.visible and not player.inside:
-		bits.append("Dark: L flashlight")
 	if player.swimming:
-		bits.append("Swimming (Space: up)")
+		bits.append("Swimming")
 	var health := "Health %d" % roundi(player.health)
 	if player.venom > 0.0:
-		health += "  POISONED (antidote!)"
+		health += "  Poisoned"
 	bits.append(health)
 	var danger := _danger()
 	if danger != "":
@@ -119,8 +116,8 @@ func _process(_delta: float) -> void:
 	_message.text = player.message
 	_downed.visible = player.downed
 	if player.downed:
-		var help := "LMB  use your EpiPen" if player.find_item(&"epipen") else "A teammate with an EpiPen can get you up"
-		_downed.text = "You're down (%s)!  %d s\n%s   ·   E  pass out (wake up by the RV)" % [player.hurt_cause, ceili(player.bleed_out), help]
+		var keys := "LMB  EpiPen   ·   " if player.find_item(&"epipen") else ""
+		_downed.text = "You're down (%s)!  %d s\n%sE  give up" % [player.hurt_cause, ceili(player.bleed_out), keys]
 	var alpha := 0.35 if player.downed else player.hurt_flash * 0.3 + (0.08 if player.venom > 0.0 else 0.0)
 	_flash.color = Color(0.45, 0.6, 0.0, alpha) if player.venom > 0.0 and not player.downed and player.hurt_flash < 0.1 else Color(0.7, 0.0, 0.0, alpha)
 
@@ -133,11 +130,11 @@ func _danger() -> String:
 	for n: Node in get_tree().get_nodes_in_group(&"wildlife"):
 		var snake := n as Snake
 		if snake and snake.is_rattling() and snake.target == player:
-			warn = "*rattle rattle* A snake! Back off"
+			warn = "*rattle rattle*"
 		var bear := n as Bear
 		if bear and bear.target == player and bear.state in [Bear.State.ALERT, Bear.State.CHASE, Bear.State.ATTACK]:
-			return "A BEAR! Run for the RV or use bear spray"
+			return "*ROAR*"
 		var eagle := n as Eagle
 		if eagle and eagle.target == player and eagle.state == Eagle.State.DIVE:
-			warn = "An eagle's diving at you!"
+			warn = "*SCREECH*"
 	return warn

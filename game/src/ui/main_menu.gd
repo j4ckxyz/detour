@@ -1,8 +1,9 @@
 class_name MainMenu
 extends Control
-## The title screen: your name and colour, then play solo (new trip or a seed code, carrying on
-## from a save), host a game (on this network / direct IP, or through a relay with a room
-## code), or join one (LAN games are listed; or type an address or a room code).
+## The title screen: your name and colour, your saved trips (carry on, host, start again or
+## delete), then play solo (new trip or a seed code), host a game (on this network / direct
+## IP, or through a relay with a room code), or join one (LAN games are listed; or type an
+## address or a room code).
 ##
 ## Launching with `-- --seed=CODE` (or `--play`) skips it and goes straight into a solo trip.
 
@@ -11,6 +12,8 @@ const TEXT := Color(0.96, 0.93, 0.86)
 const DIM := Color(0.96, 0.93, 0.86, 0.6)
 const ACCENT := Color(0.95, 0.62, 0.25)
 const TRIP_LENGTHS: Array[String] = ["Short trip", "Medium trip", "Long trip"]
+## How many saved trips the menu lists.
+const TRIPS_SHOWN := 8
 
 var _name := LineEdit.new()
 var _colors := HBoxContainer.new()
@@ -21,6 +24,7 @@ var _host_mode := OptionButton.new()
 var _relay := LineEdit.new()
 var _join_to := LineEdit.new()
 var _lan := VBoxContainer.new()
+var _trips := VBoxContainer.new()
 var _status := Label.new()
 var _busy := false
 
@@ -86,6 +90,10 @@ func _build() -> void:
 	you.add_child(_colors)
 	box.add_child(you)
 	_build_colors()
+
+	_trips.add_theme_constant_override("separation", 6)
+	box.add_child(_trips)
+	_refresh_trips()
 
 	box.add_child(_heading("Play solo"))
 	var solo := HBoxContainer.new()
@@ -202,7 +210,7 @@ func _refresh_play() -> void:
 		_status.text = problem
 		return
 	_status.text = ""
-	_play.text = "Continue this trip" if FileAccess.file_exists(Trip.SAVE_DIR.path_join("%s.json" % code)) else "Start this trip"
+	_play.text = "Continue this trip" if Saves.can_continue(Saves.read(code)) else "Start this trip"
 
 
 func _check_seed() -> bool:
@@ -214,12 +222,8 @@ func _check_seed() -> bool:
 
 
 func _on_play() -> void:
-	if not _check_seed():
-		return
-	Session.leave()
-	Session.seed_code = _chosen_seed()
-	Session.save_settings()
-	get_tree().change_scene_to_file(PLAYGROUND)
+	if _check_seed():
+		_play_code(_chosen_seed())
 
 
 func _on_host() -> void:
@@ -288,6 +292,57 @@ func _on_joined() -> void:
 func _on_failed(message: String) -> void:
 	_busy = false
 	_status.text = message
+
+
+## Saved trips, most recent first: carry on (solo or hosting), start a finished one again, or
+## delete one (press twice).
+func _refresh_trips() -> void:
+	for c: Node in _trips.get_children():
+		c.queue_free()
+	var saves := Saves.list()
+	if saves.is_empty():
+		return
+	_trips.add_child(_heading("Your trips"))
+	for d: Dictionary in saves.slice(0, TRIPS_SHOWN):
+		var code: String = d["code"]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info.add_child(_label(code, 16, TEXT))
+		info.add_child(_label(Saves.describe(d), 13, DIM))
+		row.add_child(info)
+		if Saves.is_current(d):
+			var go := Button.new()
+			go.text = "Continue" if Saves.can_continue(d) else "Again"
+			go.tooltip_text = "Play it solo" if Saves.can_continue(d) else "Start this trip over"
+			go.pressed.connect(func() -> void: _play_code(code))
+			row.add_child(_button(go))
+			var host := Button.new()
+			host.text = "Host"
+			host.tooltip_text = "Carry on together (set how to host below)"
+			host.pressed.connect(func() -> void:
+				_seed.text = code
+				_on_host())
+			row.add_child(_button(host))
+		var del := Button.new()
+		del.text = "Delete"
+		del.pressed.connect(func() -> void:
+			if del.text != "Sure?":
+				del.text = "Sure?"
+				return
+			Saves.delete(code)
+			_refresh_trips()
+			_refresh_play())
+		row.add_child(_button(del))
+		_trips.add_child(row)
+
+
+func _play_code(code: String) -> void:
+	Session.leave()
+	Session.seed_code = code
+	Session.save_settings()
+	get_tree().change_scene_to_file(PLAYGROUND)
 
 
 func _refresh_lan() -> void:

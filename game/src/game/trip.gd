@@ -1,8 +1,9 @@
 class_name Trip
 extends Node3D
 ## One trip (PLAN.md §4.1, §4.6): from the camp along the generated road, through gas-station
-## checkpoints, to home. Builds the stops, supplies and signs from `WorldGen.trip()`, notices
-## the RV arriving, saves at each station and ends the trip at home.
+## checkpoints, to home. Builds the stops and supplies from `WorldGen.trip()`, notices the RV
+## arriving, saves (at each station, and every so often along the way) and ends the trip at
+## home. Nothing tells you what's ahead: no signs before obstacles, just the road.
 
 signal checkpoint_reached(index: int, total: int)
 signal finished
@@ -10,7 +11,6 @@ signal finished
 const PAD_CAMP := 0
 const PAD_STATION := 1
 const PAD_HOME := 2
-const OBSTACLE_NAMES: Array[String] = ["Washed-out gap", "Ledge", "Mud", "Steep climb", "River crossing", "Ice"]
 const BIOME_NAMES: Array[String] = ["the Pine Woods", "Muddy Bayou", "Red Rock Canyon", "Frostpeak Pass"]
 ## What a cave might hold (kind, weight).
 const CAVE_LOOT: Array[Array] = [
@@ -22,7 +22,6 @@ const CAVE_LOOT: Array[Array] = [
 const ARRIVE_RADIUS := 20.0
 const START_HOUR := 8.0
 const HOURS_PER_SECOND := 1.0 / 60.0
-const SAVE_DIR := "user://saves"
 ## Items a station restocks (kind, count).
 const RESTOCK: Array[Array] = [
 	[&"plank", 2], [&"jerrycan", 1], [&"scrap_metal", 2], [&"motor_oil", 1], [&"burger", 2], [&"spare_tire", 1],
@@ -47,10 +46,14 @@ var notice := ""
 var notice_time := 0.0
 ## Online clients follow the host's trip (arrivals, saves and restocks happen there).
 var is_authority := true
-## Optional `func() -> Dictionary`: more to save at each checkpoint (the RV's state, what's
-## stowed in it, the hotbar), and what came back from the last load.
+## Optional `func() -> Dictionary`: more to save (the RV and where it is, what's stowed in it,
+## what lies about the world, the player), and what came back from the last load.
 var extra_save: Callable
 var loaded_extra: Dictionary = {}
+## A save was loaded (so the world's things come from it, not fresh).
+var resumed := false
+## Seconds the "Saved" mark shows for (the HUD fades it).
+var saved_flash := 0.0
 
 var _last_rv_pos := Vector3.INF
 var _biome := -1
@@ -86,11 +89,11 @@ func build(spawn_items: bool = true) -> void:
 		add_child(node)
 		node.global_transform = _pad_transform(p)
 	_wire_station_services()
-	for supply: Dictionary in data.get("supplies", []):
-		if int(supply["kind"]) == 0 and spawn_items:
-			_spawn_planks(supply)
+	var supplies: Array = data.get("supplies", [])
+	for i: int in supplies.size():
+		if int(supplies[i]["kind"]) == 0 and spawn_items:
+			_spawn_planks(i, supplies[i])
 	for o: Dictionary in data.get("obstacles", []):
-		_add_warning_sign(o)
 		if int(o["kind"]) == 0:
 			_add_abutments(o)
 	var water := WaterBodies.new()
@@ -187,10 +190,10 @@ func _wire_station_services() -> void:
 			continue
 		pump.prompt_for = func(player: Player) -> String:
 			if player.held and player.held.kind == &"jerrycan":
-				return "Fill the jerry can"
+				return "Fill"
 			if _rv_near(pump, 14.0):
-				return "Fill up the RV (%d / %d L)" % [roundi(rv.damage.fuel), roundi(RVDamage.TANK)]
-			return "Pump (park the RV closer to fill up)"
+				return "Fill up (%d / %d L)" % [roundi(rv.damage.fuel), roundi(RVDamage.TANK)]
+			return "Pump"
 		pump.used.connect(func(player: Player) -> void:
 			if player.held and player.held.kind == &"jerrycan":
 				player.held.set_meta(&"fuel", ItemLibrary.JERRY_CAN_LITRES)
@@ -198,48 +201,43 @@ func _wire_station_services() -> void:
 				player.say("Jerry can filled.")
 			elif _rv_near(pump, 14.0):
 				rv.op(&"add_fuel", [RVDamage.TANK])
-				player.say("Tank full."))
+				player.say("Tank full.")
+			else:
+				player.say("The hose doesn't reach."))
 	for n: Node in get_tree().get_nodes_in_group(&"welders"):
 		var welder := n as Interactable
 		if welder == null or not is_ancestor_of(welder):
 			continue
 		welder.prompt_for = func(_player: Player) -> String:
-			if not _rv_near(welder, 28.0):
-				return "Welder (bring the RV closer)"
-			return "Weld the RV's frame (%d%%)" % roundi(rv.damage.frame)
+			return "Weld" if _rv_near(welder, 28.0) else "Welder"
 		welder.used.connect(func(player: Player) -> void:
 			if _rv_near(welder, 28.0):
 				rv.op(&"weld")
-				player.say("Frame welded good as new; the mechanic looked the engine over too."))
+				player.say("Frame welded good as new; the mechanic looked the engine over too.")
+			else:
+				player.say("The leads don't reach that far."))
 
 
 func _rv_near(node: Node3D, radius: float) -> bool:
 	return rv.global_position.distance_to(node.global_position) < radius
 
 
-func _spawn_planks(supply: Dictionary) -> void:
+## What's left of a washed-out bridge: its planks, dumped in a heap off in the trees (where
+## the generator put them), the same for the same seed. Nothing points to them.
+func _spawn_planks(index: int, supply: Dictionary) -> void:
 	var pos: Vector3 = supply["pos"]
-	var dir: Vector3 = supply["dir"]
-	var side := Vector3(-dir.z, 0.0, dir.x)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%s:planks%d" % [world.get_code(), index])
 	for k: int in int(supply["count"]):
 		var plank := ItemLibrary.create(&"plank")
 		items.add_child(plank)
-		var at := pos + side * (0.4 * k)
-		at.y = world.height_at(at.x, at.z) + 0.15 + 0.06 * k
-		plank.global_transform = Transform3D(Basis(dir, Vector3.UP, dir.cross(Vector3.UP)), at) # Lying along the road.
-		plank.freeze = true # Stacked neatly until someone picks one up.
+		var yaw := rng.randf() * TAU
+		var at := pos + Vector3(rng.randf_range(-1.6, 1.6), 0.0, rng.randf_range(-1.6, 1.6))
+		at.y = world.height_at(at.x, at.z) + 0.12 + 0.07 * k
+		var tilt := Basis(Vector3.RIGHT, rng.randf_range(-0.12, 0.12))
+		plank.global_transform = Transform3D(Basis(Vector3.UP, yaw) * tilt, at)
+		plank.freeze = true # Lying there until someone picks one up.
 		plank.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
-
-
-func _add_warning_sign(o: Dictionary) -> void:
-	var kind := int(o["kind"])
-	var pos: Vector3 = o["pos"]
-	var dir: Vector3 = o["dir"]
-	var at := pos - dir * 45.0 + Vector3(-dir.z, 0.0, dir.x) * (float(data["road_half_width"]) + 1.2)
-	at.y = world.height_at(at.x, at.z)
-	var sign := TripStops.warning_sign(OBSTACLE_NAMES[kind])
-	add_child(sign)
-	sign.global_transform = Transform3D(Basis.looking_at(-dir, Vector3.UP), at)
 
 
 func _physics_process(dt: float) -> void:
@@ -251,6 +249,7 @@ func _physics_process(dt: float) -> void:
 	if _last_rv_pos != Vector3.INF:
 		distance_driven += Vector2(rv.global_position.x - _last_rv_pos.x, rv.global_position.z - _last_rv_pos.z).length()
 	_last_rv_pos = rv.global_position
+	saved_flash = maxf(0.0, saved_flash - dt)
 	_biome_check -= dt
 	if _biome_check <= 0.0:
 		_biome_check = 1.0
@@ -271,10 +270,8 @@ func _physics_process(dt: float) -> void:
 
 func _arrive(i: int) -> void:
 	reach(i)
-	if is_finished:
-		clear_save()
-		return
-	restock(i)
+	if not is_finished:
+		restock(i)
 	save()
 
 
@@ -287,7 +284,7 @@ func reach(i: int) -> void:
 		show_notice("Home! Trip complete.", 30.0)
 		finished.emit()
 		return
-	show_notice("Gas station %d of %d: checkpoint saved, supplies restocked." % [i, station_count()], 8.0)
+	show_notice("Gas station %d of %d" % [i, station_count()], 8.0)
 	checkpoint_reached.emit(i, station_count())
 
 
@@ -325,7 +322,7 @@ func show_notice(text: String, seconds: float) -> void:
 
 func summary() -> String:
 	return "Home in %s: %.1f km driven, %d gas stations, %d stalls, %.0f m of winch rope reeled in." % [
-		_clock(elapsed), distance_driven / 1000.0, station_count(), stalls,
+		clock_of(elapsed), distance_driven / 1000.0, station_count(), stalls,
 		rv.winches[0].reeled_total + rv.winches[1].reeled_total,
 	]
 
@@ -341,7 +338,7 @@ func day() -> int:
 	return int(hours / 24.0) + 1
 
 
-static func _clock(seconds: float) -> String:
+static func clock_of(seconds: float) -> String:
 	var s := int(seconds)
 	return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
 
@@ -349,26 +346,37 @@ static func _clock(seconds: float) -> String:
 # --- saves -------------------------------------------------------------------------------------
 
 func _save_path() -> String:
-	return SAVE_DIR.path_join("%s.json" % world.get_code())
+	return Saves.path(world.get_code())
 
 
+## Writes the trip as it stands: progress, the clock and (via `extra_save`) the RV, its load
+## and everything lying about, so it carries on from right here. A finished trip is kept as
+## a record (it can't be continued, only started again).
 func save() -> void:
-	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
-	var f := FileAccess.open(_save_path(), FileAccess.WRITE)
-	if f == null:
-		return
-	f.store_string(JSON.stringify({
+	var previous := Saves.read(world.get_code())
+	var progress := world.road_progress(rv.global_position.x, rv.global_position.z)
+	var d := {
 		"gen": WorldGen.gen_version(), "seed": world.get_code(), "checkpoint": checkpoint,
-		"elapsed": elapsed, "distance": distance_driven, "stalls": stalls, "hours": hours,
-		"extra": JSON.from_native(extra_save.call() if extra_save.is_valid() else {}),
-	}, "\t"))
+		"stations": station_count(), "elapsed": elapsed, "distance": distance_driven,
+		"stalls": stalls, "hours": hours, "saved_at": Time.get_unix_time_from_system(),
+		"finished": is_finished,
+	}
+	if progress >= 0.0:
+		d["progress"] = clampf(progress / float(data.get("length", 1.0)), 0.0, 1.0)
+	if is_finished:
+		d["completed"] = {"elapsed": elapsed, "at": d["saved_at"]}
+	elif previous.has("completed"):
+		d["completed"] = previous["completed"]
+	if not is_finished:
+		d["extra"] = JSON.from_native(extra_save.call() if extra_save.is_valid() else {})
+	if Saves.write(world.get_code(), d):
+		saved_flash = 2.5
 
 
-## Picks up a saved trip for this seed, if there is one. Returns true if it did.
+## Picks up a saved trip for this seed, if there's one to carry on. Returns true if it did.
 func load_save() -> bool:
-	var text := FileAccess.get_file_as_string(_save_path())
-	var d: Variant = JSON.parse_string(text) if text != "" else null
-	if not d is Dictionary or int(d.get("gen", 0)) != WorldGen.gen_version():
+	var d := Saves.read(world.get_code())
+	if not Saves.can_continue(d):
 		return false
 	checkpoint = clampi(int(d.get("checkpoint", 0)), 0, pads().size() - 2)
 	elapsed = float(d.get("elapsed", 0.0))
@@ -377,9 +385,9 @@ func load_save() -> bool:
 	hours = float(d.get("hours", START_HOUR))
 	var extra: Variant = JSON.to_native(d.get("extra", {}))
 	loaded_extra = extra if extra is Dictionary else {}
-	return checkpoint > 0
+	resumed = true
+	return true
 
 
 func clear_save() -> void:
-	if FileAccess.file_exists(_save_path()):
-		DirAccess.remove_absolute(_save_path())
+	Saves.delete(world.get_code())

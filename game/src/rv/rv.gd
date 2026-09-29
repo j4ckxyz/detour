@@ -318,6 +318,7 @@ func _build_storage() -> void:
 			slot.name = "%s%d" % [spec[0], i + 1]
 			slot.rv = self
 			slot.label = spec[2]
+			slot.outside = spec[0] in ["PlankRack", "SpareMount", "CanHolder"]
 			for kind: StringName in spec[1]:
 				slot.accepts.append(kind)
 			slot.turn = Basis.from_euler(spec[4])

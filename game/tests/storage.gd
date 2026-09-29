@@ -47,7 +47,7 @@ func _ready() -> void:
 	var burger := _give(&"burger")
 	await _face_slot(&"PlankRack2", Vector3(-1.1, 0.0, 0.0))
 	await _w.hold(0.2)
-	_check(_player.target_prompt == "" or not _player.target_prompt.contains("plank rack"), "a burger doesn't fit the plank rack")
+	_check(_player.target_prompt != "Put it here", "a burger doesn't fit the plank rack")
 	_player.drop_held()
 	burger.queue_free()
 
@@ -94,7 +94,7 @@ func _store_outside(kind: StringName, slot: StringName, offset: Vector3, label: 
 	_give(kind)
 	await _face_slot(slot, offset)
 	await _w.hold(0.2)
-	_check(_player.target_prompt.contains(label), "looking at the %s holding a %s: '%s'" % [label, kind, _player.target_prompt])
+	_check(_player.target_prompt == "Put it here", "looking at the %s holding a %s: '%s'" % [label, kind, _player.target_prompt])
 	await _w.press(&"interact")
 	var stored := _rv.storage[slot].stored()
 	_check(stored != null and stored.kind == kind and _player.held == null, "the %s goes in the %s" % [kind, label])

@@ -1,8 +1,9 @@
 extends Node
 ## Headless trip test: the generated trip's shape, starting at the camp on the road,
-## reaching a gas station (checkpoint, save, restock), continuing from that save, reaching
-## home, and a real obstacle: the RV can't cross a washed-out gap on its own, but crosses on
-## two planks.
+## reaching a gas station (checkpoint, save, restock), continuing from that save, an autosave
+## mid-road carrying on from exactly there (the RV, what lies about, a laid plank, the
+## player), reaching home (kept as a finished record), and a real obstacle: the RV can't
+## cross a washed-out gap on its own, but crosses on two planks.
 ##
 ##   godot --headless --path game --fixed-fps 60 res://tests/trip_flow.tscn
 
@@ -50,6 +51,7 @@ func _run() -> void:
 		if int(o["kind"]) == 0:
 			planks_near_gaps = planks_near_gaps and _items_near(o["pos"], &"plank", 60.0) >= 2
 	_check(planks_near_gaps, "planks lie somewhere near every gap")
+	_check(_pg.trip.find_child("Sign", true, false) == null, "no signs warn about what's ahead")
 
 	# Obstacle shapes in the ground.
 	for o: Dictionary in obstacles:
@@ -90,6 +92,39 @@ func _run() -> void:
 	_check(trip.checkpoint == 1, "a new session continues from gas station 1")
 	var at_station := _pg.world.road_progress(_pg.rv.global_position.x, _pg.rv.global_position.z)
 	_check(absf(at_station - float(trip.pad(1)["s"])) < 30.0, "the RV starts at gas station 1 (%.0f m)" % at_station)
+	_check(_items_near(station["pos"], &"jerrycan", 25.0) == 1, "the station's supplies came back once, not restocked again")
+
+	# An autosave mid-road carries on from right there.
+	var mid := float(trip.pad(1)["s"]) + 180.0
+	await _teleport(mid)
+	var scrap := ItemLibrary.create(&"scrap_metal")
+	_pg.items.add_child(scrap)
+	var drop_at := _pg.rv.to_global(Vector3(3.0, 0.0, 0.0))
+	drop_at.y = _pg.world.height_at(drop_at.x, drop_at.z) + 0.3
+	scrap.global_position = drop_at
+	var laid := ItemLibrary.create(&"plank")
+	_pg.items.add_child(laid)
+	var lay_at := _pg.rv.to_global(Vector3(0.0, 0.0, -9.0))
+	lay_at.y = _pg.world.height_at(lay_at.x, lay_at.z) + 0.05
+	laid.place(_pg.items, Transform3D(Basis.IDENTITY, lay_at))
+	_pg.player.health = 64.0
+	await _hold(1.0)
+	var clock := trip.hours
+	_pg.autosave()
+	await _start(false)
+	trip = _pg.trip
+	var here := _pg.world.road_progress(_pg.rv.global_position.x, _pg.rv.global_position.z)
+	_check(absf(here - mid) < 12.0, "the autosave put the RV back where it was (%.0f m, saved at %.0f m)" % [here, mid])
+	_check(trip.checkpoint == 1 and absf(trip.hours - clock) < 0.1, "with the trip's progress and clock")
+	_check(_items_near(drop_at, &"scrap_metal", 2.0) == 1, "what lay on the ground is still there")
+	var planks_laid := 0
+	for n: Node in get_tree().get_nodes_in_group(&"items"):
+		var it := n as Item
+		if it and it.kind == &"plank" and it.is_placed() and it.global_position.distance_to(lay_at) < 1.0:
+			planks_laid += 1
+	_check(planks_laid == 1, "the laid plank is still laid")
+	_check(absf(_pg.player.health - 64.0) < 0.5, "and the player's health (%.0f)" % _pg.player.health)
+	_check(_items_near(station["pos"], &"jerrycan", 25.0) == 1, "nothing was restocked twice")
 
 	# Home.
 	var done := [false]
@@ -104,7 +139,9 @@ func _run() -> void:
 	await _teleport(float(trip.pad(-1)["s"]) - 40.0)
 	await _drive(0.6, 14.0, func() -> bool: return done[0])
 	_check(done[0] and trip.is_finished, "reached home: trip complete")
-	_check(not FileAccess.file_exists(trip._save_path()), "the finished trip's save is cleared")
+	var record := Saves.read(_pg.world.get_code())
+	_check(record.get("finished", false) and record.has("completed"), "the finished trip is kept as a record")
+	_check(not Saves.can_continue(record) and not trip.load_save(), "but it can't be continued, only started again")
 	_check(trip.summary().begins_with("Home in"), "a trip summary: %s" % trip.summary())
 	_finish()
 

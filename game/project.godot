@@ -10,7 +10,7 @@ config/description="Co-op RV road trip through procedurally generated wilderness
 run/main_scene="res://src/ui/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.png"
-config/version="0.0.1"
+config/version="0.1.0"
 ; Release builds would otherwise buffer prints: keep logs complete for bug reports.
 run/flush_stdout_on_print=true
 

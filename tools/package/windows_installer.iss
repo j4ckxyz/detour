@@ -1,9 +1,9 @@
 ; Inno Setup script for the Windows installer (CI: .github/workflows/build.yml).
-;   iscc /DAppVersion=0.0.1 /DSourceDir=export\windows /DOutputDir=dist tools\package\windows_installer.iss
+;   iscc /DAppVersion=0.1.0 /DSourceDir=export\windows /DOutputDir=dist tools\package\windows_installer.iss
 ; Installs per user by default (no admin prompt); the installer offers an all-users install.
 
 #ifndef AppVersion
-  #define AppVersion "0.0.1"
+  #define AppVersion "0.1.0"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\..\export\windows"

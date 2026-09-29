@@ -2107,11 +2107,12 @@ Legend:
 | Winch controller | ✅ DONE (M2) |
 | Planks | ✅ DONE (M2) |
 | Push RV | ✅ DONE (M2) |
-| Finite route | ✅ DONE (M3) |
+| Finite route | ✅ DONE (M3; M10: the road runs along a walled valley, closed behind the camp and past home: no driving off into nowhere) |
 | Objective | ✅ DONE (M3: reach home) |
 | Checkpoints | ✅ DONE (M3) |
 | Gas stations | ✅ DONE (M3: checkpoint, save, restock; refuel/welder come with fuel & damage) |
-| Saving/checkpoint progress | ✅ DONE (M3) |
+| Saving/checkpoint progress | ✅ DONE (M3; M10: autosave every minute and on quit, resuming mid-road with the whole world state; saved trips listed on the main menu) |
+| Discovery over hand-holding | ✅ DONE (M10: no warning signs, bridge planks hidden in the trees, terse prompts that never explain the solution) |
 | RV body damage | ✅ DONE (M4: 16 detachable parts) |
 | Tire damage | ✅ DONE (M4) |
 | Engine damage | ✅ DONE (M4: oil, heat, seizing) |

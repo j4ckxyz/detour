@@ -9,8 +9,11 @@ extends Interactable
 
 ## Item storage kinds this slot takes (see ItemLibrary.DEFS "stow").
 var accepts: Array[StringName] = []
-## What it's called in the prompt ("plank rack").
+## What it's called ("plank rack").
 var label := ""
+## On the outside of the RV (the plank rack, spare mount, can holders), else inside: either
+## way it's only reached from its own side of the wall.
+var outside := false
 var turn := Basis.IDENTITY
 var rv: RV
 
@@ -35,14 +38,16 @@ func stored() -> Item:
 	return null
 
 
+func _can_store(player: Player) -> bool:
+	return fits(player.held) and stored() == null and player.inside != outside
+
+
 func _prompt(player: Player) -> String:
-	if not fits(player.held) or stored() != null:
-		return ""
-	return "Put the %s in the %s" % [player.held.display_name().to_lower(), label]
+	return "Put it here" if _can_store(player) else ""
 
 
 func _store_held(player: Player) -> void:
-	if not fits(player.held) or stored() != null:
+	if not _can_store(player):
 		return
 	var item := player.held
 	player.held = null

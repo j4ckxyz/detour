@@ -1,6 +1,6 @@
 extends Node
-## Screenshot tour of a trip's places: the camp, the road, a warning sign and washed-out gap,
-## a gas station and home.
+## Screenshot tour of a trip's places: the camp and the valley wall behind it, the road, the
+## valley's walls, a washed-out gap, a gas station and home.
 ##
 ##   godot --path game res://src/debug/trip_tour.tscn -- --shots=/tmp/trip
 
@@ -37,12 +37,16 @@ func _tour() -> void:
 	await _seconds(0.5)
 	await _snap("road_ahead")
 	cam.mode = RVCamera.Mode.CHASE
+	cam.set_look(PI, -0.05)
+	await _seconds(0.8)
+	await _snap("behind_the_camp")
+	await _go(360.0)
+	for side: float in [1.4, -1.4]:
+		cam.set_look(side, 0.0)
+		await _seconds(0.8)
+		await _snap("valley_wall")
 	for o: Dictionary in trip.data["obstacles"]:
 		if int(o["kind"]) == 0:
-			await _go(float(o["s"]) - 48.0)
-			cam.set_look(0.0, -0.1)
-			await _seconds(0.5)
-			await _snap("warning_sign")
 			await _go(float(o["s"]) - 12.0)
 			cam.set_look(0.3, -0.35)
 			await _seconds(0.5)

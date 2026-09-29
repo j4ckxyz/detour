@@ -119,10 +119,10 @@ func _process(_delta: float) -> void:
 	if d.is_cranking():
 		bits.append("cranking…")
 	elif not d.running:
-		bits.append("STALLED — hold Q (or neutral) and press I")
+		bits.append("STALLED")
 		warn = true
 	if d.grinding > 0.0:
-		bits.append("GRIND — press the clutch to shift")
+		bits.append("GRIND")
 		warn = true
 	var dmg := rv.damage
 	bits.append("fuel %d L" % roundi(dmg.fuel))
@@ -150,7 +150,7 @@ func _process(_delta: float) -> void:
 	if dmg.missing_parts() > 0:
 		bits.append("%d part%s missing" % [dmg.missing_parts(), "s" if dmg.missing_parts() > 1 else ""])
 	if rv.wading > 0.05:
-		bits.append("WADING %.1f m — keep it slow" % rv.wading)
+		bits.append("WADING %.1f m" % rv.wading)
 		warn = true
 	_status.text = "   ".join(bits)
 	_status.add_theme_color_override("font_color", WARN if warn else DIM)

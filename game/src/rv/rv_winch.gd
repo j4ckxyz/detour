@@ -102,9 +102,9 @@ func _prompt(player: Player) -> String:
 	if player.inside:
 		return ""
 	if state == State.STOWED and player.held == null:
-		return "Take the %s winch hook" % label
+		return "Winch hook"
 	if player.held == hook:
-		return "Put the %s winch hook back" % label
+		return "Reel it back in"
 	return ""
 
 

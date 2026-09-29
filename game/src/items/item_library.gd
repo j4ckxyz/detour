@@ -111,7 +111,7 @@ static func use_action(kind: StringName) -> Callable:
 			return func(item: Item, player: Player) -> bool:
 				var cook := float(item.get_meta(&"cook", 0.0))
 				if cook < PATTY_THAWED:
-					player.say("Rock hard. Cook it on a grill or the RV's stove first.")
+					player.say("Frozen solid. You nearly broke a tooth.")
 					return false
 				if cook < PATTY_COOKED:
 					player.eat(item, 5.0)
@@ -133,7 +133,7 @@ static func use_action(kind: StringName) -> Callable:
 		&"antidote":
 			return func(item: Item, player: Player) -> bool:
 				if player.venom <= 0.0:
-					player.say("Save it for a snake bite.")
+					player.say("You feel fine.")
 					return false
 				player.venom = 0.0
 				player.consume(item)
@@ -141,7 +141,7 @@ static func use_action(kind: StringName) -> Callable:
 				return true
 		&"epipen":
 			return func(_item: Item, player: Player) -> bool:
-				player.say("For getting someone (or yourself) back up when they're down.")
+				player.say("Not now.")
 				return false
 		&"bear_spray":
 			return func(item: Item, player: Player) -> bool:
@@ -173,7 +173,7 @@ static func use_action(kind: StringName) -> Callable:
 					return false
 				var scrap := player.find_item(&"scrap_metal")
 				if scrap == null:
-					player.say("You need scrap metal in your pockets to patch that.")
+					player.say("Nothing to patch it with.")
 					return false
 				player.consume(scrap)
 				player.rv.op(&"patch_part", [aim["id"]])
@@ -202,7 +202,7 @@ static func use_action(kind: StringName) -> Callable:
 				else:
 					return false
 				player.consume(item)
-				player.say("Wheel on. Now drill its bolts in.")
+				player.say("Wheel on. It's hanging loose.")
 				return true
 		&"motor_oil":
 			return func(item: Item, player: Player) -> bool:
@@ -251,7 +251,8 @@ static func hold_action(kind: StringName) -> Callable:
 	return Callable()
 
 
-## What Use would do right now, for the HUD ("" if nothing).
+## What Use would do right now, for the HUD ("" if nothing). Only ever what's in reach this
+## moment: it never says where to go or what to look for (working that out is the game).
 static func use_hint(item: Item, player: Player) -> String:
 	var aim := player.aim_rv() if player.rv else {}
 	var d: RVDamage = player.rv.damage if player.rv else null
@@ -259,56 +260,46 @@ static func use_hint(item: Item, player: Player) -> String:
 		&"hammer":
 			if aim.get("kind") == "part":
 				var part: RVDamage.Part = d.parts[aim["id"]]
-				var what := d.part_name(aim["id"])
 				if not part.attached:
-					return "LMB rebuild the %s (1 scrap)" % what
+					return "LMB rebuild"
 				if part.hp < RVDamage.FULL:
-					return "LMB patch the %s, %d%% (1 scrap)" % [what, roundi(part.hp)]
-				return "the %s is fine" % what
-			return "look at a dented or missing part"
+					return "LMB patch"
 		&"rv_part":
-			return "LMB fit it back on" if aim.get("kind") == "part" and aim["id"] == item.get_meta(&"part", &"") else "take it back to where it came off"
+			if aim.get("kind") == "part" and aim["id"] == item.get_meta(&"part", &"") and not d.parts[aim["id"]].attached:
+				return "LMB fit"
 		&"spare_tire", &"rv_wheel":
 			if aim.get("kind") == "wheel":
 				var i: int = aim["id"]
-				if not d.wheel_on[i]:
-					return "LMB mount it on the empty hub"
-				if d.tires[i] <= 0.0:
-					return "LMB swap the flat"
-			return "look at an empty hub or a flat"
+				if not d.wheel_on[i] or d.tires[i] <= 0.0:
+					return "LMB fit"
 		&"drill":
-			if aim.get("kind") == "wheel":
-				var i: int = aim["id"]
-				if d.wheel_on[i]:
-					return "hold LMB to drill bolts in (%d/%d)" % [d.bolts[i], RVDamage.BOLTS]
-			return "look at a wheel"
+			if aim.get("kind") == "wheel" and d.wheel_on[aim["id"]] and d.bolts[aim["id"]] < RVDamage.BOLTS:
+				return "hold LMB"
 		&"motor_oil":
-			return "LMB top up the oil (%d%%)" % roundi(d.oil * 100.0) if aim.get("kind") == "engine" else "look at the engine (front, under the hood)"
+			if aim.get("kind") == "engine" and d.oil <= 0.95:
+				return "LMB pour"
 		&"jerrycan":
-			var litres := float(item.get_meta(&"fuel", JERRY_CAN_LITRES))
-			if litres <= 0.0:
-				return "empty: fill it at a gas station pump"
-			return "LMB pour %d L into the tank" % roundi(litres) if aim.get("kind") == "fuel" else "look at the fuel cap (left side)"
-		&"burger", &"soda":
-			return "LMB eat" if item.kind == &"burger" else "LMB drink"
+			if aim.get("kind") == "fuel" and float(item.get_meta(&"fuel", JERRY_CAN_LITRES)) > 0.0:
+				return "LMB pour"
+		&"burger":
+			return "LMB eat"
+		&"soda":
+			return "LMB drink"
 		&"patty":
-			var cook := float(item.get_meta(&"cook", 0.0))
-			return "put it on a grill or the RV's stove" if cook < PATTY_THAWED else "LMB eat"
-		&"first_aid":
-			return "LMB patch yourself up (+%d)" % roundi(FIRST_AID_HEAL)
-		&"antidote":
-			return "LMB cure snake venom" if player.venom > 0.0 else "cures snake venom"
-		&"epipen":
-			return "revives a downed player (E on them, or LMB when you're down)"
+			if float(item.get_meta(&"cook", 0.0)) >= PATTY_THAWED:
+				return "LMB eat"
+		&"first_aid", &"antidote":
+			return "LMB use"
 		&"bear_spray":
-			return "LMB spray (%d left): scares off wildlife" % int(item.get_meta(&"puffs", SPRAY_PUFFS))
+			return "LMB spray"
 		&"winch_hook":
-			var anchor: Variant = find_anchor(player)
-			return "LMB hook onto the %s" % anchor["what"] if anchor != null else "look at a tree, rock or stump to hook on"
+			if find_anchor(player) != null:
+				return "LMB hook on"
 		&"plank":
-			return "LMB place plank" if plank_placement(player) != null else "aim at the ground to place"
+			if plank_placement(player) != null:
+				return "LMB lay"
 		&"winch_remote":
-			return "hold LMB reel in · RMB pay out · R switch winch"
+			return "LMB in · RMB out · R other winch"
 	return ""
 
 

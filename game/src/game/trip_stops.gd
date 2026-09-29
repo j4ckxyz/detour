@@ -170,18 +170,6 @@ static func _home() -> Node3D:
 	return home
 
 
-## A roadside sign warning about what's ahead.
-static func warning_sign(text: String) -> Node3D:
-	var root := Node3D.new()
-	root.name = "Sign"
-	var post := model("survival/signpost_single", 2.2, 1)
-	root.add_child(post)
-	var label := _label("⚠ %s\nahead" % text, 40)
-	label.position = Vector3(0.0, 1.55, -0.07)
-	root.add_child(label)
-	return root
-
-
 ## One end of a washed-out bridge: a concrete block whose top is at road level (origin at the
 ## top centre), reaching well down into the trench, with a snapped timber sticking out.
 static func abutment(width: float) -> Node3D:

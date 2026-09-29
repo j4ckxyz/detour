@@ -19,6 +19,8 @@ var _notice := PanelContainer.new()
 var _notice_label := Label.new()
 var _mouse_before := Input.MOUSE_MODE_VISIBLE
 var _extras := VBoxContainer.new() # Built early: add_action() may run before _ready.
+## Optional `func()` run just before Quit to desktop (the game saves).
+var before_quit: Callable
 
 
 func _ready() -> void:
@@ -86,7 +88,10 @@ func _build() -> void:
 	_extras.add_theme_constant_override("separation", 10)
 	box.add_child(_extras)
 	_quit.text = "Quit to desktop"
-	_quit.pressed.connect(func() -> void: get_tree().quit())
+	_quit.pressed.connect(func() -> void:
+		if before_quit.is_valid():
+			before_quit.call()
+		get_tree().quit())
 	box.add_child(_quit)
 
 	_notice.add_theme_stylebox_override("panel", _style(10))

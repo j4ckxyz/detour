@@ -598,9 +598,7 @@ func _tick_health(dt: float) -> void:
 func interact_prompt(player: Player) -> String:
 	if player == self or not downed:
 		return ""
-	if player.find_item(&"epipen"):
-		return "Revive with your EpiPen"
-	return "Needs an EpiPen to get up"
+	return "Revive" if player.find_item(&"epipen") else ""
 
 
 func interact(player: Player) -> void:

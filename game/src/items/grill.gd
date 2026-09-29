@@ -20,7 +20,7 @@ func _ready() -> void:
 func _prompt(player: Player) -> String:
 	if player.held == null or player.held.kind != &"patty":
 		return "" # Leaves the crosshair to the patties on it.
-	return "Put the patty on to cook" if _on.has(null) else "The grill's full"
+	return "Put it on" if _on.has(null) else "Full"
 
 
 func _put_on(player: Player) -> void:

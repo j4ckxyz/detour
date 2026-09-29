@@ -8,6 +8,9 @@ extends Node3D
 ##   --preset=NAME    potato | low | medium | high (default: detected)
 ##   --automatic      start with the automatic gearbox
 ##   --new            ignore any saved progress for this seed (start at the camp)
+##
+## Solo and hosting, the trip saves itself every AUTOSAVE_SECONDS, on reaching a gas station,
+## and on leaving or quitting; the next launch carries on from exactly there.
 ##   --peaceful       no wildlife
 ##
 ## Keys: see the F1 help. F5-F8 switch graphics presets, F3 perf overlay.
@@ -32,6 +35,9 @@ const WHEEL_SPOTS: Array[Vector2] = [
 ## the track (≈ 4°).
 const MAX_SPAWN_PITCH := 0.7
 const MAX_SPAWN_ROLL := 0.12
+const AUTOSAVE_SECONDS := 60.0
+## Item kinds a save doesn't keep: the winch hooks belong to the RV.
+const UNSAVED_KINDS: Array[StringName] = [&"winch_hook"]
 
 var world := WorldGen.new()
 var lighting := WorldLighting.new()
@@ -60,6 +66,11 @@ var peaceful := false
 var _args: Dictionary[String, String] = {}
 var _spawn_near := START
 var _spawn_box := BoxShape3D.new()
+var _autosave_timer := 0.0
+## Loose things put back from a save, held still until the ground under them is solid.
+var _settling: Array[Item] = []
+## Set when the trip is being thrown away (restarting it): nothing more gets saved.
+var _discard_save := false
 
 
 func _ready() -> void:
@@ -90,7 +101,7 @@ func _ready() -> void:
 	else:
 		if not (_args.has("new") or fresh_start):
 			trip.load_save()
-		var start := trip.start_transform()
+		var start := _resume_transform()
 		_spawn_near = start.origin
 		rv.global_transform = start.translated(Vector3.UP * 1.0)
 		Session.start_info_source = func() -> Dictionary:
@@ -133,6 +144,7 @@ func _ready() -> void:
 	weather.name = "Weather"
 	weather.setup(world.get_code())
 	add_child(weather)
+	menu.before_quit = autosave
 	if Session.is_host():
 		menu.add_action("Tow to the last checkpoint", tow_to_checkpoint)
 		menu.add_action("Restart this trip", restart_trip)
@@ -152,6 +164,34 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if not player.is_inside_tree():
 		player.free() # Quit before spawning.
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		autosave()
+
+
+## Saves the trip as it is now (solo or hosting, once it's running and not over).
+func autosave() -> void:
+	if is_spawned and Session.is_host() and not trip.is_finished and not _discard_save:
+		trip.save()
+	_autosave_timer = 0.0
+
+
+## Where the RV goes when the trip loads: where a save left it, else the last stop reached.
+func _resume_transform() -> Transform3D:
+	var xf: Variant = trip.loaded_extra.get("rv_xf")
+	if xf is Transform3D:
+		var at: Transform3D = xf
+		# Upright, on the ground there (a save mid-tumble shouldn't load upside down).
+		var fwd := -at.basis.z
+		fwd.y = 0.0
+		if fwd.length() < 0.1:
+			fwd = Vector3.FORWARD
+		var pos := at.origin
+		pos.y = world.height_at(pos.x, pos.z) + 0.6
+		return Transform3D(Basis.looking_at(fwd.normalized(), Vector3.UP), pos)
+	return trip.start_transform()
 
 
 func _parse_args() -> void:
@@ -188,22 +228,34 @@ func _process(dt: float) -> void:
 	weather.update(trip.hours, at, world.biome_at(at.x, at.z), dt)
 	lighting.set_conditions(fposmod(trip.hours, 24.0), weather.cloud, weather.fog, weather.flash)
 	rv.wetness = weather.wetness
-	player_hud.dark = lighting.daylight < 0.35
 	rv.wind = weather.wind
 
 
-func _physics_process(_dt: float) -> void:
+func _physics_process(dt: float) -> void:
+	if is_spawned and Session.is_host() and not trip.is_finished:
+		_autosave_timer += dt
+		if _autosave_timer >= AUTOSAVE_SECONDS:
+			autosave()
 	if is_spawned and rv.is_simulated and rv.freeze and streamer.has_collision_at(rv.global_position):
 		rv.freeze = false
 		rv.reset_physics_interpolation()
 	if is_spawned and not player.inside:
 		_catch_falling_player()
+	if not _settling.is_empty(): # One a frame, round and round.
+		var item: Item = _settling.pop_back()
+		if is_instance_valid(item) and item.holder == null and item.get_parent() == items and item.freeze:
+			if streamer.has_collision_at(item.global_position):
+				item.freeze = false
+			else:
+				_settling.push_front(item)
 	if is_spawned or not streamer.has_collision_at(_spawn_near):
 		return
 	var client := Session.mode == Session.Mode.CLIENT
 	if not client:
-		_place_rv(trip.start_transform())
-	trip.build(not client)
+		_place_rv(_resume_transform())
+	# A save has everything that lay about the world (what was picked up is gone from it).
+	var restoring := trip.resumed and trip.loaded_extra.has("world")
+	trip.build(not client and not restoring)
 	wildlife.name = "Wildlife"
 	add_child(wildlife)
 	wildlife.setup(world, rv, items, trip.data)
@@ -212,12 +264,13 @@ func _physics_process(_dt: float) -> void:
 	_spawn_player()
 	if client:
 		trip.show_notice("Joined %s's trip." % Session.name_of(1), 6.0)
-	elif trip.checkpoint == 0:
+	elif not trip.resumed:
 		_spawn_starter_items()
 	else:
 		_restore_extra(trip.loaded_extra)
-		trip.restock(trip.checkpoint)
-		trip.show_notice("Welcome back: continuing from gas station %d." % trip.checkpoint, 6.0)
+		if not restoring and trip.checkpoint > 0:
+			trip.restock(trip.checkpoint)
+		trip.show_notice("Welcome back.", 5.0)
 	is_spawned = true
 	net.start(self)
 	spawned.emit()
@@ -251,6 +304,7 @@ func tow_to_checkpoint() -> void:
 
 
 func restart_trip() -> void:
+	_discard_save = true
 	trip.clear_save()
 	if Session.is_online():
 		Session.leave()
@@ -258,6 +312,7 @@ func restart_trip() -> void:
 
 
 func leave_to_menu() -> void:
+	autosave()
 	Session.leave()
 	get_tree().change_scene_to_file(MAIN_MENU)
 
@@ -323,8 +378,9 @@ func _spawn_starter_items() -> void:
 		rv.storage[spec[1]].store(item)
 
 
-## What the trip saves at each checkpoint besides progress: the RV's state, what's stowed in
-## it and the hotbar.
+## What a save keeps besides progress: the RV (its state and where it is), what's stowed in
+## it, everything lying about the world (dropped, laid as planks, left in caves and at
+## stations, fallen off the RV), and the player (where, health, hotbar).
 func _save_extra() -> Dictionary:
 	var stowed: Array = []
 	for c: Node in rv.stash.get_children():
@@ -333,23 +389,43 @@ func _save_extra() -> Dictionary:
 			stowed.append([item.kind, item.display_name(), _item_meta(item), item.transform])
 	var hotbar: Array = []
 	for item: Item in player.slots:
-		if item and item.kind not in [&"rv_part", &"rv_wheel", &"winch_hook"]:
+		if item and item.kind not in UNSAVED_KINDS:
 			hotbar.append([item.kind, item.display_name(), _item_meta(item)])
-	return {"rv": rv.slow_snapshot(), "stowed": stowed, "hotbar": hotbar}
+	var lying: Array = []
+	for n: Node in get_tree().get_nodes_in_group(&"items"):
+		var item := n as Item
+		if item == null or not is_ancestor_of(item) or item.kind in UNSAVED_KINDS or item.winch_of():
+			continue
+		if item.get_parent() == rv.stash or (item.holder == player):
+			continue
+		var xf := item.global_transform
+		if item.holder: # Someone else's hands (online): it's left where they stand.
+			xf = Transform3D(Basis.IDENTITY, item.holder.global_position + Vector3.UP * 0.3)
+		elif xf.origin.y < world.height_at(xf.origin.x, xf.origin.z) - 2.0:
+			continue # Fell through the world.
+		lying.append([item.kind, item.display_name(), _item_meta(item), xf, item.is_placed(), item.freeze or item.holder != null])
+	var me := {"health": player.health, "venom": player.venom, "inside": player.inside}
+	me["at"] = player.local_position() if player.inside else player.global_position
+	return {
+		"rv": rv.slow_snapshot(), "rv_xf": rv.global_transform, "stowed": stowed, "hotbar": hotbar,
+		"world": lying, "player": me, "door": rv.door_open,
+	}
 
 
 static func _item_meta(item: Item) -> Dictionary:
 	var meta := {}
-	for k: StringName in [&"fuel", &"puffs", &"cook", &"tire", &"slot"]:
+	for k: StringName in [&"fuel", &"puffs", &"cook", &"tire", &"slot", &"part", &"wheel"]:
 		if item.has_meta(k):
 			meta[String(k)] = item.get_meta(k)
 	return meta
 
 
-## Puts back what a save had: the RV's state, its stowed items and the hotbar.
+## Puts back what a save had: the RV's state, its stowed items, what lay about the world, and
+## the player.
 func _restore_extra(extra: Dictionary) -> void:
 	if extra.has("rv"):
 		rv.apply_slow_snapshot(extra["rv"])
+	rv.door_open = bool(extra.get("door", rv.door_open))
 	for e: Array in extra.get("stowed", []):
 		var item := _saved_item(e)
 		if item:
@@ -357,6 +433,34 @@ func _restore_extra(extra: Dictionary) -> void:
 			item.stow(rv, e[3])
 			if (e[2] as Dictionary).has("slot"):
 				item.set_meta(&"slot", StringName(e[2]["slot"]))
+	for e: Array in extra.get("world", []):
+		var item := _saved_item(e)
+		if item == null:
+			continue
+		items.add_child(item)
+		if e[4]:
+			item.place(items, e[3])
+		else:
+			item.global_transform = e[3]
+			item.freeze = true # The ground may not be solid there yet.
+			item.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+			if not e[5]:
+				_settling.append(item) # It was loose: let go once the ground's there.
+		if item.kind == &"rv_part":
+			var part: RVDamage.Part = rv.damage.parts.get(item.get_meta(&"part", &""))
+			if part and not part.attached:
+				part.debris = item
+	var me: Dictionary = extra.get("player", {})
+	if me.has("health"):
+		player.health = float(me["health"])
+		player.venom = float(me.get("venom", 0.0))
+	if me.get("inside", false):
+		player.board(me["at"])
+	elif me.has("at") and (me["at"] as Vector3).distance_to(rv.global_position) < 200.0:
+		var at: Vector3 = me["at"]
+		at.y = maxf(at.y, world.height_at(at.x, at.z)) + 0.2
+		player.global_position = at
+		player.reset_physics_interpolation()
 	for e: Array in extra.get("hotbar", []):
 		var item := _saved_item(e)
 		if item:
@@ -365,13 +469,26 @@ func _restore_extra(extra: Dictionary) -> void:
 			player.pick_up(item)
 
 
-static func _saved_item(e: Array) -> Item:
-	if not ItemLibrary.DEFS.has(StringName(e[0])):
+func _saved_item(e: Array) -> Item:
+	var kind := StringName(e[0])
+	var meta: Dictionary = e[2]
+	var item: Item
+	if kind == &"rv_part":
+		var part: RVDamage.Part = rv.damage.parts.get(StringName(meta.get("part", "")))
+		if part == null or part.attached:
+			return null # Put back (or rebuilt) since.
+		item = ItemLibrary.create_from_mesh(kind, part.node.mesh, e[1])
+	elif kind == &"rv_wheel":
+		var wheel := rv.wheels[clampi(int(meta.get("wheel", 0)), 0, 3)]
+		item = ItemLibrary.create_from_mesh(kind, (wheel.visual as MeshInstance3D).mesh, e[1])
+	elif ItemLibrary.DEFS.has(kind):
+		item = ItemLibrary.create(kind)
+	else:
 		return null
-	var item := ItemLibrary.create(StringName(e[0]))
 	item.def["name"] = e[1]
-	for k: Variant in (e[2] as Dictionary):
-		item.set_meta(StringName(k), e[2][k])
+	for k: Variant in meta:
+		var v: Variant = meta[k]
+		item.set_meta(StringName(k), StringName(v) if String(k) in ["part", "slot"] else v)
 	if item.kind == &"patty":
 		ItemLibrary.tint(item, ItemLibrary.patty_color(float(item.get_meta(&"cook", 0.0))))
 	return item
