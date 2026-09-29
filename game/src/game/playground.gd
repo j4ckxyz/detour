@@ -46,6 +46,8 @@ var camera := RVCamera.new()
 var driver := RVDriverInput.new()
 var hud := RVHud.new()
 var overlay := PerfOverlay.new()
+## Up while the world generates and the ground streams in; gone once the trip's ready.
+var loading: LoadingScreen
 var menu := PauseMenu.new()
 var player := Player.new()
 var player_hud := PlayerHud.new()
@@ -71,14 +73,66 @@ var _autosave_timer := 0.0
 var _settling: Array[Item] = []
 ## Set when the trip is being thrown away (restarting it): nothing more gets saved.
 var _discard_save := false
+## The world has finished generating (in the background) and the scene is set up.
+var _loaded := false
+var _load_waited := 0.0
 
 
 func _ready() -> void:
 	_parse_args()
 	var code: String = _args.get("seed", Session.seed_code if Session.seed_code != "" else DEFAULT_SEED)
-	if not world.load(code):
+	var problem := WorldGen.code_error(code)
+	if problem != "":
+		push_error("Bad seed code '%s': %s" % [code, problem])
 		get_tree().quit(2)
 		return
+	loading = LoadingScreen.new(_loading_title(code), "Seed %s" % code)
+	add_child(loading)
+	# The world generates on a background thread; the rest waits for it (`_poll_load`).
+	world.begin_load(code)
+
+
+## What the loading screen says: joining someone, carrying on a saved trip, a map built before
+## (this session), or a brand new one.
+func _loading_title(code: String) -> String:
+	if Session.mode == Session.Mode.CLIENT:
+		return "Joining %s's trip" % Session.name_of(1)
+	if not (_args.has("new") or fresh_start) and Saves.can_continue(Saves.read(code)):
+		return "Loading your trip"
+	if WorldGen.is_cached(code):
+		return "Loading the map"
+	return "Generating a new map"
+
+
+func _poll_load(dt: float) -> void:
+	if _loaded:
+		# The ground streams in round the RV: that's the rest of the bar.
+		var ready := float(streamer.chunks_loaded)
+		var fraction := ready / maxf(1.0, ready + float(streamer.pending()))
+		loading.progress = maxf(loading.progress, 0.5 + 0.45 * fraction)
+		if is_spawned:
+			_load_waited += dt
+			loading.stage = "Almost there"
+			if streamer.pending() == 0 or _load_waited > 6.0:
+				loading.finish()
+		return
+	match world.poll_load():
+		0:
+			loading.progress = 0.5 * world.load_progress()
+			loading.stage = world.load_stage()
+		1:
+			_loaded = true
+			loading.progress = 0.5
+			loading.stage = "Building the terrain"
+			_setup()
+		_:
+			Session.last_message = "Couldn't load the trip: %s" % world.load_error()
+			Session.leave()
+			get_tree().change_scene_to_file(MAIN_MENU)
+
+
+## Everything that needs the world: the RV, the trip, the streamer, the HUDs.
+func _setup() -> void:
 	add_child(lighting)
 
 	rv = RV_SCENE.instantiate()
@@ -212,6 +266,8 @@ func _overlay_lines() -> String:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not _loaded:
+		return
 	var button := event as InputEventMouseButton
 	if button and button.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -223,6 +279,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(dt: float) -> void:
+	if is_instance_valid(loading) and not loading.is_finishing():
+		_poll_load(dt)
+	if not _loaded:
+		return
 	var cam := get_viewport().get_camera_3d()
 	var at := cam.global_position if cam else rv.global_position
 	weather.update(trip.hours, at, world.biome_at(at.x, at.z), dt)
@@ -232,6 +292,8 @@ func _process(dt: float) -> void:
 
 
 func _physics_process(dt: float) -> void:
+	if not _loaded:
+		return
 	if is_spawned and Session.is_host() and not trip.is_finished:
 		_autosave_timer += dt
 		if _autosave_timer >= AUTOSAVE_SECONDS:

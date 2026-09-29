@@ -1,7 +1,8 @@
 class_name MainMenu
 extends Control
 ## The title screen: your name and colour, your saved trips (carry on, host, start again or
-## delete), then play solo (new trip or a seed code), host a game (on this network / direct
+## delete), then play solo (a new trip, or a seed: a seed code or any word or phrase, like
+## Minecraft's), host a game (on this network / direct
 ## IP, or through a relay with a room code), or join one (LAN games are listed; or type an
 ## address or a room code).
 ##
@@ -18,6 +19,8 @@ const TRIPS_SHOWN := 8
 var _name := LineEdit.new()
 var _colors := HBoxContainer.new()
 var _seed := LineEdit.new()
+## Under the seed box: the seed code the text makes.
+var _seed_note := Label.new()
 var _length := OptionButton.new()
 var _play := Button.new()
 var _host_mode := OptionButton.new()
@@ -98,14 +101,20 @@ func _build() -> void:
 	box.add_child(_heading("Play solo"))
 	var solo := HBoxContainer.new()
 	solo.add_theme_constant_override("separation", 8)
-	_seed.placeholder_text = "Seed code (blank: a new trip)"
+	_seed.placeholder_text = "Seed: any word, or a code (blank: a new trip)"
+	_seed.max_length = WorldGen.text_seed_max()
 	_seed.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_seed.text_changed.connect(func(_t: String) -> void: _refresh_play())
+	_seed.text_submitted.connect(func(_t: String) -> void: _on_play())
 	solo.add_child(_seed)
 	for i: int in TRIP_LENGTHS.size():
 		_length.add_item(TRIP_LENGTHS[i], i)
+	_length.item_selected.connect(func(_i: int) -> void: _refresh_play())
 	solo.add_child(_length)
 	box.add_child(solo)
+	_seed_note.add_theme_font_size_override("font_size", 13)
+	_seed_note.add_theme_color_override("font_color", DIM)
+	box.add_child(_seed_note)
 	_play.pressed.connect(_on_play)
 	box.add_child(_button(_play))
 
@@ -193,30 +202,39 @@ static func _button(b: Button) -> Button:
 	return b
 
 
-## The seed to play: the one typed, or a new one.
+## What the seed box makes: {code, error}; a blank box makes no code.
+func _typed() -> Dictionary:
+	return WorldGen.code_from_text(_seed.text, _length.selected)
+
+
+## The seed to play: the one typed (a code, or any text turned into one), or a new one.
 func _chosen_seed() -> String:
-	var code := _seed.text.strip_edges().to_upper()
+	var code: String = _typed()["code"]
 	return code if code != "" else WorldGen.random_code(_length.selected)
 
 
 func _refresh_play() -> void:
-	var code := _seed.text.strip_edges().to_upper()
-	if code == "":
-		_play.text = "Start a new trip"
-		return
-	var problem := WorldGen.code_error(code)
-	if problem != "":
+	var typed := _typed()
+	var code: String = typed["code"]
+	if typed["error"] != "":
 		_play.text = "Start trip"
-		_status.text = problem
+		_seed_note.text = ""
+		_status.text = typed["error"]
 		return
 	_status.text = ""
+	if code == "":
+		_play.text = "Start a new trip"
+		_seed_note.text = ""
+		return
+	var entered := _seed.text.strip_edges().to_upper().replace(" ", "-")
+	_seed_note.text = "" if entered == code else "Seed code %s" % code
 	_play.text = "Continue this trip" if Saves.can_continue(Saves.read(code)) else "Start this trip"
 
 
 func _check_seed() -> bool:
-	var code := _seed.text.strip_edges().to_upper()
-	if code != "" and WorldGen.code_error(code) != "":
-		_status.text = WorldGen.code_error(code)
+	var error: String = _typed()["error"]
+	if error != "":
+		_status.text = error
 		return false
 	return true
 

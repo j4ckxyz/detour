@@ -709,7 +709,7 @@ impl Route {
         // The camp sits in a level clearing, with a level stretch to get going on.
         spans.push((0, self.index_at(CAMP_LEVEL), self.h[self.index_at(30.0)]));
         // Each level must be reachable from the one before at the grade limit.
-        spans.sort_by(|x, y| x.0.cmp(&y.0));
+        spans.sort_by_key(|x| x.0);
         for k in 1..spans.len() {
             let (prev_b, prev_level) = (spans[k - 1].1, spans[k - 1].2);
             let a = spans[k].0.max(prev_b);

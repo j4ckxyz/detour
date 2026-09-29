@@ -342,6 +342,16 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
 ### Generation
 - **Seed codes** like `DT5-00000-000ZG`: generator version, trip length and a 40-bit seed in
   Crockford base32, with a typo check. The default seed is fixed; `-- --seed=CODE` picks another.
+- **Any text is a seed**, like Minecraft: type a word or phrase (up to 20 characters) and it's
+  turned into a seed code (a whole number is used as the seed itself; a typed seed code is
+  itself, and a code with a typo is an error, not a new seed). The menu shows the code it
+  makes, to share.
+- **Loading screen**: the world generates on a background thread while softened shots of the
+  game drift and fade into one another behind a progress bar. It says what's happening:
+  "Generating a new map", "Loading your trip" (a save), "Loading the map" (built earlier this
+  session) or "Joining ...'s trip", then each step ("Surveying routes", "Planning the
+  obstacles", "Carving the road", "Shaping the valley", "Placing lakes, caves and places to
+  explore", "Building the terrain").
 - **Deterministic everywhere**: the same seed builds bit-identical terrain, trees and props on
   macOS (Apple Silicon), Linux and Windows (x86_64). CI checks this on every push with golden
   hashes. This is the foundation for multiplayer (only the seed needs sending).
@@ -473,8 +483,9 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
     min played · 3 min ago"), and **Continue** (solo), **Host** (carry on together) and
     **Delete** (press twice). Finished trips say how long they took and offer **Again**.
     Saves from an older world generator are listed but can't be continued.
-  - **Play solo**: a seed code (blank for a new trip) and the trip length (short, medium,
-    long). It says "Continue this trip" when there's a save for that seed.
+  - **Play solo**: a seed (any word or phrase, or a seed code; blank for a new trip) and the
+    trip length (short, medium, long). Under it, the seed code your text makes. It says
+    "Continue this trip" when there's a save for that seed.
   - **Host a game**: on this network / direct IP (UDP port 24652), or through a relay server
     (type its address; the game gets a 6-letter room code).
   - **Join a game**: games hosted on the local network are listed (the host announces itself

@@ -25,7 +25,16 @@ func _ready() -> void:
 
 
 func _tour() -> void:
-	while not _pg.is_spawned:
+	# The loading screen, while the map generates and the ground streams in.
+	await get_tree().process_frame
+	await _snap("loading")
+	var t := 0.0
+	while is_instance_valid(_pg.loading) and t < 1.2:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	if is_instance_valid(_pg.loading):
+		await _snap("loading")
+	while not _pg.is_spawned or is_instance_valid(_pg.loading):
 		await get_tree().process_frame
 	var trip := _pg.trip
 	var cam := _pg.camera

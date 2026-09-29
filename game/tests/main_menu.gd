@@ -12,10 +12,17 @@ func _ready() -> void:
 	add_child(menu)
 	await get_tree().process_frame
 	_check(menu._play.text == "Start a new trip", "a blank seed starts a new trip")
-	menu._seed.text = "NOT-A-CODE"
+	menu._seed.text = "DT5-00000-000ZH"
 	menu._refresh_play()
-	_check(menu._status.text != "", "a bad seed code is explained (%s)" % menu._status.text)
+	_check(menu._status.text != "", "a seed code with a typo is explained (%s)" % menu._status.text)
 	_check(not menu._check_seed(), "and can't be played")
+	# Any text is a seed, turned into a code (shown), the same every time.
+	menu._seed.text = "Road trip!"
+	menu._refresh_play()
+	var from_text := menu._chosen_seed()
+	_check(menu._check_seed() and WorldGen.code_error(from_text) == "" and from_text == menu._chosen_seed(), "any text makes a seed code (%s)" % from_text)
+	_check(menu._seed_note.text.contains(from_text), "and the menu shows it: %s" % menu._seed_note.text)
+	_check(menu._seed.max_length == 20, "seeds are up to 20 characters")
 	menu._seed.text = "DT5-00000-000ZG"
 	menu._refresh_play()
 	_check(menu._status.text == "" and menu._check_seed(), "a good seed code is accepted")

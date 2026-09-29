@@ -1,19 +1,27 @@
 # Detour (working title)
 
 [![Build](https://github.com/j4ckxyz/detour/actions/workflows/build.yml/badge.svg)](https://github.com/j4ckxyz/detour/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/j4ckxyz/detour?label=download)](https://github.com/j4ckxyz/detour/releases/latest)
+
+**[⬇ Download the latest version](https://github.com/j4ckxyz/detour/releases/latest)** (Windows, macOS, Linux; free and
+open source). Once installed it keeps itself up to date.
 
 Open-source co-op road-trip game: up to 4 friends, one fragile RV, a procedurally generated
 wilderness between you and home. Inspired by the *RV There Yet?* formula; all names, art and
 code here are original. See [PLAN.md](PLAN.md) for the full design and roadmap.
 
-**Status:** early development. You can drive the RV (clutch, 5-speed H-pattern, automatic)
-through a streamed, decorated world. Trips, co-op and the rest are on the way (PLAN.md §12).
+**Status:** early development, but playable: generated trips from a camp to home through
+four biomes, with bridges to jump or plank, beams to line up on, gullies, fords, ice, hills,
+a fragile RV to keep running, wildlife, weather, day and night, saves, and co-op for up to
+four (PLAN.md §12 has what's next).
 Everything the game does today, and every control, is listed in [CURRENT_GAME.md](CURRENT_GAME.md).
 Downloaded builds update themselves (Esc → *Update now*, or automatically on launch).
 
 ## Download
 
-Automatic builds of `main` are on the [nightly pre-release](https://github.com/j4ckxyz/detour/releases/tag/nightly):
+Get the **[latest release](https://github.com/j4ckxyz/detour/releases/latest)**. Automatic
+builds of `main` are on the [nightly pre-release](https://github.com/j4ckxyz/detour/releases/tag/nightly)
+(a nightly keeps following nightlies). Each has:
 
 | Platform | File | First launch |
 |---|---|---|
