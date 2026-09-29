@@ -199,9 +199,11 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
   threshold dent the parts nearest the hit; at 0 % a part **falls off** and lies on the ground
   as something you can pick up. Big hits also chip the **frame**, and head-ons hurt the
   **engine**.
-- **Wheels**: hard hits and landings wear the tire (a **flat** grips badly) and shake **bolts**
-  loose (5 per wheel). Wheels on their last bolt wobble off when you drive; a wheel with no
-  bolts left **comes off** and rolls away.
+- **Wheels**: only real impacts hurt them. A wheel landing faster than 5.5 m/s (a drop of
+  about 1.5 m) wears the tire (a **flat** grips badly); from about 2.3 m it shakes a **bolt**
+  loose (5 per wheel), from about 3.6 m two. A hard sideways or head-on strike on a wheel
+  does the same. Bumps, ruts and normal driving never loosen anything. A wheel on its last
+  bolt slowly wobbles loose above ~30 km/h; with no bolts left it **comes off** and rolls away.
 - **Engine**: burns **fuel** (60 L tank, 40 L at the start; harder driving burns more),
   slowly uses **oil** (faster when damaged or with the hood gone). Low oil makes it
   **overheat**: less power, then it cooks itself and **seizes**. Out of fuel or seized, it

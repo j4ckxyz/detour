@@ -18,6 +18,16 @@ const IMPACT_THRESHOLD := 2600.0
 const HP_PER_IMPULSE := 1.0 / 320.0
 const MAX_HIT := 45.0
 const BOLTS := 5
+## A wheel landing slower than this (m/s) is fine: ~1.5 m drop. Each m/s beyond costs
+## WHEEL_HP_PER_MS of damage (see damage_wheel for what that does).
+const SAFE_LANDING := 5.5
+const WHEEL_HP_PER_MS := 12.0
+## Damage one knock must do to a wheel to shake a bolt loose, and two.
+const BOLT_HIT := 15.0
+const TWO_BOLT_HIT := 35.0
+## A wheel ignores further knocks for this long after one (a single landing or strike is
+## one event, however many physics steps it lasts).
+const WHEEL_KNOCK_COOLDOWN := 0.6
 const TANK := 60.0
 const START_FUEL := 40.0
 ## Parts close to a hit (RV space, metres from the part's centre) share the damage.
@@ -118,19 +128,29 @@ func hit(local: Vector3, impulse: float, dir: Vector3) -> void:
 			continue
 		var w := rv.wheels[i]
 		var centre := w.position + Vector3.DOWN * w.length
-		if centre.distance_to(local) < 1.0:
-			damage_wheel(i, dmg)
+		# Only a real strike on the wheel: a hard sideways or head-on hit, not the ground.
+		if centre.distance_to(local) < 0.8 and absf(dir.dot(rv.global_basis.y)) < 0.7 and dmg > 8.0:
+			damage_wheel(i, dmg * 0.7)
 
 
-## A wheel taking a hit (a rock, a hard landing): the tire suffers, and a big one shakes a
-## bolt loose. With no bolts left the wheel comes off.
+## A wheel hitting the ground at `speed` m/s (a landing, bottoming out): only a real drop
+## hurts (see SAFE_LANDING).
+func wheel_impact(i: int, speed: float) -> void:
+	if speed > SAFE_LANDING:
+		damage_wheel(i, (speed - SAFE_LANDING) * WHEEL_HP_PER_MS)
+
+
+## A wheel taking a hit (a rock strike, a big landing): the tire suffers, and a big one shakes
+## a bolt loose (about a 2.3 m drop), a huge one two (3.6 m). With no bolts left the wheel
+## comes off. One knock per event (WHEEL_KNOCK_COOLDOWN).
 func damage_wheel(i: int, dmg: float) -> void:
 	if _settle[i] > 0.0:
 		return
+	_settle[i] = WHEEL_KNOCK_COOLDOWN
 	tires[i] = maxf(0.0, tires[i] - dmg * 0.6)
 	var before := bolts[i]
-	if dmg > 6.0:
-		bolts[i] = maxi(0, bolts[i] - (2 if dmg > 25.0 else 1))
+	if dmg > BOLT_HIT:
+		bolts[i] = maxi(0, bolts[i] - (2 if dmg > TWO_BOLT_HIT else 1))
 	if before > 0 and bolts[i] == 0:
 		lose_wheel(i) # That shook the last bolt out. (A bolt-less wheel you just fitted
 		# stays on until you drive off on it: see tick().)
@@ -209,13 +229,16 @@ func tick(dt: float, throttle: float) -> float:
 	if d.running and (fuel <= 0.0 or engine <= 0.0):
 		d.running = false
 		d.stalled.emit()
+	var speed := absf(rv.forward_speed())
 	for i: int in 4:
-		if wheel_on[i] and bolts[i] < 2 and absf(rv.forward_speed()) > 3.0:
-			# Wobbling on its last bolt: it won't last long.
-			if randf() < dt * (0.25 if bolts[i] == 1 else 1.0):
-				bolts[i] = maxi(0, bolts[i] - 1)
-				if bolts[i] == 0:
-					lose_wheel(i)
+		if not wheel_on[i] or _settle[i] > 0.0:
+			continue
+		# A wheel with no bolts in (just fitted) works itself off once you drive on it; one
+		# on its last bolt only wobbles loose at a good speed, and slowly.
+		if bolts[i] == 0 and speed > 3.0 and randf() < dt * 0.5:
+			lose_wheel(i)
+		elif bolts[i] == 1 and speed > 9.0 and randf() < dt * 0.04:
+			bolts[i] = 0
 	for i: int in 4:
 		_settle[i] = maxf(0.0, _settle[i] - dt)
 	var power := 1.0 - 0.6 * smoothstep(0.8, 1.0, temperature)

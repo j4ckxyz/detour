@@ -537,10 +537,8 @@ func _physics_process(dt: float) -> void:
 			wheel_brake += HANDBRAKE_FORCE * 0.5
 		wheel.apply_forces(self, dt, wheel_drive, wheel_brake)
 		excess += wheel.excess_drive
-		# A hard landing on one wheel (far past its share of the weight) hurts it.
-		var slam := wheel.load / maxf(1.0, wheel.spring_rate * (wheel.travel - RIDE_LENGTH))
-		if slam > 4.0:
-			damage.damage_wheel(wheels.find(wheel), (slam - 4.0) * 4.0)
+		if wheel.impact_speed > 0.0:
+			damage.wheel_impact(wheels.find(wheel), wheel.impact_speed)
 	_update_wheelspin(dt, axle_torque, excess, driven_on_ground.is_empty())
 
 	for winch: RVWinch in winches:

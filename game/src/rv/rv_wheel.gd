@@ -53,6 +53,9 @@ var surface_grip := 1.0
 var mud := 0.0
 ## Off the RV (bolts shaken out): no contact, no forces.
 var detached := false
+## Speed (m/s) this wheel hit the ground at this tick: set on touching down after being in
+## the air, or when the suspension bottoms out hard. 0 otherwise. RVDamage decides if it hurt.
+var impact_speed := 0.0
 
 var _cast := ShapeCast3D.new()
 var _prev_length := -1.0
@@ -103,13 +106,23 @@ func probe(body: RV) -> void:
 func apply_forces(body: RV, dt: float, drive: float, brake: float) -> void:
 	excess_drive = 0.0
 	slip = 0.0
+	impact_speed = 0.0
 	if not grounded:
 		load = 0.0
-		_prev_length = travel
+		_prev_length = -1.0
 		return
 	var up := body.global_basis.y
 	var compression := travel - length
-	var speed := 0.0 if _prev_length < 0.0 else (_prev_length - length) / dt # + = compressing
+	# How fast the wheel meets the ground along the suspension (+ = closing).
+	var closing := maxf(0.0, -body.point_velocity(contact).dot(normal))
+	var speed: float
+	if _prev_length < 0.0:
+		speed = closing # Just touched down: the real closing speed, not a jump from full droop.
+		impact_speed = closing
+	else:
+		speed = (_prev_length - length) / dt # + = compressing
+		if length < 0.04 and speed > 0.0:
+			impact_speed = minf(speed, closing + 1.0) # Bottomed out.
 	_prev_length = length
 	var damper := (bump_damping if speed > 0.0 else rebound_damping) * speed
 	var bump_stop := maxf(0.0, 0.05 - length) * spring_rate * 20.0

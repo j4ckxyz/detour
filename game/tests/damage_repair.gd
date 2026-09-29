@@ -37,12 +37,39 @@ func _run() -> void:
 	await _w.hold(1.0)
 	_check(d.parts.size() >= 14, "the RV is made of detachable parts (%d)" % d.parts.size())
 
+	await _wheel_knocks()
 	await _crash_into_ledge()
 	await _rebuild_and_refit()
 	await _wheel()
 	await _fuel_and_oil()
 	await _station()
 	_finish()
+
+
+## Wheels only come loose from real impacts: a 1 m drop is fine, a 4 m one isn't.
+func _wheel_knocks() -> void:
+	var d := _rv.damage
+	await _teleport(60.0)
+	await _drop(1.0)
+	_check(d.bolts.min() == RVDamage.BOLTS, "a 1 m drop doesn't loosen a bolt (%s)" % [d.bolts])
+	await _drop(4.5)
+	_check(d.bolts.min() < RVDamage.BOLTS, "a 4.5 m drop shakes bolts loose (%s)" % [d.bolts])
+	for i: int in 4:
+		if not d.wheel_on[i]:
+			d.mount_wheel(i, RVDamage.FULL)
+		d.bolts[i] = RVDamage.BOLTS
+		d.tires[i] = RVDamage.FULL
+	await _w.hold(2.5)
+
+
+## Lifts the RV `height` metres straight up and lets it fall on its wheels.
+func _drop(height: float) -> void:
+	var xf := _rv.global_transform
+	_rv.global_transform = xf.translated(Vector3.UP * height)
+	_rv.linear_velocity = Vector3.ZERO
+	_rv.angular_velocity = Vector3.ZERO
+	_rv.reset_physics_interpolation()
+	await _w.hold(2.5)
 
 
 func _crash_into_ledge() -> void:
