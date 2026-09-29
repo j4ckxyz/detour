@@ -15,6 +15,9 @@ const SAPLING := 3
 
 ## Tree kinds 0..2 use Pine_1..Pine_3; Pine_0 (the small one) is the sapling prop.
 const TREE_MODELS: Array[String] = ["Pine_1", "Pine_2", "Pine_3"]
+## Trees per biome (matches rvgen::scatter::TREES_PER_BIOME): kinds 3..5 bayou, 6..8
+## canyon, 9..11 mountain pass. Procedural low-poly stand-ins for now.
+const TREES_PER_BIOME := 3
 
 var tree_meshes: Array[Mesh] = []
 ## Cheap stand-ins drawn beyond `TerrainStreamer.tree_detail_distance`.
@@ -70,6 +73,25 @@ func _load() -> void:
 		trunk.height = height * 0.5
 		tree_shapes.append(trunk)
 		tree_shape_offsets.append(Vector3(0.0, height * 0.25, 0.0))
+
+	var snowy_dark := Color(0.10, 0.20, 0.14)
+	var snow := Color(0.9, 0.93, 0.96)
+	# (mesh, trunk radius, collider height)
+	var extra: Array[Array] = [
+		[TreeMesh.bayou(8.0), 0.45, 4.0], [TreeMesh.bayou(6.5), 0.38, 3.2], [TreeMesh.snag(7.0), 0.28, 3.5],
+		[TreeMesh.cactus(4.5), 0.26, 4.5], [TreeMesh.cactus(3.4), 0.22, 3.4], [TreeMesh.juniper(4.0), 0.2, 1.4],
+		[TreeMesh.build(9.0, 7, snowy_dark, snow), 0.2, 4.5], [TreeMesh.build(11.5, 7, snowy_dark, snow), 0.24, 5.5],
+		[TreeMesh.build(7.0, 7, snowy_dark, snow.darkened(0.1)), 0.17, 3.5],
+	]
+	for e: Array in extra:
+		var mesh: Mesh = e[0]
+		tree_meshes.append(mesh)
+		tree_far_meshes.append(mesh)
+		var trunk := CylinderShape3D.new()
+		trunk.radius = e[1]
+		trunk.height = e[2]
+		tree_shapes.append(trunk)
+		tree_shape_offsets.append(Vector3(0.0, float(e[2]) * 0.5, 0.0))
 
 	var rocks := _meshes("res://assets/models/rocks.glb")
 	var names := rocks.keys()

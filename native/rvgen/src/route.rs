@@ -8,6 +8,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::biome::Biome;
 use crate::hash::sub_seed;
 use crate::noise::smoothstep;
 use crate::rng::Pcg32;
@@ -38,6 +39,19 @@ const REACH: f32 = ROAD_HALF_WIDTH + SHOULDER + 2.0;
 /// Pads: the camp, stations and home. Half-size along and across the road.
 const PAD_HALF: [f32; 2] = [16.0, 11.0];
 const PAD_BLEND: f32 = 10.0;
+/// A ford's river runs this far either side of the road (metres); its banks are this wide.
+pub const RIVER_HALF: f32 = 60.0;
+const RIVER_FADE: f32 = 18.0;
+const RIVER_BANK: f32 = 6.0;
+/// Deepest ford the RV can drive through (metres of water at the road).
+pub const MAX_FORD_DEPTH: f32 = 0.8;
+/// A frozen pond's ramps in and out are this long.
+const ICE_RAMP: f32 = 11.0;
+/// Width of the grassy bank ring round a lake.
+const LAKE_BANK: f32 = 10.0;
+/// A cave's levelled clearing (radius) and the blend round it.
+pub const CAVE_RADIUS: f32 = 9.0;
+const CAVE_BLEND: f32 = 8.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -51,6 +65,10 @@ pub enum ObstacleKind {
     Mud = 2,
     /// A short, very steep climb: low gear and momentum, or the winch.
     Climb = 3,
+    /// A river across the road, shallow enough to drive through (slowly), too deep to go round.
+    Ford = 4,
+    /// A frozen pond in a hollow: slippery ice, and an icy climb out (planks or the winch).
+    Ice = 5,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -105,6 +123,24 @@ pub enum SupplyKind {
     Anchor = 1,
 }
 
+/// A pond or lake beside the road (frozen in the mountains).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Lake {
+    /// Centre (x, water level, z).
+    pub pos: [f32; 3],
+    pub radius: f32,
+    pub frozen: bool,
+}
+
+/// A cave in a clearing off the road, with supplies inside (the game builds it).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cave {
+    /// Clearing centre (x, ground height, z) and the direction the mouth faces (x, z).
+    pub pos: [f32; 3],
+    pub dir: [f32; 2],
+    pub biome: Biome,
+}
+
 #[derive(Clone, Debug)]
 pub struct Route {
     /// Road centreline samples every `SAMPLE` metres: (x, z).
@@ -115,6 +151,8 @@ pub struct Route {
     /// The camp, one pad per station, and home, in order along the road.
     pub pads: Vec<Pad>,
     pub supplies: Vec<Supply>,
+    pub lakes: Vec<Lake>,
+    pub caves: Vec<Cave>,
     pub length: f32,
     /// Samples near each grid cell (cells of `GRID` metres, keyed by cell).
     grid: BTreeMap<(i32, i32), Vec<u32>>,
@@ -181,6 +219,8 @@ impl Route {
             obstacles: Vec::new(),
             pads: Vec::new(),
             supplies: Vec::new(),
+            lakes: Vec::new(),
+            caves: Vec::new(),
             grid: BTreeMap::new(),
             bounds: [0.0; 4],
         };
@@ -209,7 +249,9 @@ impl Route {
                     since_breather = 0; // A quiet stretch of road.
                 } else {
                     let t = s / route.length;
-                    route.place_obstacle(&mut rng, s, t);
+                    let p = route.xz[route.index_at(s)];
+                    let biome = terrain.biomes().at(p[0], p[1]);
+                    route.place_obstacle(&mut rng, s, t, biome);
                     since_breather += 1;
                 }
             }
@@ -217,7 +259,118 @@ impl Route {
         }
 
         route.build_grid();
+        route.place_lakes(world_seed, terrain);
+        route.place_caves(world_seed, terrain);
         route
+    }
+
+    /// Ponds in the bayou and frozen lakes in the mountains, off to the sides of the road.
+    fn place_lakes(&mut self, world_seed: u64, terrain: &TerrainGen) {
+        let mut rng = Pcg32::new(sub_seed(world_seed, "route.lakes", 0, 0), 7);
+        let mut s = 120.0;
+        while s < self.length - 60.0 {
+            let (chance, side_roll, radius, offset) = (
+                rng.next_f32(),
+                rng.next_f32(),
+                rng.range_f32(12.0, 30.0),
+                rng.range_f32(8.0, 40.0),
+            );
+            s += rng.range_f32(110.0, 190.0);
+            let i = self.index_at(s);
+            let p = self.xz[i];
+            let biome = terrain.biomes().at(p[0], p[1]);
+            let frozen = biome == Biome::Alpine;
+            if !(biome == Biome::Swamp || frozen) || chance > 0.55 {
+                continue;
+            }
+            let side = if side_roll < 0.5 { 1.0 } else { -1.0 };
+            let d = self.dir(i);
+            let n = [-d[1] * side, d[0] * side];
+            let off = radius + LAKE_BANK + REACH + offset;
+            let c = [p[0] + n[0] * off, p[1] + n[1] * off];
+            if self.min_road_distance(c[0], c[1], s, radius + 120.0)
+                < radius + LAKE_BANK + REACH + 2.0
+            {
+                continue;
+            }
+            let clear = |q: [f32; 3], r: f32| dist2(q, [c[0], 0.0, c[1]]) > r * r;
+            if !self.pads.iter().all(|pad| clear(pad.pos, radius + 45.0))
+                || !self
+                    .obstacles
+                    .iter()
+                    .all(|o| clear(o.pos, radius + RIVER_HALF + 10.0))
+                || !self
+                    .lakes
+                    .iter()
+                    .all(|l| clear(l.pos, radius + l.radius + 2.0 * LAKE_BANK))
+            {
+                continue;
+            }
+            let level = terrain.height_m(c[0], c[1]) - 0.4;
+            self.lakes.push(Lake {
+                pos: [c[0], level, c[1]],
+                radius,
+                frozen,
+            });
+        }
+    }
+
+    /// One cave per stretch of road in the woods or the canyon, in a clearing off to a side.
+    fn place_caves(&mut self, world_seed: u64, terrain: &TerrainGen) {
+        let mut rng = Pcg32::new(sub_seed(world_seed, "route.caves", 0, 0), 9);
+        for k in 0..self.pads.len().saturating_sub(1) {
+            let (a, b) = (self.pads[k].s, self.pads[k + 1].s);
+            let (t, side_roll, offset) = (
+                rng.range_f32(0.3, 0.7),
+                rng.next_f32(),
+                rng.range_f32(4.0, 14.0),
+            );
+            let s = a + (b - a) * t;
+            let i = self.index_at(s);
+            let p = self.xz[i];
+            let biome = terrain.biomes().at(p[0], p[1]);
+            if !(biome == Biome::Forest || biome == Biome::Canyon) {
+                continue;
+            }
+            let side = if side_roll < 0.5 { 1.0 } else { -1.0 };
+            let d = self.dir(i);
+            let n = [-d[1] * side, d[0] * side];
+            let off = CAVE_RADIUS + CAVE_BLEND + REACH + offset;
+            let c = [p[0] + n[0] * off, p[1] + n[1] * off];
+            if self.min_road_distance(c[0], c[1], s, 150.0) < CAVE_RADIUS + CAVE_BLEND + REACH {
+                continue;
+            }
+            let clear = |q: [f32; 3], r: f32| dist2(q, [c[0], 0.0, c[1]]) > r * r;
+            if !self.pads.iter().all(|pad| clear(pad.pos, 60.0))
+                || !self
+                    .obstacles
+                    .iter()
+                    .all(|o| clear(o.pos, RIVER_HALF + 25.0))
+                || !self
+                    .lakes
+                    .iter()
+                    .all(|l| clear(l.pos, l.radius + LAKE_BANK + 30.0))
+            {
+                continue;
+            }
+            // The mouth faces the road.
+            self.caves.push(Cave {
+                pos: [c[0], terrain.height_m(c[0], c[1]), c[1]],
+                dir: [-n[0], -n[1]],
+                biome,
+            });
+        }
+    }
+
+    /// Distance from a point to the road, looking `window` metres either side of arc length `s`.
+    fn min_road_distance(&self, x: f32, z: f32, s: f32, window: f32) -> f32 {
+        let i0 = self.index_at((s - window).max(0.0));
+        let i1 = self.index_at(s + window);
+        let mut best = f32::INFINITY;
+        for p in &self.xz[i0..=i1] {
+            best = best.min((p[0] - x) * (p[0] - x) + (p[1] - z) * (p[1] - z));
+        }
+        best.sqrt()
     }
 
     fn pad(&self, kind: PadKind, s: f32, side: f32) -> Pad {
@@ -239,14 +392,46 @@ impl Route {
         }
     }
 
-    fn place_obstacle(&mut self, rng: &mut Pcg32, s: f32, t: f32) {
+    fn place_obstacle(&mut self, rng: &mut Pcg32, s: f32, t: f32, biome: Biome) {
         // Always draw the same values, whichever kind wins.
         let pick = rng.next_f32();
         let a = rng.next_f32();
         let b = rng.next_f32();
-        // Weighted by how far into the trip it is: gentle mud and climbs early, then gaps
-        // and ledges, which need tools (planks, the winch).
-        let kind = if t < 0.25 {
+        // By biome, then weighted by how far into the trip it is: gentle mud and climbs
+        // early, then gaps and ledges, which need tools (planks, the winch).
+        let kind = match biome {
+            Biome::Swamp => Some(if pick < 0.4 {
+                ObstacleKind::Mud
+            } else if pick < 0.72 {
+                ObstacleKind::Ford
+            } else if pick < 0.9 {
+                ObstacleKind::Gap
+            } else {
+                ObstacleKind::Climb
+            }),
+            Biome::Canyon => Some(if pick < 0.35 {
+                ObstacleKind::Ledge
+            } else if pick < 0.6 {
+                ObstacleKind::Climb
+            } else if pick < 0.85 {
+                ObstacleKind::Gap
+            } else {
+                ObstacleKind::Ford
+            }),
+            Biome::Alpine => Some(if pick < 0.42 {
+                ObstacleKind::Ice
+            } else if pick < 0.65 {
+                ObstacleKind::Climb
+            } else if pick < 0.85 {
+                ObstacleKind::Ledge
+            } else {
+                ObstacleKind::Gap
+            }),
+            Biome::Forest => None,
+        };
+        let kind = if let Some(k) = kind {
+            k
+        } else if t < 0.25 {
             if pick < 0.6 {
                 ObstacleKind::Mud
             } else {
@@ -274,6 +459,10 @@ impl Route {
             ObstacleKind::Ledge => (1.0, 1.1 + 0.5 * t + 0.1 * a),
             ObstacleKind::Mud => (14.0 + 10.0 * t + 6.0 * a, 0.25),
             ObstacleKind::Climb => (70.0, 5.0 + 3.0 * t + 1.0 * b),
+            // Channel width at the road, and the water's depth there.
+            ObstacleKind::Ford => (8.0 + 4.0 * a, (0.45 + 0.3 * t).min(MAX_FORD_DEPTH - 0.05)),
+            // The pond's radius, and how far below the road its ice lies.
+            ObstacleKind::Ice => (14.0 + 4.0 * a, 1.4 + 0.6 * t),
         };
         let i = self.index_at(s);
         let d = self.dir(i);
@@ -359,7 +548,37 @@ impl Route {
                     self.h[idx] += size * w;
                 }
             }
-            ObstacleKind::Mud => {}
+            ObstacleKind::Ice => {
+                // Planks before (for grip on the ice), a boulder beyond (to winch out).
+                let side = if a < 0.5 { 1.0 } else { -1.0 };
+                let j = self.index_at((s - length - ICE_RAMP - rng.range_f32(8.0, 16.0)).max(0.0));
+                let n = [-self.dir(j)[1] * side, self.dir(j)[0] * side];
+                let off = ROAD_HALF_WIDTH + 1.5;
+                self.supplies.push(Supply {
+                    kind: SupplyKind::Planks,
+                    pos: [
+                        self.xz[j][0] + n[0] * off,
+                        self.h[j],
+                        self.xz[j][1] + n[1] * off,
+                    ],
+                    yaw_dir: self.dir(j),
+                    count: 4,
+                });
+                let k = self.index_at(s + length + ICE_RAMP + 8.0 + 6.0 * b);
+                let n = [-self.dir(k)[1] * -side, self.dir(k)[0] * -side];
+                let off = ROAD_HALF_WIDTH + 2.5;
+                self.supplies.push(Supply {
+                    kind: SupplyKind::Anchor,
+                    pos: [
+                        self.xz[k][0] + n[0] * off,
+                        self.h[k],
+                        self.xz[k][1] + n[1] * off,
+                    ],
+                    yaw_dir: self.dir(k),
+                    count: 1,
+                });
+            }
+            ObstacleKind::Mud | ObstacleKind::Ford => {}
         }
         self.obstacles.push(obstacle);
     }
@@ -528,9 +747,141 @@ impl Route {
                     }
                 }
                 ObstacleKind::Climb => {}
+                ObstacleKind::Ford => {
+                    // The river's channel, straight across: shallow where the road fords it,
+                    // deep off to the sides (no driving round), banks a little above the water.
+                    let half = o.length * 0.5;
+                    let reach = half + RIVER_BANK + 8.0;
+                    if along.abs() < reach && across.abs() < RIVER_HALF {
+                        let level = o.pos[1] - 0.05;
+                        let off_road = smoothstep(
+                            ROAD_HALF_WIDTH + 2.0,
+                            ROAD_HALF_WIDTH + SHOULDER,
+                            across.abs(),
+                        );
+                        let depth = o.size + 1.6 * off_road;
+                        let channel = smoothstep(half + RIVER_BANK, half, along.abs());
+                        // Banks stand a little proud of the water off the road; the road itself
+                        // runs straight down into the ford.
+                        let target = level - depth * channel + 0.5 * off_road * (1.0 - channel);
+                        let w = smoothstep(reach, half + RIVER_BANK, along.abs())
+                            * smoothstep(RIVER_HALF, RIVER_HALF - RIVER_FADE, across.abs());
+                        h += (target - h) * w;
+                    }
+                }
+                ObstacleKind::Ice => {
+                    let d = (along * along + across * across).sqrt();
+                    let r = o.length;
+                    if d < r + ICE_RAMP {
+                        let level = o.pos[1] - o.size;
+                        h += (level - h) * smoothstep(r + ICE_RAMP, r, d);
+                    }
+                }
+            }
+        }
+        for l in &self.lakes {
+            let (dx, dz) = (x - l.pos[0], z - l.pos[2]);
+            let d = (dx * dx + dz * dz).sqrt();
+            if d < l.radius + LAKE_BANK {
+                let target = if d < l.radius {
+                    if l.frozen {
+                        l.pos[1]
+                    } else {
+                        l.pos[1] - 0.3 - 2.0 * smoothstep(l.radius, l.radius * 0.4, d)
+                    }
+                } else {
+                    l.pos[1] + 0.4
+                };
+                h += (target - h) * smoothstep(l.radius + LAKE_BANK, l.radius + 2.0, d);
+            }
+        }
+        for c in &self.caves {
+            let (dx, dz) = (x - c.pos[0], z - c.pos[2]);
+            let d = (dx * dx + dz * dz).sqrt();
+            if d < CAVE_RADIUS + CAVE_BLEND {
+                h += (c.pos[1] - h) * smoothstep(CAVE_RADIUS + CAVE_BLEND, CAVE_RADIUS, d);
             }
         }
         h
+    }
+
+    /// How icy a point is, 0..1 (frozen ponds on the road and frozen lakes).
+    pub fn ice_at(&self, x: f32, z: f32) -> f32 {
+        if !self.in_bounds(x, z) {
+            return 0.0;
+        }
+        let mut ice: f32 = 0.0;
+        for o in self
+            .obstacles
+            .iter()
+            .filter(|o| o.kind == ObstacleKind::Ice)
+        {
+            let (along, across) = local(o.pos, o.dir, x, z);
+            let d = (along * along + across * across).sqrt();
+            ice = ice.max(smoothstep(o.length + 3.5, o.length + 1.5, d));
+        }
+        for l in self.lakes.iter().filter(|l| l.frozen) {
+            let (dx, dz) = (x - l.pos[0], z - l.pos[2]);
+            ice = ice.max(smoothstep(
+                l.radius + 0.5,
+                l.radius - 1.0,
+                (dx * dx + dz * dz).sqrt(),
+            ));
+        }
+        ice
+    }
+
+    /// The water surface height over a point, if it's in a river or an unfrozen lake.
+    pub fn water_at(&self, x: f32, z: f32) -> Option<f32> {
+        if !self.in_bounds(x, z) {
+            return None;
+        }
+        for o in self
+            .obstacles
+            .iter()
+            .filter(|o| o.kind == ObstacleKind::Ford)
+        {
+            let (along, across) = local(o.pos, o.dir, x, z);
+            if along.abs() < o.length * 0.5 + RIVER_BANK * 0.6
+                && across.abs() < RIVER_HALF - RIVER_FADE * 0.5
+            {
+                return Some(o.pos[1] - 0.05);
+            }
+        }
+        for l in self.lakes.iter().filter(|l| !l.frozen) {
+            let (dx, dz) = (x - l.pos[0], z - l.pos[2]);
+            if dx * dx + dz * dz < l.radius * l.radius {
+                return Some(l.pos[1]);
+            }
+        }
+        None
+    }
+
+    /// Whether a point is somewhere nothing should grow or lie: a pad, a cave clearing, a
+    /// lake, a river.
+    pub fn blocked(&self, x: f32, z: f32, margin: f32) -> bool {
+        if !self.in_bounds(x, z) {
+            return false;
+        }
+        if self.on_pad(x, z, margin) {
+            return true;
+        }
+        let near = |p: [f32; 3], r: f32| dist2(p, [x, 0.0, z]) < r * r;
+        self.caves.iter().any(|c| near(c.pos, CAVE_RADIUS + margin))
+            || self
+                .lakes
+                .iter()
+                .any(|l| near(l.pos, l.radius + 2.0 + margin))
+            || self.obstacles.iter().any(|o| {
+                if o.kind == ObstacleKind::Ford {
+                    let (along, across) = local(o.pos, o.dir, x, z);
+                    along.abs() < o.length * 0.5 + RIVER_BANK + margin && across.abs() < RIVER_HALF
+                } else if o.kind == ObstacleKind::Ice {
+                    near(o.pos, o.length + margin)
+                } else {
+                    false
+                }
+            })
     }
 
     /// Whether a point is on a mud hole (the game lowers tire grip there).
@@ -637,6 +988,26 @@ impl Route {
                         problems.push(format!("ledge at {:.0} m has no winch anchor", o.s));
                     }
                 }
+                ObstacleKind::Ford => {
+                    if o.size > MAX_FORD_DEPTH {
+                        problems.push(format!(
+                            "ford at {:.0} m is too deep ({:.2} m)",
+                            o.s, o.size
+                        ));
+                    }
+                }
+                ObstacleKind::Ice => {
+                    let reach = o.length + ICE_RAMP + 30.0;
+                    let anchor = self.supplies.iter().any(|s| {
+                        s.kind == SupplyKind::Anchor && dist2(s.pos, o.pos) < reach * reach
+                    });
+                    let planks = self.supplies.iter().any(|s| {
+                        s.kind == SupplyKind::Planks && dist2(s.pos, o.pos) < reach * reach
+                    });
+                    if !anchor || !planks {
+                        problems.push(format!("ice at {:.0} m has no winch anchor or planks", o.s));
+                    }
+                }
                 _ => {}
             }
         }
@@ -648,12 +1019,46 @@ impl Route {
                 ));
             }
         }
+        for l in &self.lakes {
+            if self.min_road_distance(l.pos[0], l.pos[2], self.near_s(l.pos), l.radius + 150.0)
+                < l.radius + LAKE_BANK + REACH
+            {
+                problems.push(format!(
+                    "lake at ({:.0}, {:.0}) floods the road",
+                    l.pos[0], l.pos[2]
+                ));
+            }
+        }
+        for c in &self.caves {
+            if self.min_road_distance(c.pos[0], c.pos[2], self.near_s(c.pos), 200.0)
+                < CAVE_RADIUS + CAVE_BLEND + REACH - 1.0
+            {
+                problems.push(format!(
+                    "cave at ({:.0}, {:.0}) is on the road",
+                    c.pos[0], c.pos[2]
+                ));
+            }
+        }
         if self.pads.first().map(|p| p.kind) != Some(PadKind::Camp)
             || self.pads.last().map(|p| p.kind) != Some(PadKind::Home)
         {
             problems.push("trip must start at camp and end at home".into());
         }
         problems
+    }
+}
+
+impl Route {
+    /// Arc length of the road sample closest to a point (a full scan; validation only).
+    fn near_s(&self, p: [f32; 3]) -> f32 {
+        let mut best = (f32::INFINITY, 0usize);
+        for (i, q) in self.xz.iter().enumerate() {
+            let d = (q[0] - p[0]) * (q[0] - p[0]) + (q[1] - p[2]) * (q[1] - p[2]);
+            if d < best.0 {
+                best = (d, i);
+            }
+        }
+        best.1 as f32 * SAMPLE
     }
 }
 
@@ -803,19 +1208,65 @@ mod tests {
 
     #[test]
     fn many_seeds_validate() {
-        let mut kinds = [0; 4];
+        let mut kinds = [0; 6];
+        let (mut lakes, mut frozen, mut caves) = (0, 0, 0);
         for seed in 0..200 {
-            let r = route(seed, TripLength::Short);
+            let trip = if seed % 4 == 0 {
+                TripLength::Medium
+            } else {
+                TripLength::Short
+            };
+            let r = route(seed, trip);
             let problems = r.validate();
             assert!(problems.is_empty(), "seed {seed}: {problems:?}");
             for o in &r.obstacles {
                 kinds[o.kind as usize] += 1;
             }
+            lakes += r.lakes.len();
+            frozen += r.lakes.iter().filter(|l| l.frozen).count();
+            caves += r.caves.len();
         }
         assert!(
             kinds.iter().all(|&k| k > 20),
             "every obstacle kind appears: {kinds:?}"
         );
+        assert!(
+            lakes > 50 && frozen > 10 && caves > 50,
+            "{lakes} lakes ({frozen} frozen), {caves} caves"
+        );
+    }
+
+    #[test]
+    fn fords_are_wet_and_ice_is_icy() {
+        let (mut fords, mut ice) = (0, 0);
+        for seed in 0..60 {
+            let w = World::new(SeedCode::new(TripLength::Medium, seed)).unwrap();
+            let r = w.route();
+            for o in &r.obstacles {
+                match o.kind {
+                    ObstacleKind::Ford => {
+                        fords += 1;
+                        let level = r.water_at(o.pos[0], o.pos[2]).expect("water on the ford");
+                        let depth = level - w.height_at(o.pos[0], o.pos[2]);
+                        assert!(
+                            depth > 0.2 && depth <= MAX_FORD_DEPTH + 0.05,
+                            "ford {depth:.2} m deep"
+                        );
+                        // Off to the side it's too deep to drive round.
+                        let side = [o.pos[0] - o.dir[1] * 15.0, o.pos[2] + o.dir[0] * 15.0];
+                        let deep = level - w.height_at(side[0], side[1]);
+                        assert!(deep > 1.2, "ford sides only {deep:.2} m deep");
+                    }
+                    ObstacleKind::Ice => {
+                        ice += 1;
+                        assert!(r.ice_at(o.pos[0], o.pos[2]) > 0.99);
+                        assert!(r.water_at(o.pos[0], o.pos[2]).is_none());
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert!(fords > 5 && ice > 5, "{fords} fords, {ice} ice");
     }
 
     #[test]

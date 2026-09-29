@@ -10,7 +10,13 @@ signal finished
 const PAD_CAMP := 0
 const PAD_STATION := 1
 const PAD_HOME := 2
-const OBSTACLE_NAMES: Array[String] = ["Washed-out gap", "Ledge", "Mud", "Steep climb"]
+const OBSTACLE_NAMES: Array[String] = ["Washed-out gap", "Ledge", "Mud", "Steep climb", "River crossing", "Ice"]
+const BIOME_NAMES: Array[String] = ["the Pine Woods", "Muddy Bayou", "Red Rock Canyon", "Frostpeak Pass"]
+## What a cave might hold (kind, weight).
+const CAVE_LOOT: Array[Array] = [
+	[&"scrap_metal", 3], [&"plank", 2], [&"burger", 2], [&"soda", 2], [&"jerrycan", 1],
+	[&"antidote", 1], [&"epipen", 1], [&"bear_spray", 1], [&"first_aid", 1], [&"motor_oil", 1], [&"spare_tire", 1],
+]
 ## How close (m) the RV must get to a pad's centre to arrive (stations sit beside the road:
 ## their centre is ~14 m from it).
 const ARRIVE_RADIUS := 20.0
@@ -42,6 +48,8 @@ var extra_save: Callable
 var loaded_extra: Dictionary = {}
 
 var _last_rv_pos := Vector3.INF
+var _biome := -1
+var _biome_check := 0.0
 
 
 func setup(gen: WorldGen, the_rv: RV, item_parent: Node3D) -> void:
@@ -80,6 +88,46 @@ func build(spawn_items: bool = true) -> void:
 		_add_warning_sign(o)
 		if int(o["kind"]) == 0:
 			_add_abutments(o)
+	var water := WaterBodies.new()
+	water.name = "Water"
+	add_child(water)
+	water.build(data)
+	var caves: Array = data.get("caves", [])
+	for i: int in caves.size():
+		_build_cave(i, caves[i], spawn_items)
+
+
+## A cave off the road, stocked with a few random supplies (the same for the same seed).
+func _build_cave(index: int, c: Dictionary, stock: bool) -> void:
+	var pos: Vector3 = c["pos"]
+	var dir: Vector3 = c["dir"]
+	var node := TripStops.cave(int(c["biome"]) == 2)
+	node.name = "Cave%d" % index
+	add_child(node)
+	pos.y = world.height_at(pos.x, pos.z)
+	node.global_transform = Transform3D(Basis.looking_at(dir, Vector3.UP), pos)
+	if not stock:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%s:cave%d" % [world.get_code(), index])
+	var total := 0
+	for e: Array in CAVE_LOOT:
+		total += int(e[1])
+	for k: int in 3 + rng.randi() % 3:
+		var roll := rng.randi() % total
+		var kind: StringName = CAVE_LOOT[0][0]
+		for e: Array in CAVE_LOOT:
+			roll -= int(e[1])
+			if roll < 0:
+				kind = e[0]
+				break
+		var item := ItemLibrary.create(kind)
+		items.add_child(item)
+		var at := node.global_transform * Vector3(-1.5 + 1.0 * k, 0.0, 1.5 + 0.8 * (k % 2))
+		at.y = world.height_at(at.x, at.z) + item.base_offset + 0.05
+		item.global_position = at
+		item.freeze = true # Waits there (the ground may not be solid yet) until picked up.
+		item.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 
 
 ## A washed-out bridge's two concrete abutments: crisp edges at road level either side of the
@@ -197,6 +245,13 @@ func _physics_process(dt: float) -> void:
 	if _last_rv_pos != Vector3.INF:
 		distance_driven += Vector2(rv.global_position.x - _last_rv_pos.x, rv.global_position.z - _last_rv_pos.z).length()
 	_last_rv_pos = rv.global_position
+	_biome_check -= dt
+	if _biome_check <= 0.0:
+		_biome_check = 1.0
+		var b := world.biome_at(rv.global_position.x, rv.global_position.z)
+		if b != _biome and _biome >= 0:
+			show_notice("Entering %s" % BIOME_NAMES[b], 6.0)
+		_biome = b
 	if not is_authority:
 		return
 	var next := checkpoint + 1

@@ -71,6 +71,11 @@ func _side() -> float:
 
 
 func _add(animal: Animal, at: Vector3, clearance: float) -> void:
+	# Who lives where: no snakes in the snowy pass, no bears in the dry canyon.
+	var biome := world.biome_at(at.x, at.z)
+	if (animal is Snake and biome == 3) or (animal is Bear and biome == 2) or world.water_level(at.x, at.z) > -1000.0:
+		animal.free()
+		return
 	for p: Dictionary in data.get("pads", []):
 		var kind := int(p["kind"])
 		var near := Vector2(at.x - (p["pos"] as Vector3).x, at.z - (p["pos"] as Vector3).z).length()

@@ -4,6 +4,7 @@
 //! (never hashed), but it is still built from the deterministic heightfield.
 
 use crate::World;
+use crate::biome::Weights;
 use crate::chunk::{CHUNK_SIZE, Heightfield};
 use crate::noise::smoothstep;
 use crate::terrain::q_to_m;
@@ -30,6 +31,14 @@ const ROCK: [f32; 3] = [0.52, 0.50, 0.47];
 const SNOW: [f32; 3] = [0.93, 0.94, 0.96];
 const ROAD: [f32; 3] = [0.58, 0.49, 0.36];
 const MUD: [f32; 3] = [0.27, 0.2, 0.13];
+const BAYOU: [f32; 3] = [0.30, 0.36, 0.17];
+const BAYOU_WET: [f32; 3] = [0.22, 0.26, 0.14];
+const SAND: [f32; 3] = [0.78, 0.50, 0.30];
+const REDROCK: [f32; 3] = [0.66, 0.34, 0.22];
+const PALE_ROCK: [f32; 3] = [0.84, 0.66, 0.48];
+const ALPINE_ROCK: [f32; 3] = [0.55, 0.56, 0.58];
+const ICE: [f32; 3] = [0.74, 0.87, 0.95];
+const RIVERBED: [f32; 3] = [0.30, 0.27, 0.22];
 
 fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     [
@@ -39,15 +48,40 @@ fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
     ]
 }
 
-/// Ground colour from height, surface normal Y and a low-frequency tint in `[0, 1]`.
-pub fn ground_color(height_m: f32, normal_y: f32, tint: f32) -> [f32; 4] {
-    let dryness = (0.6 * tint + 0.4 * smoothstep(150.0, 280.0, height_m)).clamp(0.0, 1.0);
-    let mut c = mix(GRASS_LUSH, GRASS_DRY, dryness);
-    c = mix(c, DIRT, smoothstep(0.35, 0.1, tint) * 0.6);
-    c = mix(c, ROCK, smoothstep(0.88, 0.72, normal_y));
-    let snow = smoothstep(330.0, 370.0, height_m) * smoothstep(0.70, 0.85, normal_y);
-    c = mix(c, SNOW, snow);
-    [c[0], c[1], c[2], 1.0]
+/// Ground colour from height, surface normal Y, a low-frequency tint in `[0, 1]` and the
+/// biome weights (woods, bayou, canyon, pass).
+pub fn ground_color(height_m: f32, normal_y: f32, tint: f32, biomes: &Weights) -> [f32; 4] {
+    let steep = smoothstep(0.88, 0.72, normal_y);
+    let mut out = [0.0f32; 3];
+    let mut add = |c: [f32; 3], w: f32| {
+        for k in 0..3 {
+            out[k] += c[k] * w;
+        }
+    };
+    if biomes[0] > 0.0 {
+        let dryness = (0.6 * tint + 0.4 * smoothstep(150.0, 280.0, height_m)).clamp(0.0, 1.0);
+        let mut c = mix(GRASS_LUSH, GRASS_DRY, dryness);
+        c = mix(c, DIRT, smoothstep(0.35, 0.1, tint) * 0.6);
+        c = mix(c, ROCK, steep);
+        let snow = smoothstep(330.0, 370.0, height_m) * smoothstep(0.70, 0.85, normal_y);
+        add(mix(c, SNOW, snow), biomes[0]);
+    }
+    if biomes[1] > 0.0 {
+        let c = mix(BAYOU, BAYOU_WET, tint);
+        add(mix(c, MUD, steep * 0.8), biomes[1]);
+    }
+    if biomes[2] > 0.0 {
+        // Banded cliffs: pale and red layers every few metres, sand on the benches.
+        let band = height_m * (1.0 / 4.5);
+        let layer = band - band.floor();
+        let wall = mix(REDROCK, PALE_ROCK, smoothstep(0.4, 0.6, layer));
+        add(mix(mix(SAND, REDROCK, tint * 0.4), wall, steep), biomes[2]);
+    }
+    if biomes[3] > 0.0 {
+        let snow = smoothstep(0.62, 0.8, normal_y);
+        add(mix(ALPINE_ROCK, SNOW, snow), biomes[3]);
+    }
+    [out[0], out[1], out[2], 1.0]
 }
 
 /// Builds the mesh for one chunk at LOD spacing `step` (see [`LOD_STEPS`]).
@@ -86,13 +120,24 @@ pub fn chunk_mesh(world: &World, hf: &Heightfield, step: u32) -> MeshData {
             let normal = [nx / len, ny / len, nz / len];
             let (wx, wz) = ((ox + lx) as f32, (oz + lz) as f32);
             let tint = world.terrain().tint(wx, wz);
-            let mut color = ground_color(y, normal[1], tint);
+            let weights = world.terrain().biomes().weights(wx, wz);
+            let mut color = ground_color(y, normal[1], tint, &weights);
             let route = world.route();
             let road = route.road_at(wx, wz);
             if road > 0.0 {
                 let c = mix([color[0], color[1], color[2]], ROAD, road);
                 let m = route.mud_at(wx, wz);
                 let c = mix(c, MUD, m);
+                color = [c[0], c[1], c[2], 1.0];
+            }
+            let ice = route.ice_at(wx, wz);
+            if ice > 0.0 {
+                let c = mix([color[0], color[1], color[2]], ICE, ice);
+                color = [c[0], c[1], c[2], 1.0];
+            }
+            if let Some(level) = route.water_at(wx, wz) {
+                let under = smoothstep(0.0, 0.6, level - y);
+                let c = mix([color[0], color[1], color[2]], RIVERBED, under);
                 color = [c[0], c[1], c[2], 1.0];
             }
             mesh.positions.push([lx as f32, y, lz as f32]);

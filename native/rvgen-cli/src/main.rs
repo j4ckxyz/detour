@@ -156,9 +156,13 @@ fn cmd_png(args: &[String]) -> Result<(), String> {
                         .terrain()
                         .tint((ox + x as i32) as f32, (oz + z as i32) as f32);
                     let (wx, wz) = ((ox + x as i32) as f32, (oz + z as i32) as f32);
-                    let mut c = ground_color(h, ny, tint);
+                    let weights = world.terrain().biomes().weights(wx, wz);
+                    let mut c = ground_color(h, ny, tint, &weights);
                     if world.route().road_at(wx, wz) > 0.5 {
                         c = [0.85, 0.35, 0.2, 1.0];
+                    }
+                    if world.route().water_at(wx, wz).is_some_and(|l| l > h) {
+                        c = [0.2, 0.45, 0.75, 1.0];
                     }
                     let px = ((cx + radius) * CHUNK_SIZE) as usize + x;
                     let pz = ((cz + radius) * CHUNK_SIZE) as usize + z;

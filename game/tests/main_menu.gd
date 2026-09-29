@@ -16,7 +16,7 @@ func _ready() -> void:
 	menu._refresh_play()
 	_check(menu._status.text != "", "a bad seed code is explained (%s)" % menu._status.text)
 	_check(not menu._check_seed(), "and can't be played")
-	menu._seed.text = "DT2-01YPW-3A7T8"
+	menu._seed.text = "DT3-0EHYA-0MEKW"
 	menu._refresh_play()
 	_check(menu._status.text == "" and menu._check_seed(), "a good seed code is accepted")
 	_check(WorldGen.code_error(menu._chosen_seed()) == "", "the chosen seed is playable")

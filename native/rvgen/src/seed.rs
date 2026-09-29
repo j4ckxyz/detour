@@ -10,8 +10,9 @@ use crate::hash;
 
 /// Bump on **any** change that alters generated output. Old codes then fail
 /// [`SeedCode::check_supported`] instead of silently producing a different world.
-/// Bumped on any generator change that alters worlds (v2: trips with roads and obstacles).
-pub const GEN_VERSION: u16 = 2;
+/// Bumped on any generator change that alters worlds (v2: trips with roads and obstacles;
+/// v3: biomes, fords, ice, lakes and caves).
+pub const GEN_VERSION: u16 = 3;
 
 const PREFIX: &str = "DT";
 const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -219,7 +220,7 @@ mod tests {
             let code = SeedCode::from_entropy(trip, 0xDEAD_BEEF + i as u64);
             let text = code.to_string();
             assert!(text.starts_with(&format!("DT{GEN_VERSION}-")), "{text}");
-            assert_eq!(text.len(), "DT2-XXXXX-XXXXX".len());
+            assert_eq!(text.len(), "DT3-XXXXX-XXXXX".len());
             assert_eq!(SeedCode::parse(&text), Ok(code));
         }
     }

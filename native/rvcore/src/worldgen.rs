@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use godot::prelude::*;
-use rvgen::route::{PLANK_LENGTH, ROAD_HALF_WIDTH, SAMPLE};
+use rvgen::route::{PLANK_LENGTH, RIVER_HALF, ROAD_HALF_WIDTH, SAMPLE};
 use rvgen::{ChunkCoord, GEN_VERSION, SeedCode, TripLength, World, mesh, scatter};
 
 use crate::convert;
@@ -154,7 +154,15 @@ impl WorldGen {
     /// - `pads`: [{kind: 0 camp | 1 station | 2 home, s, pos: Vector3, dir: Vector3, side}];
     /// - `obstacles`: [{kind: 0 gap | 1 ledge | 2 mud | 3 climb, s, pos, dir, length, size,
     ///   difficulty}];
-    /// - `supplies`: [{kind: 0 planks | 1 anchor, pos, dir, count}].
+    /// - `supplies`: [{kind: 0 planks | 1 anchor, pos, dir, count}];
+    /// - `lakes`: [{pos: Vector3 (centre, water level), radius, frozen}];
+    /// - `caves`: [{pos, dir, biome}];
+    /// - `biomes`: PackedInt32Array, the biomes in the order the road meets them
+    ///   (0 woods, 1 bayou, 2 canyon, 3 mountain pass).
+    ///
+    /// Obstacle kinds also include 4 ford (a river across the road: `length` is the channel
+    /// width, `size` the water depth) and 5 ice (a frozen pond: `length` its radius, `size`
+    /// how far below the road it lies).
     #[func]
     fn trip(&self) -> VarDictionary {
         let mut d = VarDictionary::new();
@@ -202,6 +210,33 @@ impl WorldGen {
             e.set("count", s.count as i32);
             supplies.push(&e.to_variant());
         }
+        let mut lakes = VarArray::new();
+        for l in &r.lakes {
+            let mut e = VarDictionary::new();
+            e.set("pos", v3(l.pos));
+            e.set("radius", l.radius);
+            e.set("frozen", l.frozen);
+            lakes.push(&e.to_variant());
+        }
+        let mut caves = VarArray::new();
+        for c in &r.caves {
+            let mut e = VarDictionary::new();
+            e.set("pos", v3(c.pos));
+            e.set("dir", dir3(c.dir));
+            e.set("biome", c.biome as i32);
+            caves.push(&e.to_variant());
+        }
+        let biomes: PackedInt32Array = w
+            .terrain()
+            .biomes()
+            .sequence()
+            .iter()
+            .map(|b| *b as i32)
+            .collect();
+        d.set("lakes", &lakes.to_variant());
+        d.set("caves", &caves.to_variant());
+        d.set("biomes", &biomes.to_variant());
+        d.set("river_half", RIVER_HALF);
         d.set("length", r.length);
         d.set("road_half_width", ROAD_HALF_WIDTH);
         d.set("plank_length", PLANK_LENGTH);
@@ -218,6 +253,27 @@ impl WorldGen {
         self.world().map_or(0.0, |w| w.route().mud_at(x, z))
     }
 
+    /// How icy the ground is at a world position, 0..1 (almost no tire grip on ice).
+    #[func]
+    fn ice_at(&self, x: f32, z: f32) -> f32 {
+        self.world().map_or(0.0, |w| w.route().ice_at(x, z))
+    }
+
+    /// The water surface height over a point (a river or a lake), or -10000 if it's dry.
+    #[func]
+    fn water_level(&self, x: f32, z: f32) -> f32 {
+        self.world()
+            .and_then(|w| w.route().water_at(x, z))
+            .unwrap_or(NO_WATER)
+    }
+
+    /// The main biome at a world position: 0 woods, 1 bayou, 2 canyon, 3 mountain pass.
+    #[func]
+    fn biome_at(&self, x: f32, z: f32) -> i32 {
+        self.world()
+            .map_or(0, |w| w.terrain().biomes().at(x, z) as i32)
+    }
+
     /// Distance along the road of the closest road point, or -1 if well away from it.
     #[func]
     fn road_progress(&self, x: f32, z: f32) -> f32 {
@@ -232,6 +288,8 @@ impl WorldGen {
         self.world().map_or(0.0, |w| w.height_at(x, z))
     }
 }
+
+const NO_WATER: f32 = -10000.0;
 
 impl WorldGen {
     fn world(&self) -> Option<&World> {

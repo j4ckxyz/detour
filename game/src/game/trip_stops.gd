@@ -195,3 +195,36 @@ static func abutment(width: float) -> Node3D:
 	beam.rotation = Vector3(0.35, 0.1, 0.0)
 	root.add_child(beam)
 	return root
+
+
+## A cave in a clearing off the road (its frame's -Z faces the road): a horseshoe of rock
+## walls under a slab roof, timber props at the mouth, a lantern, and a crate. The trip puts
+## supplies inside. `canyon` colours it red rock.
+static func cave(canyon: bool) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Cave"
+	var rock := Color(0.62, 0.36, 0.25) if canyon else Color(0.45, 0.44, 0.42)
+	# Walls round the back and sides, open towards the road.
+	for i: int in 9:
+		var a := lerpf(-PI * 0.78, PI * 0.78, i / 8.0) + PI # 0 faces the road (-Z).
+		var at := Vector3(sin(a), 0.0, cos(a)) * -5.6
+		var wall := _block(Vector3(3.2, 4.8, 1.6), rock.darkened(0.08 * (i % 3)))
+		_place(root, wall, at + Vector3(0.0, -0.3, 0.0), a)
+	var roof := _block(Vector3(13.0, 1.4, 12.0), rock.darkened(0.15))
+	_place(root, roof, Vector3(0.0, 4.2, 0.6))
+	# A mine-style timber frame at the mouth.
+	var wood := Color(0.40, 0.28, 0.17)
+	for x: float in [-2.6, 2.6]:
+		_place(root, _block(Vector3(0.35, 3.6, 0.35), wood), Vector3(x, 0.0, -4.4))
+	_place(root, _block(Vector3(5.9, 0.4, 0.45), wood), Vector3(0.0, 3.6, -4.4))
+	_place(root, model("survival/crate", 0.9, 1), Vector3(-2.4, 0.0, 2.2), 0.4)
+	_place(root, model("survival/barrel", 1.0, 1), Vector3(2.6, 0.0, 2.6))
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color(1.0, 0.75, 0.45)
+	lamp.light_energy = 1.6
+	lamp.omni_range = 8.0
+	_place(root, lamp, Vector3(0.0, 2.8, 1.0))
+	var text := _label("CAVE", 40)
+	text.position = Vector3(0.0, 4.1, -4.72)
+	root.add_child(text)
+	return root

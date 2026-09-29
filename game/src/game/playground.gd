@@ -15,7 +15,7 @@ extends Node3D
 ## Emitted once the RV has been placed on solid ground and can drive.
 signal spawned
 
-const DEFAULT_SEED := "DT2-01YPW-3A7T8" # A Short trip (v1 terrain seed DT1-81YPW-3A7TA).
+const DEFAULT_SEED := "DT3-0EHYA-0MEKW" # A short trip: woods, a bayou ford, then mountain ice.
 const START := Vector3(64.0, 0.0, 64.0)
 const RV_SCENE := preload("res://src/rv/rv.tscn")
 const MAIN_MENU := "res://src/ui/main_menu.tscn"
@@ -74,6 +74,8 @@ func _ready() -> void:
 	add_child(rv)
 	rv.set_automatic(_args.has("automatic"))
 	rv.surface_query = world.mud_at
+	rv.ice_query = world.ice_at
+	rv.water_query = world.water_level
 	trip.name = "Trip"
 	add_child(trip)
 	trip.setup(world, rv, items)
@@ -119,6 +121,8 @@ func _ready() -> void:
 	player.world_items = items
 	player.seat_changed.connect(_on_seat_changed)
 	player.passed_out.connect(_on_passed_out)
+	player.water_query = world.water_level
+	player.ice_query = world.ice_at
 	player_hud.player = player
 	player_hud.visible = false
 	add_child(player_hud)

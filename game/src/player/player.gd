@@ -60,6 +60,11 @@ var peer_id := 1
 var puppet := false
 ## `func(peer: int, method: StringName, args: Array)`, set by NetGame on puppets.
 var remote: Callable
+## Optional `func(x, z) -> float`s: the water surface there (-10000 if dry), and how icy.
+var water_query: Callable
+var ice_query: Callable
+## In water deeper than your chest: swimming (slow; Jump swims up).
+var swimming := false
 ## The RV this player can board.
 var rv: RV
 ## Where dropped and thrown items go in the world.
@@ -283,11 +288,21 @@ func _update_ghost() -> void:
 
 
 func _move_outside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
-	velocity = _walk(velocity, wish, speed, dt, is_on_floor(), jump, get_gravity())
+	var level: float = water_query.call(global_position.x, global_position.z) if water_query.is_valid() else -10000.0
+	swimming = level > global_position.y + 1.25
+	if swimming:
+		velocity = _walk(velocity, wish, speed * 0.45, dt, true, false, Vector3.ZERO)
+		var up := 2.0 if input_enabled and Input.is_action_pressed(&"jump") else 0.0
+		velocity.y = clampf((level - 1.3 - global_position.y) * 3.0, -2.0, 2.0) + up # Float at the surface.
+	else:
+		var grip := 1.0
+		if ice_query.is_valid() and is_on_floor():
+			grip = lerpf(1.0, 0.12, ice_query.call(global_position.x, global_position.z))
+		velocity = _walk(velocity, wish, speed, dt, is_on_floor(), jump, get_gravity(), grip)
 	var was_on_floor := is_on_floor()
 	var wished := velocity
 	move_and_slide()
-	if not was_on_floor and is_on_floor() and -wished.y > FALL_SAFE_SPEED:
+	if not was_on_floor and is_on_floor() and -wished.y > FALL_SAFE_SPEED and not swimming:
 		hurt((-wished.y - FALL_SAFE_SPEED) * FALL_DAMAGE, "fell")
 	if was_on_floor and is_on_wall():
 		_step_up(self, Vector3(velocity.x, 0.0, velocity.z) * dt)
@@ -652,10 +667,10 @@ static func _step_up(body: CharacterBody3D, motion: Vector3) -> void:
 
 
 ## Horizontal steering towards the wished direction, plus gravity or a jump.
-func _walk(v: Vector3, wish: Vector2, speed: float, dt: float, on_floor: bool, jump: bool, gravity: Vector3) -> Vector3:
+func _walk(v: Vector3, wish: Vector2, speed: float, dt: float, on_floor: bool, jump: bool, gravity: Vector3, grip: float = 1.0) -> Vector3:
 	var dir := Basis(Vector3.UP, _yaw) * Vector3(wish.x, 0.0, wish.y)
 	var target_v := dir * speed
-	var rate := ACCEL if on_floor else AIR_ACCEL
+	var rate := ACCEL * grip if on_floor else AIR_ACCEL
 	var h := Vector3(v.x, 0.0, v.z).move_toward(Vector3(target_v.x, 0.0, target_v.z), rate * speed * dt)
 	var vy := v.y
 	if on_floor and jump:

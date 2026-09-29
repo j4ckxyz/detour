@@ -17,7 +17,7 @@ percentiles and the five worst frames, with how much streaming work happened ins
 **Machine:** Apple A18 Pro (2 performance + 4 efficiency cores), 8 GB, macOS 27, Godot 4.7.2 on
 Metal 4. This is the entry-level Mac, so it is our low-end Apple target.
 
-**Scene:** seed `DT1-81YPW-3A7TA`. Chunks load out to the preset's view distance, and up to 12k
+**Scene:** seed `DT1-81YPW-3A7TA` (a v1 code; today's codes start DT3). Chunks load out to the preset's view distance, and up to 12k
 instanced pines.
 
 | Renderer | Preset | Resolution | Avg fps | p50 ms | p95 ms | p99 ms | Max ms |

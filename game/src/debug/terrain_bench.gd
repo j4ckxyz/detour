@@ -11,7 +11,7 @@ extends Node3D
 ## `--resolution 1920x1080`.
 ## Keys: F3 overlay, 1-4 presets, right mouse + WASD/QE fly, Shift fast.
 
-const DEFAULT_SEED := "DT2-01YPW-3A7T8" # A Short trip (v1 terrain seed DT1-81YPW-3A7TA).
+const DEFAULT_SEED := "DT3-0EHYA-0MEKW" # A short trip: woods, a bayou ford, then mountain ice.
 const START := Vector3(64.0, 0.0, 64.0)
 const DRIVER_EYE_HEIGHT := 2.6
 const BENCH_SPEED := 22.0 # m/s, about 80 km/h: a fast RV.

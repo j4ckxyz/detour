@@ -158,7 +158,19 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
 ## The trip
 
 Every seed makes a trip (a **Short** trip is ~2.4 km: camp → 2 gas stations → home; Medium and
-Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
+Long have 5 and 11 stations). The default seed is `DT3-0EHYA-0MEKW`.
+
+- **Biomes**: every trip starts in **the Pine Woods** and ends in **Frostpeak Pass** (the
+  hardest); in between come the **Muddy Bayou** and **Red Rock Canyon** in a seeded order
+  (short trips see one of the two). The biome changes near each gas station, blending over
+  ~180 m, and the top of the screen says "Entering ..." as you cross.
+  - *Pine Woods*: rolling forested hills (the original terrain).
+  - *Muddy Bayou*: low and flat, olive-green ground, bayou trees and dead snags, ponds beside
+    the road, lots of mud and river fords.
+  - *Red Rock Canyon*: terraced mesas with banded red-and-cream cliffs, sand, cacti and
+    junipers, more rocks, no deadfall; ledges and climbs.
+  - *Frostpeak Pass*: 18 m higher with bigger relief, snow on everything but steep rock, snowy
+    firs, frozen lakes; ice, climbs and ledges.
 
 - **The road**: a winding dirt road heading home (east), carved into the hills with cut and
   fill to a gentle grade (≤ 9 %), dirt-coloured so it's obvious where to go, cleared of trees
@@ -175,10 +187,26 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
   - **Ledges** (from mid-trip): a sheer 1.1–1.7 m step up the road; the ground either side is
     raised so you can't drive round. A big boulder waits at the top: hook the winch on and
     reel yourself up.
+  - **River fords** (bayou, sometimes canyon): a river crosses the road, 0.45–0.75 m deep at
+    the road and over 2 m deep either side, so you can't go round. Drive through slowly: water
+    drags hard (the dashboard warns "WADING"), and water over the air intake (in the deep bits)
+    stalls and damages the engine. You can swim in it.
+  - **Ice** (the pass): the road drops ~1.4–2 m into a frozen pond 14–18 m across, and climbs
+    out up a ~15 % ramp that's icy at the bottom. Tires get 15 % grip on ice. A plank laid on
+    ice gives full grip under that wheel; 4 planks wait before each pond and a boulder to winch
+    from waits beyond it.
   - A **warning sign** stands 45 m before each obstacle.
 - **The generator guarantees solvability**: every gap has planks before it and fits a plank;
-  every ledge has an anchor within winch reach; obstacles are ≥ 120 m apart; the road's grade
-  outside obstacles stays in limits. Checked for 200 seeds in the Rust tests.
+  every ledge has an anchor within winch reach; every icy pond has planks and an anchor; fords
+  are never deeper than 0.8 m; lakes and caves never touch the road; obstacles are ≥ 120 m
+  apart; the road's grade outside obstacles stays in limits. Checked for 200 seeds in the
+  Rust tests.
+- **Lakes**: ponds 12–30 m across beside the road in the bayou (with a dark bed; swim in them)
+  and frozen lakes in the pass (walkable, slippery ice).
+- **Caves**: in the woods and the canyon, a cave in a clearing off the road on most stretches
+  (grey or red rock walls under a slab roof, a timber frame at the mouth, a lantern, a crate
+  and a barrel) holding 3–5 random supplies: scrap, planks, food, drinks, a jerry can,
+  medicine, bear spray, oil or a spare tire.
 - **The start camp**: tent, campfire, bedroll and log pile by the road; the starter items lie
   by the RV.
 - **Gas stations** (checkpoints): a shop with a diner sign, a canopy over two pumps, a welding
@@ -243,16 +271,17 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
 ## The world
 
 ### Generation
-- **Seed codes** like `DT1-81YPW-3A7TA`: generator version, trip length and a 40-bit seed in
+- **Seed codes** like `DT3-0EHYA-0MEKW`: generator version, trip length and a 40-bit seed in
   Crockford base32, with a typo check. The default seed is fixed; `-- --seed=CODE` picks another.
 - **Deterministic everywhere**: the same seed builds bit-identical terrain, trees and props on
   macOS (Apple Silicon), Linux and Windows (x86_64). CI checks this on every push with golden
   hashes. This is the foundation for multiplayer (only the seed needs sending).
-- **One placeholder biome, "pine hills"**, which goes on forever in every direction:
-  rolling hills from domain-warped noise, ridged mountain ranges in some regions, and small
-  bumps. Heights 0–1310 m in 2 cm steps.
-- **Ground colours** blend lush grass, dry grass, dirt, bare rock on steep slopes and snow
-  above ~330 m. The treeline is at 320 m.
+- **Four biomes** in bands from west to east (see The trip), over a base of rolling hills
+  from domain-warped noise, ridged mountain ranges in some regions, and small bumps. Heights
+  0–1310 m in 2 cm steps.
+- **Ground colours** per biome: in the woods lush grass, dry grass, dirt, bare rock on steep
+  slopes and snow above ~330 m (treeline 320 m); olive bayou; sand and banded red rock; snow
+  and grey rock. Ice is pale blue; river and pond beds are dark.
 
 ### Streaming
 - 128 m × 128 m chunks with a 1 m height grid, generated on background threads around the RV.
@@ -261,9 +290,10 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
 - Fog hides the edge of the streamed area.
 
 ### Scenery (scattered by the generator, the same for everyone on a seed)
-- **Pine forests**: density follows a forest-noise map; no trees on steep slopes or above the
-  treeline. ~80 trees per chunk on average. Three pine models (8, 11, 14 m) near the camera;
-  cheap cone stand-ins far away.
+- **Trees** per biome: pines (three models, 8–14 m, cheap cones far away) in the woods;
+  low-poly bayou trees and dead snags; saguaro cacti and junipers in the canyon; snowy firs
+  in the pass. Density follows a forest-noise map and the biome (thick woods, sparse canyon);
+  none on steep slopes, above the treeline, in water or on clearings.
 - **Rocks**: clusters of 2–5 rocks around a big one, with a 12 % chance of a boulder (2.4–3.8×
   size), plus lone rocks. More rocks on steep, rocky or high ground. 14 scanned rock models
   (CC0, Poly Haven).
@@ -473,9 +503,10 @@ Planned (see PLAN.md), roughly in the order they're coming:
 
 - **Players**: the roof ladder and roof; real character models and cosmetics.
 - **The trip**: a paper map, route forks and loot detours.
-- **More obstacles**: fords, rockslides, cliffs and steps, lava, ice.
-- **World variety**: more biomes (red rock canyon, swamp, alpine, volcanic), rivers and lakes,
-  weather, day/night.
+- **More obstacles**: rockslides, cliffs and steps, lava; rivers that wind through the land
+  (fords are straight channels today) and caves you drive through.
+- **World variety**: a volcanic biome, real models and textures for the new biomes (the
+  trees and caves are placeholder shapes), weather, day/night.
 - **Co-op**: proximity voice chat; saving each player's inventory with the trip.
 - **Sound**: engine, horn, tires, ambience, music. The game is currently **silent**.
 - **Menus and options**: settings (key rebinding, graphics, audio), cosmetics, and the

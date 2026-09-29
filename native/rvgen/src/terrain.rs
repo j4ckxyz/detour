@@ -1,11 +1,11 @@
-//! Terrain height function.
-//!
-//! Phase 0 uses one placeholder biome ("pine hills") so we can benchmark rendering and prove
-//! cross-platform determinism. The route-aware corridor terrain from PLAN.md §5.2 replaces
-//! this in Phase 3 (bump `GEN_VERSION` when it does).
+//! Terrain height function: rolling hills, ridged mountains and small bumps, reshaped by
+//! biome (see [`crate::biome`]): the bayou is low and flat, the canyon is terraced into
+//! cliffs, the mountain pass is higher with bigger relief.
 
+use crate::biome::{Biomes, Weights};
 use crate::hash::sub_seed32;
 use crate::noise::{Fractal, fbm, perlin, ridged, smoothstep};
+use crate::seed::TripLength;
 
 /// Quantisation: 2 cm steps, so a `u16` covers 0–1310.7 m.
 pub const HEIGHT_STEPS_PER_M: f32 = 50.0;
@@ -87,10 +87,20 @@ pub struct TerrainGen {
     forest: u32,
     rocks: u32,
     tint: u32,
+    biomes: Biomes,
+}
+
+/// Canyon terraces: flat benches `step` metres apart joined by steep walls.
+const TERRACE: f32 = 9.0;
+
+fn terrace(h: f32, step: f32) -> f32 {
+    let t = h / step;
+    let floor = t.floor();
+    (floor + smoothstep(0.6, 0.9, t - floor)) * step
 }
 
 impl TerrainGen {
-    pub fn new(world_seed: u64) -> Self {
+    pub fn new(world_seed: u64, trip: TripLength) -> Self {
         Self {
             warp_x: sub_seed32(world_seed, "terrain.warp_x"),
             warp_z: sub_seed32(world_seed, "terrain.warp_z"),
@@ -102,11 +112,22 @@ impl TerrainGen {
             forest: sub_seed32(world_seed, "terrain.forest"),
             rocks: sub_seed32(world_seed, "terrain.rocks"),
             tint: sub_seed32(world_seed, "terrain.tint"),
+            biomes: Biomes::new(world_seed, trip),
         }
+    }
+
+    pub fn biomes(&self) -> &Biomes {
+        &self.biomes
     }
 
     /// Unquantised height in metres at world position `(x, z)`.
     pub fn height_m(&self, x: f32, z: f32) -> f32 {
+        let w = self.biomes.weights(x, z);
+        self.height_with(x, z, &w)
+    }
+
+    /// Height given the biome weights there (callers that already have them).
+    pub fn height_with(&self, x: f32, z: f32, w: &Weights) -> f32 {
         let wx = x + 80.0 * fbm(self.warp_x, x, z, &WARP);
         let wz = z + 80.0 * fbm(self.warp_z, x, z, &WARP);
         let rolling = 120.0 + 70.0 * fbm(self.base, wx, wz, &BASE);
@@ -114,7 +135,20 @@ impl TerrainGen {
         let mountains = smoothstep(-0.1, 0.5, fbm(self.mask, x, z, &MASK));
         let peaks = 260.0 * ridged(self.ridge, wx, wz, &RIDGE) * mountains;
         let bumps = 0.6 * fbm(self.detail, x, z, &DETAIL);
-        (rolling + hills + peaks + bumps).clamp(0.0, MAX_HEIGHT_M)
+        let mut h = 0.0;
+        if w[0] > 0.0 {
+            h += w[0] * (rolling + hills + peaks + bumps);
+        }
+        if w[1] > 0.0 {
+            h += w[1] * (rolling - 6.0 + 0.3 * hills + 0.12 * peaks + 0.4 * bumps);
+        }
+        if w[2] > 0.0 {
+            h += w[2] * (terrace(rolling + 1.3 * hills + 0.7 * peaks, TERRACE) + 0.3 * bumps);
+        }
+        if w[3] > 0.0 {
+            h += w[3] * (rolling + 18.0 + 1.4 * hills + 1.5 * peaks + bumps);
+        }
+        h.clamp(0.0, MAX_HEIGHT_M)
     }
 
     /// Quantised natural height at an integer grid point (no road). The world's canonical
@@ -123,14 +157,19 @@ impl TerrainGen {
         quantize(self.height_m(gx as f32, gz as f32))
     }
 
-    /// Tree density in `[0, 1]` before slope and treeline limits.
+    /// Tree density in `[0, 1]` before slope and treeline limits: thick pine woods, thinner
+    /// bayou and pass, a few cacti in the canyon.
     pub fn forest_density(&self, x: f32, z: f32) -> f32 {
-        0.75 * smoothstep(-0.25, 0.35, fbm(self.forest, x, z, &FOREST))
+        let w = self.biomes.weights(x, z);
+        let f = 0.75 * smoothstep(-0.25, 0.35, fbm(self.forest, x, z, &FOREST));
+        f * (w[0] + 0.5 * w[1] + 0.45 * w[3]) + 0.05 * w[2]
     }
 
     /// How rocky the ground is, in `[0, 1]`, before slope and height are taken into account.
     pub fn rockiness(&self, x: f32, z: f32) -> f32 {
-        smoothstep(-0.05, 0.45, fbm(self.rocks, x, z, &ROCKS))
+        let w = self.biomes.weights(x, z);
+        let r = smoothstep(-0.05, 0.45, fbm(self.rocks, x, z, &ROCKS));
+        (r * (1.0 - 0.6 * w[1]) + 0.35 * w[2] + 0.2 * w[3]).min(1.0)
     }
 
     /// Low-frequency colour variation in `[0, 1]`. Visual only.

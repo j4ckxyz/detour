@@ -149,6 +149,9 @@ func _process(_delta: float) -> void:
 		warn = true
 	if dmg.missing_parts() > 0:
 		bits.append("%d part%s missing" % [dmg.missing_parts(), "s" if dmg.missing_parts() > 1 else ""])
+	if rv.wading > 0.05:
+		bits.append("WADING %.1f m — keep it slow" % rv.wading)
+		warn = true
 	_status.text = "   ".join(bits)
 	_status.add_theme_color_override("font_color", WARN if warn else DIM)
 

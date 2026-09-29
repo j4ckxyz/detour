@@ -13,6 +13,7 @@
 //!
 //! `tests/golden.rs` pins chunk hashes; CI runs it on every target triple.
 
+pub mod biome;
 pub mod chunk;
 pub mod hash;
 pub mod mesh;
@@ -43,7 +44,7 @@ impl World {
     pub fn new(code: SeedCode) -> Result<Self, SeedCodeError> {
         code.check_supported()?;
         let world_seed = code.world_seed();
-        let terrain = TerrainGen::new(world_seed);
+        let terrain = TerrainGen::new(world_seed, code.trip);
         let route = Route::generate(world_seed, code.trip, &terrain);
         Ok(Self {
             code,

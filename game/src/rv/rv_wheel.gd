@@ -51,6 +51,8 @@ var spin_speed := 0.0
 var surface_grip := 1.0
 ## 0..1: how muddy the ground under the tire is (less grip, much more drag).
 var mud := 0.0
+## Resting on something laid down (a plank): mud and ice don't count there.
+var on_item := false
 ## Off the RV (bolts shaken out): no contact, no forces.
 var detached := false
 ## Speed (m/s) this wheel hit the ground at this tick: set on touching down after being in
@@ -81,7 +83,9 @@ func _ready() -> void:
 func probe(body: RV) -> void:
 	_cast.force_shapecast_update()
 	grounded = _cast.is_colliding() and not detached
+	on_item = false
 	if grounded:
+		on_item = _cast.get_collider(0) is Item
 		contact = _cast.get_collision_point(0)
 		normal = _cast.get_collision_normal(0)
 		var reach := travel + CAST_LIFT

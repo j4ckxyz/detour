@@ -3,6 +3,7 @@
 //! that every client must agree on.
 
 use crate::World;
+use crate::biome::BIOMES;
 use crate::chunk::{CHUNK_SIZE, Heightfield};
 use crate::hash::sub_seed;
 use crate::noise::smoothstep;
@@ -19,8 +20,10 @@ pub struct TreeInstance {
     pub kind: u8,
 }
 
-/// Number of tree models `kind` can pick from.
-pub const TREE_KINDS: u8 = 3;
+/// Tree kinds: per biome, `TREES_PER_BIOME` models starting at `biome * TREES_PER_BIOME`
+/// (pines; bayou trees; cacti and junipers; snowy firs).
+pub const TREES_PER_BIOME: u8 = 3;
+pub const TREE_KINDS: u8 = TREES_PER_BIOME * BIOMES as u8;
 
 /// Jittered-grid cell size in metres.
 const CELL: i32 = 8;
@@ -50,17 +53,31 @@ pub fn trees(world: &World, hf: &Heightfield) -> Vec<TreeInstance> {
             let yaw = rng.range_f32(0.0, core::f32::consts::TAU);
             let scale = rng.range_f32(0.8, 1.35);
             let roll = rng.next_f32();
-            let kind = rng.below(TREE_KINDS as u32) as u8;
+            let variant = rng.below(TREES_PER_BIOME as u32) as u8;
+            let biome_roll = rng.next_f32();
 
             let (wx, wz) = ((ox as f32) + lx, (oz as f32) + lz);
             let mut density = world.terrain().forest_density(wx, wz);
             let route = world.route();
             let road = route.distance(wx, wz);
-            if road < CLEAR || route.on_pad(wx, wz, 4.0) {
+            if road < CLEAR || route.blocked(wx, wz, 4.0) {
                 continue;
             }
-            if road < CLEAR + TREE_WALL {
-                density = density.max(0.7); // The forest crowds the road.
+            // Which biome's trees: picked by the blend weights, so borders mix.
+            let weights = world.terrain().biomes().weights(wx, wz);
+            let mut biome = 0;
+            let mut acc = 0.0;
+            for (i, w) in weights.iter().enumerate() {
+                acc += w;
+                if biome_roll < acc {
+                    biome = i;
+                    break;
+                }
+                biome = i;
+            }
+            let kind = biome as u8 * TREES_PER_BIOME + variant;
+            if road < CLEAR + TREE_WALL && biome == 0 {
+                density = density.max(0.7); // The pine woods crowd the road.
             }
             if roll >= density {
                 continue;
@@ -289,12 +306,15 @@ pub fn props(world: &World, hf: &Heightfield, trees: &[TreeInstance]) -> Vec<Pro
             let slope = (gx * gx + gz * gz).sqrt();
             let forest = terrain.forest_density(wx, wz) * (1.0 / 0.75);
             let alpine = smoothstep(TREELINE_M - 40.0, TREELINE_M + 20.0, y);
+            let biomes = terrain.biomes().weights(wx, wz);
             let p_rocks = (0.05
                 + 0.30 * terrain.rockiness(wx, wz)
                 + 0.35 * smoothstep(0.3, 0.9, slope)
                 + 0.25 * alpine)
                 .min(0.85);
-            let p_debris = 0.45 * forest * (1.0 - alpine);
+            // Deadfall in the woods and the bayou; none in the desert.
+            let p_debris =
+                0.45 * (forest + 0.5 * biomes[1]).min(1.0) * (1.0 - alpine) * (1.0 - biomes[2]);
             let p_lone = 0.10;
 
             // (kind, members, first scale range, others' scale range, spread in metres)
@@ -350,7 +370,7 @@ pub fn props(world: &World, hf: &Heightfield, trees: &[TreeInstance]) -> Vec<Pro
                 }
                 let (pwx, pwz) = ((ox as f32) + px, (oz as f32) + pz);
                 if world.route().distance(pwx, pwz) < CLEAR + radius
-                    || world.route().on_pad(pwx, pwz, 3.0)
+                    || world.route().blocked(pwx, pwz, 3.0)
                 {
                     continue;
                 }

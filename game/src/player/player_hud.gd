@@ -95,6 +95,8 @@ func _process(_delta: float) -> void:
 			bits.append("%s winch: %s" % [w.label.capitalize(), state])
 	if player.pushing:
 		bits.append("Pushing!")
+	if player.swimming:
+		bits.append("Swimming (Space: up)")
 	var health := "Health %d" % roundi(player.health)
 	if player.venom > 0.0:
 		health += "  POISONED (antidote!)"

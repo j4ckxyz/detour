@@ -2127,11 +2127,11 @@ Legend:
 | Antidote | ✅ DONE (M5: snake venom) |
 | Wildlife | ✅ DONE (M5: bears, rattlesnakes, eagles; placeholder looks) |
 | Bear spray | ✅ DONE (M5) |
-| Multiple biomes | MISSING |
-| Rivers/lakes | MISSING |
+| Multiple biomes | ✅ DONE (M8: woods, bayou, canyon, mountain pass; procedural, placeholder looks) |
+| Rivers/lakes | ✅ DONE (M8: river fords, ponds; wading, engine flooding, swimming) |
 | Mud | ✅ DONE (M3) |
-| Ice | MISSING |
-| Caves | MISSING |
+| Ice | ✅ DONE (M8: frozen ponds on the road, frozen lakes; planks give grip) |
+| Caves | ✅ DONE (M8: roadside caves with supplies; placeholder rock) |
 | Weather | MISSING |
 | Day/night | MISSING |
 | Multiplayer lobby | ✅ DONE (M6: main menu host/join; LAN list, direct IP, relay room codes) |

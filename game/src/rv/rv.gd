@@ -91,6 +91,18 @@ var door_open := false:
 		interior.set_door_open(open)
 ## Optional `func(x: float, z: float) -> float`: how muddy the ground is (0..1).
 var surface_query: Callable
+## Optional `func(x, z) -> float`: how icy the ground is (0..1).
+var ice_query: Callable
+## Optional `func(x, z) -> float`: the water surface there (-10000 if dry).
+var water_query: Callable
+## How deep the RV stands in water (metres over the bottom of the body), for the HUD.
+var wading := 0.0
+## Grip left on ice (planks laid on it give it back).
+const ICE_GRIP := 0.15
+## Water drag per metre of depth (N per (m/s)²), and the engine's air intake (RV space):
+## water above it floods the engine.
+const WATER_DRAG := 900.0
+const AIR_INTAKE := Vector3(0.0, 1.35, -3.0)
 ## Front and rear winches.
 var winches: Array[RVWinch] = []
 ## Seat name → {eye, stand} in RV space: where a seated player looks from, and where they
@@ -498,9 +510,14 @@ func _physics_process(dt: float) -> void:
 		var wheel := wheels[i]
 		wheel.probe(self)
 		wheel.surface_grip = damage.wheel_grip(i)
-		if surface_query.is_valid() and wheel.grounded:
-			wheel.mud = surface_query.call(wheel.contact.x, wheel.contact.z)
-			wheel.surface_grip *= 1.0 - 0.6 * wheel.mud
+		wheel.mud = 0.0
+		if wheel.grounded and not wheel.on_item:
+			if surface_query.is_valid():
+				wheel.mud = surface_query.call(wheel.contact.x, wheel.contact.z)
+				wheel.surface_grip *= 1.0 - 0.6 * wheel.mud
+			if ice_query.is_valid():
+				var ice: float = ice_query.call(wheel.contact.x, wheel.contact.z)
+				wheel.surface_grip *= lerpf(1.0, ICE_GRIP, ice)
 
 	# Drivetrain: the engine is coupled to the driven wheels' rolling speed. (Feeding it
 	# wheelspin too would couple the light axle to the flywheel through a stiff clutch,
@@ -543,6 +560,7 @@ func _physics_process(dt: float) -> void:
 
 	for winch: RVWinch in winches:
 		winch.step(dt)
+	_wade(dt)
 	_anti_roll(wheels[0], wheels[1], 26000.0)
 	_anti_roll(wheels[2], wheels[3], 18000.0)
 	apply_central_force(-linear_velocity * linear_velocity.length() * DRAG)
@@ -550,6 +568,26 @@ func _physics_process(dt: float) -> void:
 	for wheel: RVWheel in wheels:
 		wheel.update_visual(self, dt, _axle_spin if wheel.driven else 0.0)
 	_update_cab_visuals()
+
+
+## Driving through water: drag that grows with depth and speed, and water over the air
+## intake stalls the engine and damages it.
+func _wade(dt: float) -> void:
+	wading = 0.0
+	if not water_query.is_valid():
+		return
+	var level: float = water_query.call(global_position.x, global_position.z)
+	if level < -1000.0:
+		return
+	wading = maxf(0.0, level - global_position.y)
+	if wading > 0.0:
+		var v := linear_velocity
+		apply_central_force(-v * v.length() * WATER_DRAG * minf(wading, 2.0))
+	if level > to_global(AIR_INTAKE).y:
+		damage.engine = maxf(0.0, damage.engine - 8.0 * dt)
+		if drivetrain.running:
+			drivetrain.running = false
+			drivetrain.stalled.emit()
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
