@@ -14,7 +14,7 @@ extends Node
 ##   godot --headless --path game --fixed-fps 60 res://tests/coop.tscn
 
 const PLAYGROUND := preload("res://src/game/playground.tscn")
-const SEED := "DT3-0EHYA-0MEKW"
+const SEED := "DT4-00000-000DG"
 const TIMEOUT := 100.0
 
 var _host_role := false

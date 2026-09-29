@@ -1,8 +1,8 @@
 class_name Wildlife
 extends Node3D
 ## Puts the trip's animals out (PLAN.md §4.5), the same ones for the same seed: snakes by the
-## obstacles (where you have to get out), bears in the woods beside them, eagles over the gas
-## stations. There are more, and meaner, the further along the road you get. Animals far from
+## obstacles (where you have to get out), bears in the woods beside them (on the valley floor,
+## short of its walls), eagles over the gas stations. There are more, and meaner, the further along the road you get. Animals far from
 ## everyone don't think.
 
 ## Animals within this of a player or the RV are awake (m).
@@ -41,7 +41,7 @@ func populate() -> void:
 			var along := dir * (reach + _rng.randf_range(3.0, 12.0)) * (1.0 if _rng.randf() < 0.5 else -1.0)
 			_add(Snake.new(), pos + along + side * _side() * (half + _rng.randf_range(0.8, 4.0)), SNAKE_CLEARANCE)
 		if _rng.randf() < 0.1 + 0.6 * t:
-			_add(Bear.new(), pos + dir * _rng.randf_range(-20.0, 20.0) + side * _side() * _rng.randf_range(28.0, 45.0), BEAR_CLEARANCE)
+			_add(Bear.new(), pos + dir * _rng.randf_range(-20.0, 20.0) + side * _side() * _rng.randf_range(20.0, 34.0), BEAR_CLEARANCE)
 	# Along the way, between obstacles.
 	var points: PackedVector3Array = data.get("points", PackedVector3Array())
 	var step := 250.0
@@ -57,7 +57,7 @@ func populate() -> void:
 		if _rng.randf() < 0.15 + 0.3 * t:
 			_add(Snake.new(), pos + side * _side() * (half + _rng.randf_range(1.0, 5.0)), SNAKE_CLEARANCE)
 		if _rng.randf() < 0.05 + 0.25 * t:
-			_add(Bear.new(), pos + side * _side() * _rng.randf_range(40.0, 70.0), BEAR_CLEARANCE)
+			_add(Bear.new(), pos + side * _side() * _rng.randf_range(22.0, 36.0), BEAR_CLEARANCE)
 		if t > 0.25 and fmod(s, 1250.0) < step and _rng.randf() < 0.5:
 			_add(Eagle.new(), pos, 0.0)
 		s += step

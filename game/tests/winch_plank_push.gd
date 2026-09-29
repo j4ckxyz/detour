@@ -132,10 +132,13 @@ func _plank() -> void:
 
 
 func _push() -> void:
-	# Stand behind the RV and walk into it, towards its nose.
+	# Back on the level camp spot (the winching may have left it on a slope, where it would
+	# roll off by itself), then stand behind it and walk into it, towards its nose.
 	var winch: RVWinch = _rv.winches[0]
 	if winch.is_anchored():
-		winch.rope_length = RVWinch.MAX_ROPE # Slack, so it doesn't hold the RV back.
+		winch.stow_hook()
+	_pg._place_rv(_pg.trip.start_transform())
+	await _w.hold(1.5)
 	_rv.parking_brake = false
 	_rv.drivetrain.shift_to(0)
 	await _w.walk_to(_rv.to_global(Vector3(2.6, 0.0, 6.0)), 0.4)

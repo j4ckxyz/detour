@@ -3,8 +3,8 @@ extends SceneTree
 ##   godot --headless --path game --script res://tests/rvcore_smoke.gd
 
 ## Must match native/rvgen/tests/golden.rs.
-const GOLDEN_CODE := "DT3-00000-0000S"
-const GOLDEN_HASH_0_0 := "928d683e79a48a2b"
+const GOLDEN_CODE := "DT4-00000-0000R"
+const GOLDEN_HASH_0_0 := "7346631d78843d77"
 
 var _failures: PackedStringArray = []
 
@@ -15,7 +15,7 @@ func _initialize() -> void:
 	_check(gen.load(GOLDEN_CODE), "load golden code")
 	_check(gen.get_code() == GOLDEN_CODE, "code round-trips")
 	_check(gen.chunk_hash(0, 0) == GOLDEN_HASH_0_0, "golden hash via GDExtension: %s" % gen.chunk_hash(0, 0))
-	_check(WorldGen.code_error("DT3-00000-0000M") != "", "typo detected")
+	_check(WorldGen.code_error("DT4-00000-0000M") != "", "typo detected")
 	_check(WorldGen.code_error(WorldGen.random_code(1)) == "", "random code valid")
 	_check(gen.chunk_heights(0, 0).size() == 129 * 129, "heights size")
 	var arrays := gen.chunk_mesh(0, 0, 4)

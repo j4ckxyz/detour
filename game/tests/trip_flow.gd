@@ -48,8 +48,8 @@ func _run() -> void:
 	var planks_near_gaps := true
 	for o: Dictionary in obstacles:
 		if int(o["kind"]) == 0:
-			planks_near_gaps = planks_near_gaps and _items_near(o["pos"], &"plank", 45.0) >= 2
-	_check(planks_near_gaps, "a pile of planks before every gap")
+			planks_near_gaps = planks_near_gaps and _items_near(o["pos"], &"plank", 60.0) >= 2
+	_check(planks_near_gaps, "planks lie somewhere near every gap")
 
 	# Obstacle shapes in the ground.
 	for o: Dictionary in obstacles:

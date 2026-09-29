@@ -64,7 +64,8 @@ func _ford(o: Dictionary) -> void:
 	_rv.set_automatic(true)
 	_rv.parking_brake = false
 	for i: int in HZ * 20:
-		_steer(0.45)
+		# Up to the river with a will (the road may climb to it), then slowly through it.
+		_steer(0.75 if _progress() < float(o["s"]) - 14.0 else 0.45)
 		waded = maxf(waded, _rv.wading)
 		if _progress() > float(o["s"]) + 20.0:
 			break

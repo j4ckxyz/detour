@@ -45,8 +45,8 @@ func _ready() -> void:
 	# Weather: seeded, the same for everyone, clear on the first morning.
 	var a := Weather.new()
 	var b := Weather.new()
-	a.setup("DT3-0EHYA-0MEKW")
-	b.setup("DT3-0EHYA-0MEKW")
+	a.setup("DT4-00000-000DG")
+	b.setup("DT4-00000-000DG")
 	var kinds := {}
 	var same := true
 	var morning_clear := true

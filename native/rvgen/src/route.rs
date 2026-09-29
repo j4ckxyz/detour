@@ -4,13 +4,15 @@
 //! Everything is a pure function of the seed. The road is carved into the terrain (cut and
 //! fill to a grade limit), obstacles stamp their own shapes into it (a washed-out gap, a ledge,
 //! a steep climb, a mud hole), and flat pads are levelled for the camp, stations and home.
+//! The road runs along a valley: past its floor, steep walls rise either side (and close it
+//! off behind the camp and past home), so the road is the only way to go.
 //! `Route::validate` checks the static solvability rules.
 
 use std::collections::BTreeMap;
 
 use crate::biome::Biome;
-use crate::hash::sub_seed;
-use crate::noise::smoothstep;
+use crate::hash::{sub_seed, sub_seed32};
+use crate::noise::{perlin, smoothstep};
 use crate::rng::Pcg32;
 use crate::seed::TripLength;
 use crate::terrain::TerrainGen;
@@ -52,6 +54,29 @@ const LAKE_BANK: f32 = 10.0;
 /// A cave's levelled clearing (radius) and the blend round it.
 pub const CAVE_RADIUS: f32 = 9.0;
 const CAVE_BLEND: f32 = 8.0;
+/// The valley: its floor reaches at least this far either side of the road (metres), up to
+/// `WALL_VARY` more, then a wall rises over `WALL_BAND` metres.
+pub const WALL_START: f32 = 40.0;
+const WALL_VARY: f32 = 14.0;
+pub const WALL_BAND: f32 = 12.0;
+/// How far a wall rises above the ground it stands on (plus up to `WALL_HEIGHT_VARY`): too
+/// steep to drive or climb.
+pub const WALL_HEIGHT: f32 = 24.0;
+const WALL_HEIGHT_VARY: f32 = 12.0;
+/// Past the wall's top, a crest this wide, then the ground eases back down to its natural
+/// height over `WALL_FADE[1] - WALL_FADE[0]` metres.
+const WALL_FADE: [f32; 2] = [40.0, 100.0];
+/// Furthest from the road the valley changes anything.
+const WALL_REACH: f32 = WALL_START + WALL_VARY + WALL_WOBBLE + WALL_BAND + WALL_FADE[1] + 1.0;
+/// How far the foot of a wall wanders in and out, and how craggy its top is (metres).
+const WALL_WOBBLE: f32 = 4.0;
+const WALL_CRAGS: f32 = 9.0;
+/// A gap's gully and a ledge's raised ground reach this far either side, into the walls.
+const SIDE_REACH: f32 = WALL_START + WALL_VARY + WALL_WOBBLE + WALL_BAND;
+/// Road samples per segment of the coarse centreline the walls follow.
+const WALL_STRIDE: usize = 4;
+/// A side lake or cave opens the valley out to this far past its edge.
+const BAY: f32 = 8.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -157,6 +182,10 @@ pub struct Route {
     /// Samples near each grid cell (cells of `GRID` metres, keyed by cell).
     grid: BTreeMap<(i32, i32), Vec<u32>>,
     bounds: [f32; 4],
+    /// Coarse centreline segments (start sample indices) within `WALL_REACH` of each cell.
+    wall_grid: BTreeMap<(i32, i32), Vec<u32>>,
+    wall_bounds: [f32; 4],
+    wall_seed: u32,
 }
 
 /// Where a point is relative to the road.
@@ -223,6 +252,9 @@ impl Route {
             caves: Vec::new(),
             grid: BTreeMap::new(),
             bounds: [0.0; 4],
+            wall_grid: BTreeMap::new(),
+            wall_bounds: [0.0; 4],
+            wall_seed: sub_seed32(world_seed, "route.walls"),
         };
 
         // 3. Pads: the camp at the start, a station at each segment end, home at the end.
@@ -251,7 +283,7 @@ impl Route {
                     let t = s / route.length;
                     let p = route.xz[route.index_at(s)];
                     let biome = terrain.biomes().at(p[0], p[1]);
-                    route.place_obstacle(&mut rng, s, t, biome);
+                    route.place_obstacle(&mut rng, terrain, s, t, biome);
                     since_breather += 1;
                 }
             }
@@ -259,6 +291,7 @@ impl Route {
         }
 
         route.build_grid();
+        route.build_wall_grid();
         route.place_lakes(world_seed, terrain);
         route.place_caves(world_seed, terrain);
         route
@@ -273,7 +306,7 @@ impl Route {
                 rng.next_f32(),
                 rng.next_f32(),
                 rng.range_f32(12.0, 30.0),
-                rng.range_f32(8.0, 40.0),
+                rng.range_f32(8.0, 28.0),
             );
             s += rng.range_f32(110.0, 190.0);
             let i = self.index_at(s);
@@ -392,7 +425,40 @@ impl Route {
         }
     }
 
-    fn place_obstacle(&mut self, rng: &mut Pcg32, s: f32, t: f32, biome: Biome) {
+    /// Somewhere off the road at arc length `s`, `off` metres to the side, for supplies to lie
+    /// (a coin flip `roll` picks the side). Takes the side nearer the road's height, so it can
+    /// be walked to; if both are far above or below, it falls back to the verge.
+    fn stash_spot(&self, terrain: &TerrainGen, s: f32, off: f32, roll: f32) -> [f32; 3] {
+        let j = self.index_at(s.max(0.0));
+        let (p, d) = (self.xz[j], self.dir(j));
+        let first = if roll < 0.5 { 1.0 } else { -1.0 };
+        let mut best: Option<(f32, [f32; 3])> = None;
+        for side in [first, -first] {
+            let n = [-d[1] * side, d[0] * side];
+            let q = [p[0] + n[0] * off, p[1] + n[1] * off];
+            let rise = (terrain.height_m(q[0], q[1]) - self.h[j]).abs();
+            if best.is_none_or(|(b, _)| rise < b - 0.5) {
+                best = Some((rise, [q[0], self.h[j], q[1]]));
+            }
+        }
+        match best {
+            Some((rise, q)) if rise < 2.5 => q,
+            _ => {
+                let n = [-d[1] * first, d[0] * first];
+                let o = ROAD_HALF_WIDTH + 1.5;
+                [p[0] + n[0] * o, self.h[j], p[1] + n[1] * o]
+            }
+        }
+    }
+
+    fn place_obstacle(
+        &mut self,
+        rng: &mut Pcg32,
+        terrain: &TerrainGen,
+        s: f32,
+        t: f32,
+        biome: Biome,
+    ) {
         // Always draw the same values, whichever kind wins.
         let pick = rng.next_f32();
         let a = rng.next_f32();
@@ -477,20 +543,15 @@ impl Route {
         };
         match kind {
             ObstacleKind::Gap => {
-                // Planks a little before the gap, off to the side of the road.
-                let side = if a < 0.5 { 1.0 } else { -1.0 };
-                let j = self.index_at((s - rng.range_f32(18.0, 30.0)).max(0.0));
-                let n = [-self.dir(j)[1] * side, self.dir(j)[0] * side];
-                let off = ROAD_HALF_WIDTH + 1.5;
-                let p = [
-                    self.xz[j][0] + n[0] * off,
-                    self.h[j],
-                    self.xz[j][1] + n[1] * off,
-                ];
+                // What's left of the bridge: its planks, dumped off in the trees somewhere
+                // before the gap.
+                let back = rng.range_f32(12.0, 40.0);
+                let off = rng.range_f32(8.0, 16.0);
+                let p = self.stash_spot(terrain, s - back, off, a);
                 self.supplies.push(Supply {
                     kind: SupplyKind::Planks,
                     pos: p,
-                    yaw_dir: self.dir(j),
+                    yaw_dir: self.dir(self.index_at((s - back).max(0.0))),
                     count: 4,
                 });
             }
@@ -549,19 +610,16 @@ impl Route {
                 }
             }
             ObstacleKind::Ice => {
-                // Planks before (for grip on the ice), a boulder beyond (to winch out).
+                // Planks somewhere in the trees before (for grip on the ice), a boulder beyond
+                // (to winch out).
                 let side = if a < 0.5 { 1.0 } else { -1.0 };
-                let j = self.index_at((s - length - ICE_RAMP - rng.range_f32(8.0, 16.0)).max(0.0));
-                let n = [-self.dir(j)[1] * side, self.dir(j)[0] * side];
-                let off = ROAD_HALF_WIDTH + 1.5;
+                let back = length + ICE_RAMP + rng.range_f32(8.0, 16.0);
+                let off = rng.range_f32(8.0, 14.0);
+                let p = self.stash_spot(terrain, s - back, off, a);
                 self.supplies.push(Supply {
                     kind: SupplyKind::Planks,
-                    pos: [
-                        self.xz[j][0] + n[0] * off,
-                        self.h[j],
-                        self.xz[j][1] + n[1] * off,
-                    ],
-                    yaw_dir: self.dir(j),
+                    pos: p,
+                    yaw_dir: self.dir(self.index_at((s - back).max(0.0))),
                     count: 4,
                 });
                 let k = self.index_at(s + length + ICE_RAMP + 8.0 + 6.0 * b);
@@ -665,7 +723,7 @@ impl Route {
     /// Terrain height with the road, obstacle stamps and pads applied on top of `natural`.
     pub fn shape(&self, x: f32, z: f32, natural: f32) -> f32 {
         if !self.in_bounds(x, z) {
-            return natural;
+            return natural + self.wall_lift(x, z);
         }
         let mut h = natural;
         for pad in &self.pads {
@@ -693,15 +751,19 @@ impl Route {
                 ObstacleKind::Gap => {
                     // A trench right across the corridor, a little wider than the clear span:
                     // the game's abutments give the crisp edges at road level.
+                    // It runs on as a gully right across the valley, into its walls, so
+                    // there's no driving round.
                     let half = o.length * 0.5 + 0.5;
-                    if along.abs() < half + 1.0 && across.abs() < ROAD_HALF_WIDTH + SHOULDER + 12.0
-                    {
-                        let wall = smoothstep(half + 0.35, half - 0.15, along.abs());
-                        let fade = smoothstep(
-                            ROAD_HALF_WIDTH + SHOULDER + 12.0,
-                            ROAD_HALF_WIDTH + SHOULDER + 4.0,
+                    if along.abs() < half + 1.0 && across.abs() < SIDE_REACH {
+                        // Crisp at the road (where planks rest); a little softer off it, so the
+                        // 1 m terrain grid doesn't saw its edges (still far too steep to climb).
+                        let soft = smoothstep(
+                            ROAD_HALF_WIDTH + SHOULDER,
+                            ROAD_HALF_WIDTH + SHOULDER + 10.0,
                             across.abs(),
                         );
+                        let wall = smoothstep(half + 0.35 + 1.1 * soft, half - 0.15, along.abs());
+                        let fade = smoothstep(SIDE_REACH, SIDE_REACH - 8.0, across.abs());
                         h -= o.size * wall * fade;
                     }
                 }
@@ -718,15 +780,8 @@ impl Route {
                     if along > -SAMPLE - face && along < -face {
                         h -= o.size * smoothstep(-SAMPLE - face, -face, along) * in_corridor;
                     }
-                    if along > -face
-                        && along < 30.0
-                        && across.abs() < ROAD_HALF_WIDTH + SHOULDER + 10.0
-                    {
-                        let wing = smoothstep(
-                            ROAD_HALF_WIDTH + SHOULDER + 10.0,
-                            ROAD_HALF_WIDTH + 1.0,
-                            across.abs(),
-                        );
+                    if along > -face && along < 30.0 && across.abs() < SIDE_REACH {
+                        let wing = smoothstep(SIDE_REACH, SIDE_REACH - 8.0, across.abs());
                         let up = smoothstep(-face, face, along) * smoothstep(30.0, 18.0, along);
                         let target = o.pos[1] + o.size;
                         if across.abs() > ROAD_HALF_WIDTH {
@@ -802,7 +857,107 @@ impl Route {
                 h += (c.pos[1] - h) * smoothstep(CAVE_RADIUS + CAVE_BLEND, CAVE_RADIUS, d);
             }
         }
-        h
+        h + self.wall_lift(x, z)
+    }
+
+    /// How far outside the valley floor a point is (metres; <= 0 on it): past the road's
+    /// corridor, and past the bays round side lakes and caves.
+    pub fn outside_valley(&self, x: f32, z: f32) -> f32 {
+        let road = self.wall_road_distance(x, z);
+        let mut out = if road.is_finite() {
+            let n = (0.5 + 0.5 * perlin(self.wall_seed, x * (1.0 / 160.0), z * (1.0 / 160.0)))
+                .clamp(0.0, 1.0);
+            // A wobble, so the foot of the wall isn't a smooth curve.
+            let wobble =
+                WALL_WOBBLE * perlin(self.wall_seed ^ 0xb0b, x * (1.0 / 40.0), z * (1.0 / 40.0));
+            road - (WALL_START + WALL_VARY * n) + wobble
+        } else {
+            f32::INFINITY
+        };
+        let bay = |cx: f32, cz: f32, r: f32| {
+            let (dx, dz) = (x - cx, z - cz);
+            (dx * dx + dz * dz).sqrt() - r
+        };
+        for l in &self.lakes {
+            out = out.min(bay(l.pos[0], l.pos[2], l.radius + LAKE_BANK + BAY));
+        }
+        for c in &self.caves {
+            out = out.min(bay(c.pos[0], c.pos[2], CAVE_RADIUS + CAVE_BLEND + BAY));
+        }
+        out
+    }
+
+    /// How much the valley's walls lift the ground at a point: a steep rise just past the
+    /// floor, a crest, then easing back to the natural ground far away.
+    fn wall_lift(&self, x: f32, z: f32) -> f32 {
+        if !self.in_wall_bounds(x, z) {
+            return 0.0;
+        }
+        let e = self.outside_valley(x, z);
+        if e <= 0.0 || e >= WALL_BAND + WALL_FADE[1] {
+            return 0.0;
+        }
+        let rise = smoothstep(0.0, WALL_BAND, e);
+        let fall = smoothstep(WALL_BAND + WALL_FADE[1], WALL_BAND + WALL_FADE[0], e);
+        let n = (0.5 + 0.5 * perlin(self.wall_seed ^ 0x5eed, x * (1.0 / 96.0), z * (1.0 / 96.0)))
+            .clamp(0.0, 1.0);
+        // Crags along the top, once the wall has most of its height.
+        let crag = WALL_CRAGS
+            * perlin(self.wall_seed ^ 0xc4a6, x * (1.0 / 22.0), z * (1.0 / 22.0)).abs()
+            * smoothstep(0.6 * WALL_BAND, WALL_BAND + 10.0, e);
+        (WALL_HEIGHT + WALL_HEIGHT_VARY * n + crag) * rise * fall
+    }
+
+    /// Distance to the coarse road centreline, or infinity beyond `WALL_REACH`-ish.
+    fn wall_road_distance(&self, x: f32, z: f32) -> f32 {
+        let Some(list) = self.wall_grid.get(&wall_cell_of(x, z)) else {
+            return f32::INFINITY;
+        };
+        let mut best = f32::INFINITY;
+        for &i in list {
+            let i = i as usize;
+            let (pa, pb) = (
+                self.xz[i],
+                self.xz[(i + WALL_STRIDE).min(self.xz.len() - 1)],
+            );
+            let (ex, ez) = (pb[0] - pa[0], pb[1] - pa[1]);
+            let len2 = (ex * ex + ez * ez).max(1e-6);
+            let t = (((x - pa[0]) * ex + (z - pa[1]) * ez) / len2).clamp(0.0, 1.0);
+            let (ox, oz) = (x - (pa[0] + ex * t), z - (pa[1] + ez * t));
+            best = best.min(ox * ox + oz * oz);
+        }
+        best.sqrt()
+    }
+
+    fn in_wall_bounds(&self, x: f32, z: f32) -> bool {
+        let b = &self.wall_bounds;
+        x >= b[0] && z >= b[1] && x <= b[2] && z <= b[3]
+    }
+
+    fn build_wall_grid(&mut self) {
+        let mut i = 0;
+        while i + 1 < self.xz.len() {
+            let (pa, pb) = (
+                self.xz[i],
+                self.xz[(i + WALL_STRIDE).min(self.xz.len() - 1)],
+            );
+            let c0 = wall_cell_of(pa[0].min(pb[0]) - WALL_REACH, pa[1].min(pb[1]) - WALL_REACH);
+            let c1 = wall_cell_of(pa[0].max(pb[0]) + WALL_REACH, pa[1].max(pb[1]) + WALL_REACH);
+            for cz in c0.1..=c1.1 {
+                for cx in c0.0..=c1.0 {
+                    self.wall_grid.entry((cx, cz)).or_default().push(i as u32);
+                }
+            }
+            i += WALL_STRIDE;
+        }
+        // Lakes' and caves' bays can reach a little further out than the road's corridor.
+        let m = WALL_REACH + 2.0 * (30.0 + LAKE_BANK + BAY);
+        self.wall_bounds = [
+            self.bounds[0] - m,
+            self.bounds[1] - m,
+            self.bounds[2] + m,
+            self.bounds[3] + m,
+        ];
     }
 
     /// How icy a point is, 0..1 (frozen ponds on the road and frozen lakes).
@@ -858,7 +1013,7 @@ impl Route {
     }
 
     /// Whether a point is somewhere nothing should grow or lie: a pad, a cave clearing, a
-    /// lake, a river.
+    /// lake, a river, where planks lie.
     pub fn blocked(&self, x: f32, z: f32, margin: f32) -> bool {
         if !self.in_bounds(x, z) {
             return false;
@@ -868,6 +1023,10 @@ impl Route {
         }
         let near = |p: [f32; 3], r: f32| dist2(p, [x, 0.0, z]) < r * r;
         self.caves.iter().any(|c| near(c.pos, CAVE_RADIUS + margin))
+            || self
+                .supplies
+                .iter()
+                .any(|s| s.kind == SupplyKind::Planks && near(s.pos, 2.5 + margin))
             || self
                 .lakes
                 .iter()
@@ -965,7 +1124,7 @@ impl Route {
                     let planks = self.supplies.iter().any(|s| {
                         s.kind == SupplyKind::Planks
                             && s.count >= 2
-                            && dist2(s.pos, o.pos) < 45.0 * 45.0
+                            && dist2(s.pos, o.pos) < 60.0 * 60.0
                     });
                     if !planks {
                         problems.push(format!("gap at {:.0} m has no planks before it", o.s));
@@ -1077,6 +1236,15 @@ fn local(origin: [f32; 3], dir: [f32; 2], x: f32, z: f32) -> (f32, f32) {
 
 fn cell_of(x: f32, z: f32) -> (i32, i32) {
     ((x / GRID).floor() as i32, (z / GRID).floor() as i32)
+}
+
+const WALL_GRID: f32 = 64.0;
+
+fn wall_cell_of(x: f32, z: f32) -> (i32, i32) {
+    (
+        (x / WALL_GRID).floor() as i32,
+        (z / WALL_GRID).floor() as i32,
+    )
 }
 
 /// Heading (0 = +x, east; positive turns towards +z) as a unit (x, z), using a polynomial
@@ -1292,6 +1460,87 @@ mod tests {
             assert!(
                 (w.height_at(p[0], p[1]) - r.h[i]).abs() < 0.3,
                 "road carved at sample {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn walls_keep_you_in_the_valley() {
+        // Flood-fill everywhere you could stand from the camp (ground no steeper than the
+        // player's 50° limit, on a 2 m grid; the RV manages far less): it must never get past
+        // the valley's walls, behind the camp or past home.
+        for seed in [1, 7, 21] {
+            let w = World::new(SeedCode::new(TripLength::Short, seed)).unwrap();
+            let r = w.route();
+            let h = |x: i32, z: i32| crate::terrain::q_to_m(w.height_q(x, z));
+            let standable = |x: i32, z: i32| {
+                let gx = (h(x + 1, z) - h(x - 1, z)) * 0.5;
+                let gz = (h(x, z + 1) - h(x, z - 1)) * 0.5;
+                gx * gx + gz * gz < 1.19 * 1.19
+            };
+            let start = (r.xz[0][0] as i32 & !1, r.xz[0][1] as i32 & !1);
+            let mut seen = std::collections::BTreeSet::from([start]);
+            let mut stack = vec![start];
+            while let Some((x, z)) = stack.pop() {
+                let out = r.outside_valley(x as f32, z as f32);
+                assert!(
+                    out < WALL_BAND,
+                    "seed {seed}: walked out of the valley at ({x}, {z}), {out:.1} m past its floor"
+                );
+                for (dx, dz) in [(2, 0), (-2, 0), (0, 2), (0, -2)] {
+                    let n = (x + dx, z + dz);
+                    if !seen.contains(&n)
+                        && standable(n.0, n.1)
+                        && (h(n.0, n.1) - h(x, z)).abs() < 1.5
+                    {
+                        seen.insert(n);
+                        stack.push(n);
+                    }
+                }
+            }
+            assert!(
+                seen.len() > 5000,
+                "seed {seed}: the fill got going ({} cells)",
+                seen.len()
+            );
+        }
+    }
+
+    #[test]
+    fn the_valley_floor_holds_the_trip() {
+        for seed in 0..60 {
+            let w = World::new(SeedCode::new(TripLength::Short, seed)).unwrap();
+            let r = w.route();
+            let on_floor = |p: [f32; 3], what: &str| {
+                let out = r.outside_valley(p[0], p[2]);
+                assert!(
+                    out < -2.0,
+                    "seed {seed}: {what} at {p:?} is {out:.1} m into a wall"
+                );
+            };
+            for (i, p) in r.xz.iter().enumerate().step_by(5) {
+                on_floor([p[0], 0.0, p[1]], &format!("road sample {i}"));
+            }
+            for p in &r.pads {
+                on_floor(p.pos, "a stop");
+            }
+            for s in &r.supplies {
+                on_floor(s.pos, "a supply");
+            }
+            for c in &r.caves {
+                on_floor(c.pos, "a cave");
+            }
+            for l in &r.lakes {
+                on_floor(l.pos, "a lake");
+            }
+            // Behind the camp and past home it's walled off.
+            let (a, d) = (r.xz[0], r.dir(0));
+            let behind = [a[0] - d[0] * 90.0, a[1] - d[1] * 90.0];
+            let lift =
+                w.height_at(behind[0], behind[1]) - w.terrain().height_m(behind[0], behind[1]);
+            assert!(
+                lift > WALL_HEIGHT - 1.0,
+                "seed {seed}: walled off behind the camp ({lift:.1} m)"
             );
         }
     }

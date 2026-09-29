@@ -11,8 +11,9 @@ use crate::hash;
 /// Bump on **any** change that alters generated output. Old codes then fail
 /// [`SeedCode::check_supported`] instead of silently producing a different world.
 /// Bumped on any generator change that alters worlds (v2: trips with roads and obstacles;
-/// v3: biomes, fords, ice, lakes and caves).
-pub const GEN_VERSION: u16 = 3;
+/// v3: biomes, fords, ice, lakes and caves; v4: the road's walled valley, bridge planks off in
+/// the trees).
+pub const GEN_VERSION: u16 = 4;
 
 const PREFIX: &str = "DT";
 const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
