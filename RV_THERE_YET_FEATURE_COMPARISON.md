@@ -2134,18 +2134,18 @@ Legend:
 | Caves | MISSING |
 | Weather | MISSING |
 | Day/night | MISSING |
-| Multiplayer lobby | MISSING |
-| Player replication | MISSING |
-| Shared RV networking | MISSING |
-| Item networking | MISSING |
-| Winch networking | MISSING |
+| Multiplayer lobby | ✅ DONE (M6: main menu host/join; LAN list, direct IP, relay room codes) |
+| Player replication | ✅ DONE (M6) |
+| Shared RV networking | ✅ DONE (M6: driver simulates, ownership handoff) |
+| Item networking | ✅ DONE (M6: host-authoritative, optimistic pickups) |
+| Winch networking | ✅ DONE (M6) |
 | Proximity voice | MISSING |
 | Character cosmetics | MISSING |
 | Narrative | MISSING |
 | Cassettes/tapes | MISSING |
 | Music | MISSING |
 | Sound effects | MISSING |
-| Main menu | MISSING |
+| Main menu | ✅ DONE (M6) |
 | Settings | MISSING |
 | Key rebinding | MISSING |
 | Achievements | MISSING |

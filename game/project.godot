@@ -7,7 +7,7 @@ config_version=5
 
 config/name="Detour"
 config/description="Co-op RV road trip through procedurally generated wilderness."
-run/main_scene="res://src/game/playground.tscn"
+run/main_scene="res://src/ui/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.png"
 config/version="0.0.1"
@@ -19,6 +19,7 @@ run/flush_stdout_on_print=true
 Graphics="*res://src/autoload/graphics.gd"
 Controls="*res://src/autoload/controls.gd"
 Updater="*res://src/autoload/updater.gd"
+Session="*res://src/autoload/session.gd"
 
 [debug]
 

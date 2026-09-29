@@ -38,8 +38,12 @@ var bolts: Array[int] = [BOLTS, BOLTS, BOLTS, BOLTS]
 var wheel_on: Array[bool] = [true, true, true, true]
 ## Seconds a freshly fitted wheel ignores knocks (the corner springing back up isn't a crash).
 var _settle: Array[float] = [0.0, 0.0, 0.0, 0.0]
-## Where damage came from last (for the HUD), and how many parts have come off.
+## How many parts have come off.
 var parts_lost := 0
+## Online, on a client simulating the RV: `func(kind: StringName, key: Variant, xf: Transform3D,
+## velocity: Vector3)` asks the host to put a fallen part (&"part", id) or wheel (&"wheel",
+## index) in the world. Unset, they're made here.
+var spawn_loose: Callable
 
 const PART_NAMES: Dictionary[StringName, String] = {
 	&"Hood": "hood", &"Grille": "grille", &"BumperFront": "front bumper", &"BumperRear": "rear bumper",
@@ -140,14 +144,35 @@ func detach(id: StringName, dir: Vector3 = Vector3.ZERO) -> void:
 	p.hp = 0.0
 	p.node.visible = false
 	parts_lost += 1
+	var velocity := rv.point_velocity(p.node.global_position) + dir * 2.0 + Vector3.UP * 1.5
+	if spawn_loose.is_valid():
+		spawn_loose.call(&"part", id, p.node.global_transform, velocity)
+	else:
+		p.debris = make_debris(id, p.node.global_transform, velocity)
+	part_lost.emit(id)
+
+
+## The piece of the RV that came off, as an item lying in the world.
+func make_debris(id: StringName, xf: Transform3D, velocity: Vector3) -> Item:
+	var p: Part = parts[id]
 	var debris := ItemLibrary.create_from_mesh(&"rv_part", p.node.mesh, "RV part: %s" % part_name(id))
 	debris.set_meta(&"part", id)
-	var world := rv.get_parent()
-	world.add_child(debris)
-	debris.global_transform = p.node.global_transform
-	debris.linear_velocity = rv.point_velocity(p.node.global_position) + dir * 2.0 + Vector3.UP * 1.5
-	p.debris = debris
-	part_lost.emit(id)
+	rv.get_parent().add_child(debris)
+	debris.global_transform = xf
+	debris.linear_velocity = velocity
+	return debris
+
+
+## A wheel that came off, as an item lying in the world.
+func make_wheel(i: int, xf: Transform3D, velocity: Vector3, tire_hp: float) -> Item:
+	var w := rv.wheels[i]
+	var loose := ItemLibrary.create_from_mesh(&"rv_wheel", (w.visual as MeshInstance3D).mesh, WHEEL_NAMES[i].capitalize())
+	loose.set_meta(&"tire", tire_hp)
+	loose.set_meta(&"wheel", i)
+	rv.get_parent().add_child(loose)
+	loose.global_transform = xf
+	loose.linear_velocity = velocity
+	return loose
 
 
 func lose_wheel(i: int) -> void:
@@ -157,11 +182,11 @@ func lose_wheel(i: int) -> void:
 	var w := rv.wheels[i]
 	w.detached = true
 	w.visual.visible = false
-	var loose := ItemLibrary.create_from_mesh(&"rv_wheel", (w.visual as MeshInstance3D).mesh, WHEEL_NAMES[i].capitalize())
-	loose.set_meta(&"tire", tires[i])
-	rv.get_parent().add_child(loose)
-	loose.global_transform = w.visual.global_transform
-	loose.linear_velocity = rv.point_velocity(w.visual.global_position) + Vector3.UP
+	var velocity := rv.point_velocity(w.visual.global_position) + Vector3.UP
+	if spawn_loose.is_valid():
+		spawn_loose.call(&"wheel", i, w.visual.global_transform, velocity)
+	else:
+		make_wheel(i, w.visual.global_transform, velocity, tires[i])
 	wheel_lost.emit(i)
 
 
@@ -277,6 +302,54 @@ func add_fuel(litres: float) -> float:
 func weld() -> void:
 	frame = FULL
 	engine = maxf(engine, 80.0)
+
+
+# --- network ---------------------------------------------------------------------------------
+
+func snapshot() -> Array:
+	var hp := PackedFloat32Array()
+	var on := 0
+	var k := 0
+	for p: Part in parts.values():
+		hp.append(p.hp)
+		on |= (1 << k) if p.attached else 0
+		k += 1
+	var wheels_on := 0
+	for i: int in 4:
+		wheels_on |= (1 << i) if wheel_on[i] else 0
+	return [hp, on, PackedFloat32Array([frame, engine, oil, temperature, fuel]), PackedFloat32Array(tires),
+		PackedInt32Array(bolts), wheels_on, parts_lost]
+
+
+func apply_snapshot(s: Array) -> void:
+	var hp: PackedFloat32Array = s[0]
+	var on: int = s[1]
+	var k := 0
+	for p: Part in parts.values():
+		p.hp = hp[k]
+		var attached := (on & (1 << k)) != 0
+		if attached != p.attached:
+			p.attached = attached
+			p.node.visible = attached
+			p.node.transform = p.rest
+		k += 1
+	var v: PackedFloat32Array = s[2]
+	frame = v[0]
+	engine = v[1]
+	oil = v[2]
+	temperature = v[3]
+	fuel = v[4]
+	var t: PackedFloat32Array = s[3]
+	var b: PackedInt32Array = s[4]
+	for i: int in 4:
+		tires[i] = t[i]
+		bolts[i] = b[i]
+		var attached := (int(s[5]) & (1 << i)) != 0
+		if attached != wheel_on[i]:
+			wheel_on[i] = attached
+			rv.wheels[i].detached = not attached
+			rv.wheels[i].visual.visible = attached
+	parts_lost = s[6]
 
 
 # --- aiming ----------------------------------------------------------------------------------------

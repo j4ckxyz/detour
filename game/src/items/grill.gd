@@ -29,6 +29,11 @@ func _put_on(player: Player) -> void:
 		return
 	var patty := player.held
 	player.held = null
+	put(patty, i)
+
+
+## Sets `patty` on spot `i`.
+func put(patty: Item, i: int) -> void:
 	patty.holder = null
 	patty.reparent(self, false)
 	patty.transform = Transform3D(Basis.IDENTITY, SPOTS[i])
@@ -38,6 +43,11 @@ func _put_on(player: Player) -> void:
 	patty.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
 	patty.reset_physics_interpolation()
 	_on[i] = patty
+
+
+## Which spot `patty` is on (-1 if it isn't).
+func spot_of(patty: Item) -> int:
+	return _on.find(patty)
 
 
 ## Whether anything's cooking.

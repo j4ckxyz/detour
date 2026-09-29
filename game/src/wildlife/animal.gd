@@ -22,6 +22,12 @@ var speed := 0.0
 var rng := RandomNumberGenerator.new()
 ## What it's after.
 var target: Player
+## Online, on clients: follows the host's snapshots instead of thinking; bear spray is sent
+## to the host through `remote_spray` (`func(animal: Animal, from: Vector3)`).
+var puppet := false
+var remote_spray: Callable
+var _net_pos := Vector3.ZERO
+var _net_yaw := 0.0
 
 var _stride := 0.0
 
@@ -40,6 +46,42 @@ func _build() -> void:
 ## Called by bear spray: `from` is where the spray came from.
 func sprayed(_from: Vector3) -> void:
 	pass
+
+
+## Bear spray hit it (sent on to the host if this is a copy).
+func spray_from(from: Vector3) -> void:
+	if puppet and remote_spray.is_valid():
+		remote_spray.call(self, from)
+	else:
+		sprayed(from)
+
+
+## What it does each physics tick (the host, or solo).
+func think(_dt: float) -> void:
+	pass
+
+
+func _physics_process(dt: float) -> void:
+	if puppet:
+		state_time += dt
+		global_position = global_position.lerp(_net_pos, minf(1.0, dt * 10.0))
+		yaw = lerp_angle(yaw, _net_yaw, minf(1.0, dt * 10.0))
+		basis = Basis(Vector3.UP, yaw)
+	else:
+		think(dt)
+
+
+func net_state() -> Array:
+	return [global_position, yaw, state, speed, target.peer_id if is_instance_valid(target) else 0]
+
+
+func apply_net_state(s: Array, find_player: Callable) -> void:
+	_net_pos = s[0]
+	_net_yaw = s[1]
+	if int(s[2]) != state:
+		set_state(s[2])
+	speed = s[3]
+	target = find_player.call(int(s[4])) if int(s[4]) != 0 else null
 
 
 func set_state(s: int) -> void:

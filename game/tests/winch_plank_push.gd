@@ -105,7 +105,7 @@ func _winch() -> void:
 	_rv.parking_brake = true
 	_player.held = null
 	remote.stow(_rv, Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.34, -2.35))) # Back on the dash.
-	winch._stow_hook() # Rope back on the drum, so the next phases start clean.
+	winch.stow_hook() # Rope back on the drum, so the next phases start clean.
 
 
 func _plank() -> void:

@@ -53,7 +53,7 @@ func sprayed(from: Vector3) -> void:
 	set_state(State.FLEE)
 
 
-func _physics_process(dt: float) -> void:
+func think(dt: float) -> void:
 	state_time += dt
 	calm = maxf(0.0, calm - dt)
 	if state != State.FLEE and rv_scare():
@@ -94,7 +94,7 @@ func _physics_process(dt: float) -> void:
 				_swiped = true
 				if d < SWIPE_RANGE + 0.5:
 					var push := (target.global_position - global_position).normalized()
-					target.velocity += Vector3(push.x, 0.0, push.z) * 4.0 + Vector3.UP * 2.0
+					target.knock(Vector3(push.x, 0.0, push.z) * 4.0 + Vector3.UP * 2.0)
 					target.hurt(SWIPE_DAMAGE, "mauled by a bear")
 			if state_time > SWIPE_EVERY:
 				_swiped = false

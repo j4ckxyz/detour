@@ -128,7 +128,7 @@ func open() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_backdrop.visible = true
 	_panel.visible = true
-	get_tree().paused = true
+	get_tree().paused = not Session.is_online() # The others keep playing.
 	_resume.grab_focus()
 	_refresh()
 

@@ -40,7 +40,7 @@ func sprayed(from: Vector3) -> void:
 	set_state(State.FLEE)
 
 
-func _physics_process(dt: float) -> void:
+func think(dt: float) -> void:
 	state_time += dt
 	_cooldown = maxf(0.0, _cooldown - dt)
 	if state != State.FLEE and rv_scare() and rv.global_position.distance_to(global_position) < 6.0:

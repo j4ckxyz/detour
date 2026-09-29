@@ -18,6 +18,7 @@ signal spawned
 const DEFAULT_SEED := "DT2-01YPW-3A7T8" # A Short trip (v1 terrain seed DT1-81YPW-3A7TA).
 const START := Vector3(64.0, 0.0, 64.0)
 const RV_SCENE := preload("res://src/rv/rv.tscn")
+const MAIN_MENU := "res://src/ui/main_menu.tscn"
 const PRESET_KEYS: Dictionary[Key, StringName] = {
 	KEY_F5: &"potato", KEY_F6: &"low", KEY_F7: &"medium", KEY_F8: &"high",
 }
@@ -45,6 +46,7 @@ var player_hud := PlayerHud.new()
 var trip := Trip.new()
 var trip_hud := TripHud.new()
 var wildlife := Wildlife.new()
+var net := NetGame.new()
 ## Loose items in the world.
 var items := Node3D.new()
 var rv: RV
@@ -61,7 +63,7 @@ var _spawn_box := BoxShape3D.new()
 
 func _ready() -> void:
 	_parse_args()
-	var code: String = _args.get("seed", DEFAULT_SEED)
+	var code: String = _args.get("seed", Session.seed_code if Session.seed_code != "" else DEFAULT_SEED)
 	if not world.load(code):
 		get_tree().quit(2)
 		return
@@ -75,11 +77,20 @@ func _ready() -> void:
 	trip.name = "Trip"
 	add_child(trip)
 	trip.setup(world, rv, items)
-	if not (_args.has("new") or fresh_start):
-		trip.load_save()
-	var start := trip.start_transform()
-	_spawn_near = start.origin
-	rv.global_transform = start.translated(Vector3.UP * 1.0)
+	if Session.mode == Session.Mode.CLIENT:
+		# Joining: the host says where the RV is (the full state follows once we're in).
+		var info := Session.start_info
+		trip.checkpoint = int(info.get("checkpoint", 0))
+		rv.global_transform = info.get("rv", trip.start_transform())
+		_spawn_near = rv.global_position
+	else:
+		if not (_args.has("new") or fresh_start):
+			trip.load_save()
+		var start := trip.start_transform()
+		_spawn_near = start.origin
+		rv.global_transform = start.translated(Vector3.UP * 1.0)
+		Session.start_info_source = func() -> Dictionary:
+			return {"checkpoint": trip.checkpoint, "rv": rv.global_transform}
 
 	items.name = "Items"
 	add_child(items)
@@ -112,13 +123,17 @@ func _ready() -> void:
 	add_child(player_hud)
 	trip_hud.trip = trip
 	add_child(trip_hud)
-	menu.add_action("Tow to the last checkpoint", tow_to_checkpoint)
-	menu.add_action("Restart this trip", restart_trip)
+	if Session.is_host():
+		menu.add_action("Tow to the last checkpoint", tow_to_checkpoint)
+		menu.add_action("Restart this trip", restart_trip)
+	menu.add_action("Leave to the main menu" if Session.is_online() else "Main menu", leave_to_menu)
 	overlay.streamer = streamer
 	overlay.extra_lines = _overlay_lines
 	overlay.visible = false
 	add_child(overlay)
 	add_child(menu)
+	add_child(net)
+	Session.ended.connect(func(_message: String) -> void: get_tree().change_scene_to_file(MAIN_MENU))
 
 	_spawn_box.size = RV_HALF_EXTENTS * 2.0
 	_apply_preset(StringName(_args.get("preset", String(Graphics.detect_default()))))
@@ -158,27 +173,32 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(_dt: float) -> void:
-	if is_spawned and rv.freeze and streamer.has_collision_at(rv.global_position):
+	if is_spawned and rv.is_simulated and rv.freeze and streamer.has_collision_at(rv.global_position):
 		rv.freeze = false
 		rv.reset_physics_interpolation()
 	if is_spawned and not player.inside:
 		_catch_falling_player()
 	if is_spawned or not streamer.has_collision_at(_spawn_near):
 		return
-	_place_rv(trip.start_transform())
-	trip.build()
+	var client := Session.mode == Session.Mode.CLIENT
+	if not client:
+		_place_rv(trip.start_transform())
+	trip.build(not client)
 	wildlife.name = "Wildlife"
 	add_child(wildlife)
 	wildlife.setup(world, rv, items, trip.data)
 	if not (peaceful or _args.has("peaceful")):
 		wildlife.populate()
 	_spawn_player()
-	if trip.checkpoint == 0:
+	if client:
+		trip.show_notice("Joined %s's trip." % Session.name_of(1), 6.0)
+	elif trip.checkpoint == 0:
 		_spawn_starter_items()
 	else:
 		trip.restock(trip.checkpoint)
 		trip.show_notice("Welcome back: continuing from gas station %d." % trip.checkpoint, 6.0)
 	is_spawned = true
+	net.start(self)
 	spawned.emit()
 
 
@@ -196,6 +216,7 @@ func _catch_falling_player() -> void:
 func tow_to_checkpoint() -> void:
 	if not is_spawned:
 		return
+	net.reclaim_rv()
 	if player.seat != &"":
 		player.stand_up()
 	if player.inside:
@@ -209,7 +230,14 @@ func tow_to_checkpoint() -> void:
 
 func restart_trip() -> void:
 	trip.clear_save()
+	if Session.is_online():
+		Session.leave()
 	get_tree().reload_current_scene()
+
+
+func leave_to_menu() -> void:
+	Session.leave()
+	get_tree().change_scene_to_file(MAIN_MENU)
 
 
 ## Where someone stands outside the RV's door (world space, on the ground).
@@ -398,6 +426,8 @@ func is_rv_waiting() -> bool:
 func _place_rv(xf: Transform3D) -> void:
 	# After a long move (a tow, a reset far away) the ground there may not be solid yet: hold
 	# the RV still until it is, or it would fall through the world.
+	if not rv.is_simulated:
+		return
 	rv.freeze = not streamer.has_collision_at(xf.origin)
 	rv.global_transform = xf
 	rv.linear_velocity = Vector3.ZERO

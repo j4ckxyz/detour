@@ -12,6 +12,8 @@ signal engine_stalled
 signal engine_started
 ## A seat's occupant changed (seat names: &"driver", &"passenger", &"dinette_front", ...).
 signal seat_used(seat: StringName, player: Player)
+## Someone here opened or closed the door (for the network to pass on).
+signal door_toggled(open: bool)
 
 const MODEL_COLLISION := "res://assets/models/rv_collision.glb"
 ## Physics layer of vehicles.
@@ -94,6 +96,16 @@ var winches: Array[RVWinch] = []
 ## Seat name → {eye, stand} in RV space: where a seated player looks from, and where they
 ## stand up.
 var seats: Dictionary[StringName, Dictionary] = {}
+## Whether this machine simulates the RV: always solo; online, the driver's machine, or the
+## host's while nobody drives. Elsewhere it follows the simulating machine's snapshots.
+var is_simulated := true
+## Online: `func(op: StringName, args: Array)` that sends an op to the simulating machine.
+var forward_op: Callable
+## Ops anyone may ask the simulating machine for (see apply_op).
+const OPS: Array[StringName] = [
+	&"push", &"patch_part", &"refit_part", &"mount_wheel", &"swap_tire", &"tighten_bolt",
+	&"add_oil", &"add_fuel", &"weld", &"winch_drive",
+]
 
 @onready var model: Node3D = $Model
 
@@ -225,7 +237,9 @@ func _build_interior() -> void:
 	door.position = Vector3(interior.door_x_outer, interior.floor_y + 0.8, (interior.door_z.x + interior.door_z.y) * 0.5)
 	door.reach = 2.4
 	door.prompt_for = func(_p: Player) -> String: return "Close door" if door_open else "Open door"
-	door.used.connect(func(_p: Player) -> void: door_open = not door_open)
+	door.used.connect(func(_p: Player) -> void:
+		door_open = not door_open
+		door_toggled.emit(door_open))
 	add_child(door)
 	stove.name = "Stove"
 	stove.position = STOVE_TOP
@@ -252,7 +266,10 @@ func _build_interior() -> void:
 		seat.reach = 1.6
 		var label: String = spec[2]
 		var seat_name: StringName = spec[0]
-		seat.prompt_for = func(p: Player) -> String: return label if p.inside and p.seat == &"" else ""
+		seat.prompt_for = func(p: Player) -> String:
+			if not p.inside or p.seat != &"":
+				return ""
+			return label if seat_occupant(seat_name) == null else ""
 		seat.used.connect(func(p: Player) -> void: p.sit(self, seat_name))
 		add_child(seat)
 
@@ -322,7 +339,112 @@ func start_engine() -> void:
 	drivetrain.crank()
 
 
+## Changes the RV's state (a push, a repair, a winch remote): here if this machine simulates
+## it, else sent to the one that does.
+func op(name: StringName, args: Array = []) -> void:
+	if is_simulated or not forward_op.is_valid():
+		apply_op(name, args)
+	else:
+		forward_op.call(name, args)
+
+
+func apply_op(name: StringName, args: Array) -> void:
+	match name:
+		&"push":
+			apply_force(args[0], args[1])
+		&"patch_part":
+			damage.patch_part(args[0])
+		&"refit_part":
+			damage.refit_part(args[0])
+		&"mount_wheel":
+			damage.mount_wheel(args[0], args[1])
+		&"swap_tire":
+			damage.swap_tire(args[0])
+		&"tighten_bolt":
+			damage.tighten_bolt(args[0])
+		&"add_oil":
+			damage.add_oil()
+		&"add_fuel":
+			damage.add_fuel(args[0])
+		&"weld":
+			damage.weld()
+		&"winch_drive":
+			winches[args[0]].set_drive(args[1], args[2])
+
+
+## Who's sitting in a seat (any player, here or remote), or null.
+func seat_occupant(seat_name: StringName) -> Player:
+	for n: Node in get_tree().get_nodes_in_group(&"players"):
+		var p := n as Player
+		if p.seat == seat_name and p.rv == self:
+			return p
+	return null
+
+
+## What the simulating machine sends out, 30 times a second.
+func snapshot() -> Array:
+	var w := PackedFloat32Array()
+	for wheel: RVWheel in wheels:
+		w.append_array([wheel.length, wheel.ground_speed, 1.0 if wheel.grounded else 0.0])
+	return [
+		global_position, global_basis.get_rotation_quaternion(), linear_velocity, angular_velocity,
+		_steer, _axle_spin, w, drivetrain.gear, drivetrain.rpm, drivetrain.running, headlights,
+		PackedFloat32Array([winches[0].rope_length, winches[0].tension, winches[1].rope_length, winches[1].tension]),
+		PackedInt32Array([winches[0].drive, winches[1].drive]), throttle,
+	]
+
+
+## Takes on the non-transform parts of a snapshot (the network layer moves the body).
+func apply_snapshot(s: Array) -> void:
+	linear_velocity = s[2]
+	angular_velocity = s[3]
+	_steer = s[4]
+	steer_input = _steer
+	_axle_spin = s[5]
+	var w: PackedFloat32Array = s[6]
+	for i: int in wheels.size():
+		wheels[i].length = w[i * 3]
+		wheels[i].ground_speed = w[i * 3 + 1]
+		wheels[i].grounded = w[i * 3 + 2] > 0.5
+	drivetrain.gear = s[7]
+	drivetrain.rpm = s[8]
+	drivetrain.running = s[9]
+	if headlights != bool(s[10]):
+		headlights = s[10]
+	var rope: PackedFloat32Array = s[11]
+	var drives: PackedInt32Array = s[12]
+	for i: int in 2:
+		winches[i].rope_length = rope[i * 2]
+		winches[i].tension = rope[i * 2 + 1]
+		winches[i].drive = drives[i]
+	throttle = s[13]
+
+
+## Slower-changing state: damage, gearbox mode, parking brake.
+func slow_snapshot() -> Array:
+	return [damage.snapshot(), drivetrain.automatic, parking_brake]
+
+
+func apply_slow_snapshot(s: Array) -> void:
+	damage.apply_snapshot(s[0])
+	drivetrain.automatic = s[1]
+	parking_brake = s[2]
+
+
+## Following another machine's simulation: just the moving parts.
+func _puppet_step(dt: float) -> void:
+	_update_steering(0.0, forward_speed())
+	for wheel: RVWheel in wheels:
+		wheel.update_visual(self, dt, _axle_spin if wheel.driven else 0.0)
+	_update_cab_visuals()
+	for winch: RVWinch in winches:
+		winch.puppet_step(dt)
+
+
 func _physics_process(dt: float) -> void:
+	if not is_simulated:
+		_puppet_step(dt)
+		return
 	if freeze:
 		return
 	var speed := forward_speed()
@@ -398,6 +520,8 @@ func _physics_process(dt: float) -> void:
 
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if not is_simulated:
+		return
 	for i: int in state.get_contact_count():
 		var impulse := state.get_contact_impulse(i).length()
 		if impulse > RVDamage.IMPACT_THRESHOLD:

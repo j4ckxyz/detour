@@ -54,7 +54,7 @@ func _circle_point() -> Vector3:
 	return p
 
 
-func _physics_process(dt: float) -> void:
+func think(dt: float) -> void:
 	state_time += dt
 	_cooldown = maxf(0.0, _cooldown - dt)
 	match state:
@@ -86,13 +86,21 @@ func _physics_process(dt: float) -> void:
 				set_state(State.CIRCLE)
 
 
-func _snatch() -> void:
-	var item := target.held
-	target.held = null
+## Holds `item` in its talons (a copy of what the host's eagle did).
+func carry(item: Item) -> void:
 	item.holder = null
 	item.reparent(self, false)
 	item.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, -0.3, 0.0))
+	item.freeze = true
+	item.collision_layer = 0
+	item.collision_mask = 0
 	_carrying = item
+
+
+func _snatch() -> void:
+	var item := target.held
+	target.held = null
+	carry(item)
 	target.hurt(SCRATCH, "scratched by an eagle")
 	target.say("An eagle took your %s!" % item.display_name().to_lower())
 	var a := rng.randf() * TAU

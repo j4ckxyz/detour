@@ -39,5 +39,11 @@ func _process(_delta: float) -> void:
 			_line.text = "%s — find the road" % next[0]
 		else:
 			_line.text = "%s — %.1f km down the road" % [next[0], float(next[1]) / 1000.0]
+	if Session.is_online():
+		var names: PackedStringArray = []
+		for peer: int in Session.players:
+			names.append(Session.name_of(peer))
+		var code := "   ·   room %s" % Session.room_code if Session.room_code != "" else ""
+		_line.text += "\n%s%s" % [", ".join(names), code]
 	_notice.visible = trip.notice_time > 0.0
 	_notice.text = trip.notice

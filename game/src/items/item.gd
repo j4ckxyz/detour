@@ -13,6 +13,12 @@ var def: Dictionary
 var holder: Player
 ## Height of the model's origin above its lowest point, for setting it down.
 var base_offset := 0.0
+## Online: the same number for this item on every machine (0 until the host numbers it).
+var net_id := 0
+
+## Online, set by `NetGame`: told about every item that appears and every one freed.
+static var on_ready: Callable
+static var on_freed: Callable
 
 
 func _ready() -> void:
@@ -21,6 +27,13 @@ func _ready() -> void:
 	collision_layer = LAYER
 	collision_mask = TerrainStreamer.WORLD_LAYER | RV.VEHICLE_LAYER | LAYER
 	continuous_cd = true
+	if on_ready.is_valid():
+		on_ready.call(self)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and net_id != 0 and on_freed.is_valid():
+		on_freed.call(net_id)
 
 
 func display_name() -> String:

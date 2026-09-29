@@ -34,6 +34,8 @@ var is_finished := false
 ## A one-line message for the HUD (e.g. "Checkpoint!"), and how long it stays.
 var notice := ""
 var notice_time := 0.0
+## Online clients follow the host's trip (arrivals, saves and restocks happen there).
+var is_authority := true
 
 var _last_rv_pos := Vector3.INF
 
@@ -60,7 +62,7 @@ func station_count() -> int:
 
 ## Builds the stops, plank piles and warning signs (after the ground under them has
 ## streamed in, so things sit on it).
-func build() -> void:
+func build(spawn_items: bool = true) -> void:
 	for i: int in pads().size():
 		var p: Dictionary = pads()[i]
 		var node := TripStops.build(int(p["kind"]), i, station_count())
@@ -68,7 +70,7 @@ func build() -> void:
 		node.global_transform = _pad_transform(p)
 	_wire_station_services()
 	for supply: Dictionary in data.get("supplies", []):
-		if int(supply["kind"]) == 0:
+		if int(supply["kind"]) == 0 and spawn_items:
 			_spawn_planks(supply)
 	for o: Dictionary in data.get("obstacles", []):
 		_add_warning_sign(o)
@@ -138,7 +140,7 @@ func _wire_station_services() -> void:
 				player.held.def["name"] = "Jerry can (20 L)"
 				player.say("Jerry can filled.")
 			elif _rv_near(pump, 14.0):
-				rv.damage.add_fuel(RVDamage.TANK)
+				rv.op(&"add_fuel", [RVDamage.TANK])
 				player.say("Tank full."))
 	for n: Node in get_tree().get_nodes_in_group(&"welders"):
 		var welder := n as Interactable
@@ -150,7 +152,7 @@ func _wire_station_services() -> void:
 			return "Weld the RV's frame (%d%%)" % roundi(rv.damage.frame)
 		welder.used.connect(func(player: Player) -> void:
 			if _rv_near(welder, 28.0):
-				rv.damage.weld()
+				rv.op(&"weld")
 				player.say("Frame welded good as new; the mechanic looked the engine over too."))
 
 
@@ -191,6 +193,8 @@ func _physics_process(dt: float) -> void:
 	if _last_rv_pos != Vector3.INF:
 		distance_driven += Vector2(rv.global_position.x - _last_rv_pos.x, rv.global_position.z - _last_rv_pos.z).length()
 	_last_rv_pos = rv.global_position
+	if not is_authority:
+		return
 	var next := checkpoint + 1
 	if next >= pads().size():
 		return
@@ -201,16 +205,23 @@ func _physics_process(dt: float) -> void:
 
 
 func _arrive(i: int) -> void:
+	reach(i)
+	if is_finished:
+		clear_save()
+		return
+	restock(i)
+	save()
+
+
+## Marks stop `i` reached (the host's arrival, copied on clients).
+func reach(i: int) -> void:
 	checkpoint = i
 	var kind := int(pad(i)["kind"])
 	if kind == PAD_HOME:
 		is_finished = true
-		clear_save()
 		show_notice("Home! Trip complete.", 30.0)
 		finished.emit()
 		return
-	restock(i)
-	save()
 	show_notice("Gas station %d of %d: checkpoint saved, supplies restocked." % [i, station_count()], 8.0)
 	checkpoint_reached.emit(i, station_count())
 

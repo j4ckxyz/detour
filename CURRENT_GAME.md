@@ -1,13 +1,13 @@
 # Detour: what the game does today
 
-A snapshot of the playable build (updated 2026-09-28), for comparing against *RV There Yet?*.
+A snapshot of the playable build (updated 2026-09-29), for comparing against *RV There Yet?*.
 Everything below is implemented and running unless it's in [Not in the game yet](#not-in-the-game-yet).
 The long-term design is in [PLAN.md](PLAN.md).
 
-**In one line:** a single-player road trip: from a camp, along a generated forest road, past
-washed-out bridges, ledges, mud and steep climbs, through gas-station checkpoints, to home, in
-a heavy 1970s motorhome (real clutch and gearbox) you can climb into, walk around, winch and
-push. No other players yet.
+**In one line:** a road trip for 1–4 players: from a camp, along a generated forest road, past
+washed-out bridges, ledges, mud and steep climbs, bears and rattlesnakes, through gas-station
+checkpoints, to home, in a heavy 1970s motorhome (real clutch and gearbox) you can climb into,
+walk around, winch, push and repair. Play solo or together on a LAN, by IP or through a relay.
 
 ---
 
@@ -347,6 +347,35 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
 
 ---
 
+## Main menu and playing together
+
+- **Main menu** (the game starts here; `-- --seed=CODE`, `--play` or `--new` skip it):
+  - **You**: your name and jacket colour (remembered).
+  - **Play solo**: a seed code (blank for a new trip) and the trip length (short, medium,
+    long). It says "Continue this trip" when there's a save for that seed.
+  - **Host a game**: on this network / direct IP (UDP port 24652), or through a relay server
+    (type its address; the game gets a 6-letter room code).
+  - **Join a game**: games hosted on the local network are listed (the host announces itself
+    on UDP port 24653); or type the host's IP, or a room code (uses the relay address).
+  - Joining checks the game version and protocol; a mismatch or a full game (4 players) is
+    refused with a readable reason.
+- **Co-op** (up to 4 players, drop-in: join a trip in progress and appear by the RV):
+  - Everyone sees everyone else as a simple figure in their jacket colour with a name tag;
+    they crouch, lie down when downed and sit in the seats.
+  - **The driver's machine simulates the RV** (no input lag for the driver); everyone else
+    follows it smoothly. When nobody drives, the host simulates it. Only one person per seat.
+  - Pushing, repairs (hammer, drill, tires, oil, fuel, welder), the winch remotes and the door
+    work for everyone and act on the shared RV.
+  - **Items are shared**: the host keeps track of every item; picking up, pocketing, dropping,
+    throwing, stowing in the RV, laying planks, grilling and eating show for everyone. If two
+    people grab the same thing, the first one gets it.
+  - **Wildlife and the trip run on the host**: bears, snakes and eagles go for any player;
+    arrivals, saves and restocks happen on the host. Downed players can be revived by a
+    teammate with an EpiPen (E on them).
+  - The top of the screen lists who's playing (and the room code on a relay).
+  - The pause menu doesn't pause online. Leaving (menu: **Leave to the main menu**) drops what
+    you carried; if the host leaves, everyone goes back to the main menu with a message.
+
 ## Interface
 
 - **Driving HUD** (bottom left):
@@ -363,7 +392,7 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
     automatically** (on by default, remembered) and **Quit to desktop**.
   - A progress bar and status line appear while an update downloads.
   - **Tow to the last checkpoint** (the RV and you go back to the last station; +15 min) and
-    **Restart this trip**.
+    **Restart this trip** (host / solo only), and **Main menu** / **Leave to the main menu**.
 
 ## Updates
 
@@ -420,11 +449,8 @@ Downloaded builds keep themselves current from this repo's GitHub releases:
 ## Behind the scenes (built, but not used in gameplay yet)
 
 - **Online relay server** (`server/relay`, Rust): rooms with 6-character codes, the host as
-  peer 1, rate limits and a password option. It runs on a Raspberry Pi. An in-game network
-  peer for it passes an end-to-end test, but there is no lobby, room-code screen or player
-  replication yet, so **the game is single-player only**.
-- **3D models already made** for future items: jerry can, oil bottle, spare tire, scrap metal,
-  plank, burger, antidote, EpiPen, bear spray, first-aid kit and winch remote.
+  peer 1, rate limits and a password option. It runs on a Raspberry Pi. The game can host and
+  join through one (see above); there's no public relay yet, so you run your own.
 
 ---
 
@@ -432,17 +458,12 @@ Downloaded builds keep themselves current from this repo's GitHub releases:
 
 Planned (see PLAN.md), roughly in the order they're coming:
 
-- **Players**: the roof ladder and roof, a visible body (for co-op), a hotbar/inventory.
-- **The trip**: refuelling and the welder at stations (with fuel and damage), a trip-length
-  choice in a menu, a paper map, route forks and loot detours.
-- **More obstacles**: fords, mud, rockslides, cliffs and steps, lava, ice.
-  - A generator that guarantees every obstacle can be solved, with difficulty rising along
-    the trip.
-- **Danger**: health, burgers, snake venom and antidote, downed players revived with an
-  EpiPen; bears (bear spray), snakes and eagles.
+- **Players**: the roof ladder and roof; real character models and cosmetics.
+- **The trip**: a paper map, route forks and loot detours.
+- **More obstacles**: fords, rockslides, cliffs and steps, lava, ice.
 - **World variety**: more biomes (red rock canyon, swamp, alpine, volcanic), rivers and lakes,
   weather, day/night.
-- **Co-op**: up to 4 players online through the relay, LAN or direct IP; proximity voice chat.
+- **Co-op**: proximity voice chat; saving each player's inventory with the trip.
 - **Sound**: engine, horn, tires, ambience, music. The game is currently **silent**.
-- **Menus and options**: a main menu, settings (key rebinding, graphics, audio), cosmetics,
-  and the diegetic dashboard gauges.
+- **Menus and options**: settings (key rebinding, graphics, audio), cosmetics, and the
+  diegetic dashboard gauges.

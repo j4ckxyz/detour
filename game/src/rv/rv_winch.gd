@@ -34,8 +34,10 @@ var rope_length := 0.0
 var tension := 0.0
 ## Total metres reeled in (for fun stats / achievements later).
 var reeled_total := 0.0
-## -1 reel in, +1 pay out, 0 hold (set each tick by whoever works the remote).
+## -1 reel in, +1 pay out, 0 hold: what the remotes ask for (see set_drive).
 var drive := 0
+## Who's pressing what on a winch remote (player peer id → -1/0/+1).
+var _drives: Dictionary[int, int] = {}
 
 var _anchor := Vector3.ZERO
 var _drum: Node3D
@@ -53,7 +55,7 @@ func setup(owner_rv: RV, which: String, drum: Node3D) -> void:
 	_drum_rest = drum.basis
 	hook = ItemLibrary.create(&"winch_hook")
 	hook.set_meta(&"winch", self)
-	_stow_hook()
+	stow_hook()
 
 	var handle := Interactable.new()
 	handle.name = "Handle"
@@ -108,12 +110,21 @@ func _prompt(player: Player) -> String:
 
 func _on_used(player: Player) -> void:
 	if state == State.STOWED and player.held == null:
-		rope_length = 1.0
-		state = State.HELD
 		player.pick_up(hook)
 	elif player.held == hook:
 		player.held = null
-		_stow_hook()
+		stow_hook()
+
+
+## One player's remote: `d` -1 reel in, +1 pay out, 0 let go. Reel-in wins a tug of war.
+func set_drive(who: int, d: int) -> void:
+	if d == 0:
+		_drives.erase(who)
+	else:
+		_drives[who] = d
+	drive = 0
+	for v: int in _drives.values():
+		drive = v if drive == 0 or v < 0 else drive
 
 
 ## The hook left a hand (dropped or thrown): it now lies on the end of the rope.
@@ -123,7 +134,9 @@ func on_hook_released() -> void:
 
 
 func on_hook_grabbed() -> void:
-	if state in [State.LOOSE, State.ANCHORED]:
+	if state == State.STOWED:
+		rope_length = 1.0 # Off the drum.
+	if state in [State.STOWED, State.LOOSE, State.ANCHORED]:
 		state = State.HELD
 
 
@@ -140,7 +153,13 @@ func anchor(point: Vector3) -> void:
 	hook.collision_mask = 0
 
 
-func _stow_hook() -> void:
+## Where the hook is anchored (world space).
+func anchor_point() -> Vector3:
+	return _anchor
+
+
+## Back on its drum.
+func stow_hook() -> void:
 	state = State.STOWED
 	rope_length = 0.0
 	tension = 0.0
@@ -209,6 +228,11 @@ func _snap() -> void:
 	state = State.LOOSE
 	tension = 0.0
 	snapped.emit()
+
+
+## On machines that don't simulate the RV: only the drum turns (the rest comes from snapshots).
+func puppet_step(dt: float) -> void:
+	_spin_drum(dt)
 
 
 func _spin_drum(dt: float) -> void:

@@ -175,7 +175,7 @@ static func use_action(kind: StringName) -> Callable:
 					player.say("You need scrap metal in your pockets to patch that.")
 					return false
 				player.consume(scrap)
-				d.patch_part(aim["id"])
+				player.rv.op(&"patch_part", [aim["id"]])
 				return true
 		&"rv_part":
 			return func(item: Item, player: Player) -> bool:
@@ -183,10 +183,8 @@ static func use_action(kind: StringName) -> Callable:
 				var id: StringName = item.get_meta(&"part", &"")
 				if aim.get("kind") != "part" or aim["id"] != id or player.rv.damage.parts[id].attached:
 					return false
-				player.held = null
-				item.holder = null
-				player.rv.damage.parts[id].debris = item # _restore frees it.
-				player.rv.damage.refit_part(id)
+				player.consume(item)
+				player.rv.op(&"refit_part", [id])
 				return true
 		&"spare_tire", &"rv_wheel":
 			return func(item: Item, player: Player) -> bool:
@@ -197,9 +195,9 @@ static func use_action(kind: StringName) -> Callable:
 				var i: int = aim["id"]
 				var tire := float(item.get_meta(&"tire", RVDamage.FULL))
 				if not d.wheel_on[i]:
-					d.mount_wheel(i, tire)
+					player.rv.op(&"mount_wheel", [i, tire])
 				elif d.tires[i] <= 0.0:
-					d.swap_tire(i)
+					player.rv.op(&"swap_tire", [i])
 				else:
 					return false
 				player.consume(item)
@@ -209,7 +207,7 @@ static func use_action(kind: StringName) -> Callable:
 			return func(item: Item, player: Player) -> bool:
 				if player.aim_rv().get("kind") != "engine" or player.rv.damage.oil > 0.95:
 					return false
-				player.rv.damage.add_oil()
+				player.rv.op(&"add_oil")
 				player.consume(item)
 				return true
 		&"jerrycan":
@@ -217,7 +215,8 @@ static func use_action(kind: StringName) -> Callable:
 				var litres := float(item.get_meta(&"fuel", JERRY_CAN_LITRES))
 				if player.aim_rv().get("kind") != "fuel" or litres <= 0.0:
 					return false
-				var poured := player.rv.damage.add_fuel(litres)
+				var poured := minf(litres, RVDamage.TANK - player.rv.damage.fuel)
+				player.rv.op(&"add_fuel", [poured])
 				item.set_meta(&"fuel", litres - poured)
 				item.def["name"] = "Jerry can (%d L)" % roundi(litres - poured) if litres - poured > 0.5 else "Empty jerry can"
 				return poured > 0.0
@@ -244,7 +243,9 @@ static func hold_action(kind: StringName) -> Callable:
 			var i: int = aim["id"]
 			if not d.wheel_on[i] or d.bolts[i] >= RVDamage.BOLTS:
 				return 0.0
-			d.tighten_bolt(i)
+			player.rv.op(&"tighten_bolt", [i])
+			if not player.rv.is_simulated:
+				d.bolts[i] += 1 # Shown straight away; the RV's own machine confirms.
 			return 0.45 # One bolt at a time.
 	return Callable()
 
@@ -320,7 +321,7 @@ static func spray(player: Player) -> void:
 		var to := animal.global_position + Vector3.UP * 0.5 - from
 		var d := to.length()
 		if d < SPRAY_RANGE and (d < 1.2 or to.dot(forward) / d > SPRAY_CONE):
-			animal.call(&"sprayed", player.global_position)
+			animal.call(&"spray_from", player.global_position)
 	var cloud := CPUParticles3D.new()
 	cloud.one_shot = true
 	cloud.explosiveness = 0.8

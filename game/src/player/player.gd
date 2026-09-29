@@ -54,6 +54,12 @@ const FALL_DAMAGE := 9.0
 const RV_HIT_SPEED := 3.5
 const RV_HIT_DAMAGE := 9.0
 
+## Online: whose player this is, and whether it's someone else's (a puppet following their
+## snapshots; things done to it are sent to them through `remote`).
+var peer_id := 1
+var puppet := false
+## `func(peer: int, method: StringName, args: Array)`, set by NetGame on puppets.
+var remote: Callable
 ## The RV this player can board.
 var rv: RV
 ## Where dropped and thrown items go in the world.
@@ -104,6 +110,12 @@ var _prev_rv_velocity := Vector3.ZERO
 var _ghost := MeshInstance3D.new()
 var _tool_timer := 0.0
 var _rv_hit_cooldown := 0.0
+var _winch_sent: Array[int] = [0, 0]
+## Puppets: where the snapshots say we are (world, or RV space when inside) and how fast.
+var _net_pos := Vector3.ZERO
+var _net_velocity := Vector3.ZERO
+var _net_age := 0.0
+var _avatar: Node3D
 
 
 func _init() -> void:
@@ -144,6 +156,10 @@ func is_on_ground() -> bool:
 
 func _ready() -> void:
 	add_to_group(&"players")
+	if puppet:
+		collision_layer = 0
+		collision_mask = 0
+		_build_avatar()
 	camera.name = "Eyes"
 	camera.fov = 75.0
 	camera.near = 0.05
@@ -178,7 +194,7 @@ func is_driving() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not input_enabled:
+	if not input_enabled or puppet:
 		return
 	var motion := event as InputEventMouseMotion
 	if motion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not is_driving():
@@ -226,6 +242,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(dt: float) -> void:
+	if puppet:
+		_follow_snapshots(dt)
+		return
 	_tick_health(dt)
 	_work_winch_remote()
 	_work_held_tool(dt)
@@ -248,6 +267,9 @@ func _physics_process(dt: float) -> void:
 func _process(dt: float) -> void:
 	message_time = maxf(0.0, message_time - dt)
 	_place_camera()
+	if puppet:
+		_pose_avatar()
+		return
 	_find_target()
 	_update_ghost()
 
@@ -328,6 +350,9 @@ func _check_run_over(dt: float) -> void:
 
 ## Takes `amount` of health (`cause` for the HUD). At zero you go down.
 func hurt(amount: float, cause: String) -> void:
+	if puppet:
+		_tell(&"hurt", [amount, cause])
+		return
 	if downed or amount <= 0.0:
 		return
 	health -= amount
@@ -343,7 +368,25 @@ func heal(amount: float) -> void:
 
 
 func poison() -> void:
+	if puppet:
+		_tell(&"poison", [])
+		return
 	venom = VENOM_TIME
+
+
+## A shove (a bear's swipe): added to our velocity.
+func knock(push: Vector3) -> void:
+	if puppet:
+		_tell(&"knock", [push])
+		return
+	if not inside:
+		velocity += push
+
+
+## Sends something done to a puppet to its player's machine.
+func _tell(method: StringName, args: Array) -> void:
+	if remote.is_valid():
+		remote.call(peer_id, method, args)
 
 
 ## Out of health: down on the ground, crawling, until an EpiPen or bleeding out.
@@ -362,7 +405,10 @@ func go_down() -> void:
 
 
 ## Back on your feet (an EpiPen: `by` another player, or null for your own).
-func revive(_by: Player) -> void:
+func revive(by: Player) -> void:
+	if puppet:
+		_tell(&"revive", [by.peer_id if by else 0])
+		return
 	if not downed:
 		return
 	downed = false
@@ -379,6 +425,128 @@ func wake_up(with_health: float) -> void:
 	venom = 0.0
 	remove_from_group(&"interactable")
 	downed_changed.emit(false)
+
+
+## Takes an item out of the hotbar without freeing it (it went somewhere else).
+func forget(item: Item) -> void:
+	var i := slots.find(item)
+	if i >= 0:
+		slots[i] = null
+
+
+# --- network -------------------------------------------------------------------------------
+
+## What the other machines need to draw us, 30 times a second.
+func net_state() -> Array:
+	var pos := _proxy.position if inside else global_position
+	var v := _proxy.velocity if inside else velocity
+	return [inside, pos, v, _yaw, _pitch, _crouch, seat, downed, health, venom > 0.0, selected]
+
+
+## Puppets: takes on a snapshot from the player's machine.
+func apply_net_state(s: Array) -> void:
+	var was_inside := inside
+	inside = s[0]
+	_net_pos = s[1]
+	_net_velocity = s[2]
+	_net_age = 0.0
+	_yaw = s[3]
+	_pitch = s[4]
+	_crouch = s[5]
+	seat = s[6]
+	downed = s[7]
+	health = s[8]
+	venom = 1.0 if s[9] else 0.0
+	if int(s[10]) != selected:
+		selected = s[10]
+		for i: int in SLOTS:
+			if slots[i]:
+				slots[i].visible = i == selected
+	if inside != was_inside or global_position.distance_to(_net_world()) > 6.0:
+		global_position = _net_world() # Jumped (in or out of the RV, or a respawn).
+		reset_physics_interpolation()
+	if downed and not is_in_group(&"interactable"):
+		add_to_group(&"interactable")
+	elif not downed and is_in_group(&"interactable"):
+		remove_from_group(&"interactable")
+
+
+func _net_world() -> Vector3:
+	var p := _net_pos + _net_velocity * minf(_net_age, 0.2)
+	return rv.global_transform * p if inside and rv else p
+
+
+func _follow_snapshots(dt: float) -> void:
+	_net_age += dt
+	if inside and rv:
+		global_transform = rv.global_transform * Transform3D(Basis.IDENTITY, _net_pos + _net_velocity * minf(_net_age, 0.2))
+		velocity = rv.linear_velocity
+	else:
+		global_position = global_position.lerp(_net_world(), minf(1.0, dt * 15.0))
+		velocity = _net_velocity
+
+
+## A simple stand-in body for other players: a jacket in their colour, a head, a name.
+func _build_avatar() -> void:
+	_avatar = Node3D.new()
+	_avatar.name = "Avatar"
+	add_child(_avatar)
+	var jacket := StandardMaterial3D.new()
+	jacket.albedo_color = Session.color_of(peer_id)
+	var skin := StandardMaterial3D.new()
+	skin.albedo_color = Color(0.93, 0.76, 0.62)
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.2, 0.2, 0.25)
+	var body := CapsuleMesh.new()
+	body.radius = 0.28
+	body.height = 1.1
+	body.radial_segments = 8
+	body.rings = 2
+	body.material = jacket
+	_avatar_part(body, Vector3(0.0, 1.0, 0.0))
+	var legs := BoxMesh.new()
+	legs.size = Vector3(0.42, 0.55, 0.26)
+	legs.material = dark
+	_avatar_part(legs, Vector3(0.0, 0.3, 0.0))
+	var head := SphereMesh.new()
+	head.radius = 0.16
+	head.height = 0.32
+	head.radial_segments = 8
+	head.rings = 4
+	head.material = skin
+	_avatar_part(head, Vector3(0.0, 1.68, 0.0))
+	var cap := BoxMesh.new()
+	cap.size = Vector3(0.3, 0.08, 0.36)
+	cap.material = jacket
+	_avatar_part(cap, Vector3(0.0, 1.81, -0.04))
+	var tag := Label3D.new()
+	tag.text = Session.name_of(peer_id)
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.position = Vector3(0.0, 2.15, 0.0)
+	tag.font_size = 40
+	tag.outline_size = 10
+	tag.no_depth_test = true
+	tag.fixed_size = false
+	tag.pixel_size = 0.004
+	_avatar.add_child(tag)
+
+
+func _avatar_part(mesh: Mesh, pos: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = pos
+	_avatar.add_child(mi)
+
+
+func _pose_avatar() -> void:
+	if _avatar == null:
+		return
+	var lying := Basis(Vector3.RIGHT, -PI / 2.0) if downed else Basis.IDENTITY
+	var squat := 1.0 - 0.35 * _crouch if not downed else 1.0
+	_avatar.transform = Transform3D(Basis(Vector3.UP, _yaw) * lying * Basis.from_scale(Vector3(1.0, squat, 1.0)), Vector3(0.0, 0.25 if downed else 0.0, 0.0))
+	if seat != &"" and rv:
+		var eye: Vector3 = rv.seats[seat]["eye"]
+		_avatar.global_transform = rv.global_transform * Transform3D(Basis(Vector3.UP, _yaw) * Basis.from_scale(Vector3(1.0, 0.75, 1.0)), eye - Vector3(0.0, 1.35, 0.0))
 
 
 func _tick_health(dt: float) -> void:
@@ -450,7 +618,7 @@ func _work_held_tool(dt: float) -> void:
 
 
 func _work_winch_remote() -> void:
-	if rv == null:
+	if rv == null or puppet:
 		return
 	var remote := held != null and held.kind == &"winch_remote" and input_enabled and not downed
 	for i: int in rv.winches.size():
@@ -460,7 +628,9 @@ func _work_winch_remote() -> void:
 				drive = -1
 			elif Input.is_action_pressed(&"throw_item"):
 				drive = 1
-		rv.winches[i].drive = drive
+		if drive != _winch_sent[i]:
+			_winch_sent[i] = drive
+			rv.op(&"winch_drive", [i, peer_id, drive])
 
 
 ## Lifts `body` onto a ledge it walked into, if there's room above and ground beyond.
@@ -540,7 +710,7 @@ func leave_rv() -> void:
 
 ## Sits in one of the RV's seats (must already be inside).
 func sit(on: RV, seat_name: StringName) -> void:
-	if not inside or seat != &"" or on != rv:
+	if not inside or seat != &"" or on != rv or rv.seat_occupant(seat_name) != null:
 		return
 	if held and not held.def.get("seated", false):
 		drop_held() # Hands free to drive (the winch remote can come along).
@@ -663,6 +833,9 @@ func eat(item: Item, amount: float = 30.0) -> void:
 
 ## A short message for the player (shown by the HUD for a few seconds).
 func say(text: String) -> void:
+	if puppet:
+		_tell(&"say", [text])
+		return
 	message = text
 	message_time = 4.0
 
