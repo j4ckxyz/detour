@@ -95,6 +95,12 @@ func _run() -> void:
 	var done := [false]
 	trip.finished.connect(func() -> void: done[0] = true)
 	trip.checkpoint = trip.pads().size() - 2
+	var d := _pg.rv.damage
+	_check(d.tires.min() < RVDamage.FULL or d.bolts.min() < RVDamage.BOLTS or d.fuel != RVDamage.START_FUEL, "the RV's wear came back with the save")
+	for i: int in 4: # A mechanic's once-over, so the drive home tests the trip, not the tires.
+		d.tires[i] = RVDamage.FULL
+		d.bolts[i] = RVDamage.BOLTS
+	d.fuel = RVDamage.TANK
 	await _teleport(float(trip.pad(-1)["s"]) - 40.0)
 	await _drive(0.6, 14.0, func() -> bool: return done[0])
 	_check(done[0] and trip.is_finished, "reached home: trip complete")

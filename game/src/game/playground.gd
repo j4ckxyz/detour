@@ -77,6 +77,7 @@ func _ready() -> void:
 	trip.name = "Trip"
 	add_child(trip)
 	trip.setup(world, rv, items)
+	trip.extra_save = _save_extra
 	if Session.mode == Session.Mode.CLIENT:
 		# Joining: the host says where the RV is (the full state follows once we're in).
 		var info := Session.start_info
@@ -195,6 +196,7 @@ func _physics_process(_dt: float) -> void:
 	elif trip.checkpoint == 0:
 		_spawn_starter_items()
 	else:
+		_restore_extra(trip.loaded_extra)
 		trip.restock(trip.checkpoint)
 		trip.show_notice("Welcome back: continuing from gas station %d." % trip.checkpoint, 6.0)
 	is_spawned = true
@@ -273,7 +275,7 @@ func _spawn_player() -> void:
 	streamer.collision_foci = [rv, player]
 
 
-## A few things to find: planks and fuel by the RV, the winch remote and first aid inside.
+## A few things to find: planks and fuel by the RV; tools, food and medicine put away inside.
 func _spawn_starter_items() -> void:
 	var outside: Array[Array] = [
 		[&"plank", Vector3(3.0, 0.0, 1.0)], [&"plank", Vector3(3.0, 0.0, 1.4)],
@@ -286,19 +288,73 @@ func _spawn_starter_items() -> void:
 		at.y = world.height_at(at.x, at.z) + 0.3
 		items.add_child(item)
 		item.global_position = at
-	var inside: Array[Array] = [
-		[&"winch_remote", Vector3(-0.3, 1.34, -2.35)], [&"first_aid", Vector3(-0.85, 1.6, -0.62)],
-		[&"burger", Vector3(-0.7, 1.6, -0.5)], [&"burger", Vector3(-0.95, 1.6, -0.45)],
-		[&"hammer", Vector3(0.85, 1.8, -1.1)], [&"drill", Vector3(0.85, 1.8, -1.35)],
-		[&"scrap_metal", Vector3(0.0, 0.9, -0.9)], [&"scrap_metal", Vector3(0.0, 0.9, -1.4)],
-		[&"epipen", Vector3(-0.3, 1.34, -2.15)], [&"antidote", Vector3(-0.15, 1.34, -2.2)],
-		[&"bear_spray", Vector3(0.95, 1.8, -0.85)], [&"soda", Vector3(0.7, 1.8, 0.7)],
-		[&"patty", Vector3(0.75, 1.8, 0.45)], [&"patty", Vector3(0.9, 1.8, 0.45)],
+	var remote := ItemLibrary.create(&"winch_remote")
+	rv.stash.add_child(remote)
+	remote.stow(rv, Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.34, -2.35))) # On the dashboard.
+	var stored: Array[Array] = [
+		[&"hammer", &"ToolWall1"], [&"drill", &"ToolWall2"],
+		[&"burger", &"FridgeTop1"], [&"burger", &"FridgeTop2"], [&"patty", &"FridgeTop3"], [&"patty", &"FridgeTop4"],
+		[&"soda", &"CupHolder1"], [&"first_aid", &"Bed1"], [&"scrap_metal", &"Bed2"], [&"scrap_metal", &"Bed3"],
+		[&"epipen", &"Shelf1"], [&"antidote", &"Shelf2"], [&"bear_spray", &"Shelf3"],
 	]
-	for spec: Array in inside:
+	for spec: Array in stored:
 		var item := ItemLibrary.create(spec[0])
 		rv.stash.add_child(item)
-		item.stow(rv, Transform3D(Basis.IDENTITY, spec[1]))
+		rv.storage[spec[1]].store(item)
+
+
+## What the trip saves at each checkpoint besides progress: the RV's state, what's stowed in
+## it and the hotbar.
+func _save_extra() -> Dictionary:
+	var stowed: Array = []
+	for c: Node in rv.stash.get_children():
+		var item := c as Item
+		if item and ItemLibrary.DEFS.has(item.kind) and item.kind not in [&"rv_part", &"rv_wheel"]:
+			stowed.append([item.kind, item.display_name(), _item_meta(item), item.transform])
+	var hotbar: Array = []
+	for item: Item in player.slots:
+		if item and item.kind not in [&"rv_part", &"rv_wheel", &"winch_hook"]:
+			hotbar.append([item.kind, item.display_name(), _item_meta(item)])
+	return {"rv": rv.slow_snapshot(), "stowed": stowed, "hotbar": hotbar}
+
+
+static func _item_meta(item: Item) -> Dictionary:
+	var meta := {}
+	for k: StringName in [&"fuel", &"puffs", &"cook", &"tire", &"slot"]:
+		if item.has_meta(k):
+			meta[String(k)] = item.get_meta(k)
+	return meta
+
+
+## Puts back what a save had: the RV's state, its stowed items and the hotbar.
+func _restore_extra(extra: Dictionary) -> void:
+	if extra.has("rv"):
+		rv.apply_slow_snapshot(extra["rv"])
+	for e: Array in extra.get("stowed", []):
+		var item := _saved_item(e)
+		if item:
+			rv.stash.add_child(item)
+			item.stow(rv, e[3])
+			if (e[2] as Dictionary).has("slot"):
+				item.set_meta(&"slot", StringName(e[2]["slot"]))
+	for e: Array in extra.get("hotbar", []):
+		var item := _saved_item(e)
+		if item:
+			items.add_child(item)
+			item.global_position = player.global_position + Vector3.UP
+			player.pick_up(item)
+
+
+static func _saved_item(e: Array) -> Item:
+	if not ItemLibrary.DEFS.has(StringName(e[0])):
+		return null
+	var item := ItemLibrary.create(StringName(e[0]))
+	item.def["name"] = e[1]
+	for k: Variant in (e[2] as Dictionary):
+		item.set_meta(StringName(k), e[2][k])
+	if item.kind == &"patty":
+		ItemLibrary.tint(item, ItemLibrary.patty_color(float(item.get_meta(&"cook", 0.0))))
+	return item
 
 
 func _on_seat_changed(seat: StringName) -> void:

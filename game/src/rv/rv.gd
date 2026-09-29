@@ -244,6 +244,7 @@ func _build_interior() -> void:
 	stove.name = "Stove"
 	stove.position = STOVE_TOP
 	add_child(stove)
+	_build_storage()
 
 	# (seat, marker, label, how far behind the seat the player stands up)
 	var seat_specs: Array[Array] = [
@@ -272,6 +273,40 @@ func _build_interior() -> void:
 			return label if seat_occupant(seat_name) == null else ""
 		seat.used.connect(func(p: Player) -> void: p.sit(self, seat_name))
 		add_child(seat)
+
+
+## Where things are kept (RV space): [name prefix, accepts, label, positions, turn].
+const STORAGE: Array[Array] = [
+	["PlankRack", [&"plank"], "plank rack", [Vector3(-1.36, 1.95, 1.15), Vector3(-1.36, 2.05, 1.15), Vector3(-1.36, 2.15, 1.15)], Vector3(0.0, PI / 2.0, 0.0)],
+	["SpareMount", [&"tire"], "spare-tire mount", [Vector3(-0.6, 1.7, 3.61)], Vector3(PI / 2.0, 0.0, 0.0)],
+	["CanHolder", [&"can"], "jerry-can holder", [Vector3(-0.05, 0.72, 3.69), Vector3(0.3, 0.72, 3.69)], Vector3.ZERO],
+	["ToolWall", [&"tool"], "tool wall", [Vector3(-0.5, 1.65, 1.2), Vector3(-0.5, 1.65, 1.5), Vector3(-0.5, 1.65, 1.8)], Vector3(0.0, PI / 2.0, 0.0)],
+	["FridgeTop", [&"food", &"drink"], "top of the fridge", [Vector3(-0.95, 2.6, 0.35), Vector3(-0.7, 2.6, 0.35), Vector3(-0.95, 2.6, 0.6),
+		Vector3(-0.7, 2.6, 0.6), Vector3(-0.95, 2.6, 0.85), Vector3(-0.7, 2.6, 0.85)], Vector3.ZERO],
+	["Shelf", [&"small", &"tool"], "overhead shelf", [Vector3(-0.75, 2.25, -1.55), Vector3(-0.25, 2.25, -1.55), Vector3(0.25, 2.25, -1.55),
+		Vector3(0.75, 2.25, -1.55), Vector3(-0.75, 2.25, -1.85), Vector3(-0.25, 2.25, -1.85), Vector3(0.25, 2.25, -1.85), Vector3(0.75, 2.25, -1.85)], Vector3.ZERO],
+	["Bed", [&"medium", &"small", &"food"], "bed", [Vector3(-0.6, 1.59, 2.4), Vector3(0.0, 1.59, 2.4), Vector3(0.6, 1.59, 2.4),
+		Vector3(-0.6, 1.59, 2.9), Vector3(0.0, 1.59, 2.9), Vector3(0.6, 1.59, 2.9)], Vector3.ZERO],
+	["CupHolder", [&"drink"], "cup holder", [Vector3(0.1, 1.32, -2.3), Vector3(0.3, 1.32, -2.3)], Vector3.ZERO],
+]
+## Every storage slot, by name ("PlankRack1", "Shelf5", ...).
+var storage: Dictionary[StringName, StorageSlot] = {}
+
+
+func _build_storage() -> void:
+	for spec: Array in STORAGE:
+		var positions: Array = spec[3]
+		for i: int in positions.size():
+			var slot := StorageSlot.new()
+			slot.name = "%s%d" % [spec[0], i + 1]
+			slot.rv = self
+			slot.label = spec[2]
+			for kind: StringName in spec[1]:
+				slot.accepts.append(kind)
+			slot.turn = Basis.from_euler(spec[4])
+			slot.position = positions[i]
+			add_child(slot)
+			storage[StringName(slot.name)] = slot
 
 
 func _build_headlights() -> void:

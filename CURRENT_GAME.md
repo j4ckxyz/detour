@@ -109,8 +109,18 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   held two-handed and dropped if you sit), drop, throw (heavier things go less far) and use.
   Put something down inside the RV and it stays where you put it and rides along.
   Items in the world: planks, jerry can, scrap metal, spare tire and motor oil by the RV at
-  the start; inside: winch remote, first-aid kit, two burgers, two frozen patties, a soda,
-  an EpiPen, an antidote, bear spray, a hammer, a drill and scrap.
+  the start; the RV's own kit starts put away in its storage (below).
+- **RV storage** (31 places; hold a fitting item, look at the spot, **E**; pick it back up to
+  take it out). Stored things ride along:
+  - Outside: a **plank rack** down the left side (3 planks), the **spare-tire mount** on the
+    back (a spare or a wheel) and two **jerry-can holders** on the rear bumper.
+  - Inside: the **tool wall** on the wardrobe (hammer, drill, winch remote), the **top of the
+    fridge** (6: food and drinks), the **overhead shelf** over the cab (8: medicine, bear
+    spray, tools), the **bed** (6: scrap, oil, first aid, small things, food) and two **cup
+    holders** on the dashboard.
+  - The RV starts with the hammer and drill on the tool wall, burgers and patties on the
+    fridge, a soda in a cup holder, first aid and scrap on the bed, and the EpiPen, antidote
+    and bear spray on the shelf; the winch remote lies on the dashboard.
 
 ## Health and survival
 - **Health** (100). Hurts: **falls** (a ~5 m drop is safe, ~8 m costs a quarter, ~15 m nearly
@@ -178,7 +188,8 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
 - **Home**: a house with a fence and a big "HOME" sign. Arrive and the trip ends with a
   summary: time, distance driven, stalls and winch rope reeled in.
 - **Saves**: quitting and relaunching continues from the last gas station (per seed; start
-  over with `-- --new` or the menu).
+  over with `-- --new` or the menu). A save keeps the RV's state (damage, missing parts,
+  wheels and bolts, fuel, oil, gearbox), everything stowed in it and your hotbar.
 - **Top of the screen**: the next stop and how far down the road it is, plus checkpoint notices.
 
 ## Damage, repairs and supplies

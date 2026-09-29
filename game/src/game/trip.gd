@@ -36,6 +36,10 @@ var notice := ""
 var notice_time := 0.0
 ## Online clients follow the host's trip (arrivals, saves and restocks happen there).
 var is_authority := true
+## Optional `func() -> Dictionary`: more to save at each checkpoint (the RV's state, what's
+## stowed in it, the hotbar), and what came back from the last load.
+var extra_save: Callable
+var loaded_extra: Dictionary = {}
 
 var _last_rv_pos := Vector3.INF
 
@@ -284,6 +288,7 @@ func save() -> void:
 	f.store_string(JSON.stringify({
 		"gen": WorldGen.gen_version(), "seed": world.get_code(), "checkpoint": checkpoint,
 		"elapsed": elapsed, "distance": distance_driven, "stalls": stalls,
+		"extra": JSON.from_native(extra_save.call() if extra_save.is_valid() else {}),
 	}, "\t"))
 
 
@@ -297,6 +302,8 @@ func load_save() -> bool:
 	elapsed = float(d.get("elapsed", 0.0))
 	distance_driven = float(d.get("distance", 0.0))
 	stalls = int(d.get("stalls", 0))
+	var extra: Variant = JSON.to_native(d.get("extra", {}))
+	loaded_extra = extra if extra is Dictionary else {}
 	return checkpoint > 0
 
 

@@ -2102,7 +2102,7 @@ Legend:
 | Item carrying | ✅ DONE (M1) |
 | Item throwing | ✅ DONE (M1) |
 | Inventory | ✅ DONE (M4: 4-slot hotbar) |
-| RV storage | 🟡 PARTIAL (M1: items put down inside ride along; no slots yet) |
+| RV storage | ✅ DONE (M7: 31 physical slots: plank rack, spare mount, can holders, tool wall, fridge, shelf, bed, cup holders; saved) |
 | Winch | ✅ DONE (M2) |
 | Winch controller | ✅ DONE (M2) |
 | Planks | ✅ DONE (M2) |

@@ -81,6 +81,7 @@ func is_placed() -> bool:
 ## Takes the item into a hand (frozen, no collision) under `hand`.
 func grab(player: Player, hand: Node3D) -> void:
 	set_meta(&"placed", false)
+	remove_meta(&"slot")
 	if winch_of():
 		winch_of().on_hook_grabbed()
 	holder = player
@@ -95,6 +96,7 @@ func grab(player: Player, hand: Node3D) -> void:
 ## Lets go into the world at `xf` with `velocity` (dropping or throwing).
 func release(world_parent: Node, xf: Transform3D, velocity: Vector3) -> void:
 	holder = null
+	remove_meta(&"slot")
 	reparent(world_parent, false)
 	global_transform = xf
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
@@ -126,6 +128,7 @@ func place(parent: Node, xf: Transform3D) -> void:
 ## Puts the item down inside the RV at `local` (RV space), where it rides along frozen.
 func stow(rv: RV, local: Transform3D) -> void:
 	holder = null
+	remove_meta(&"slot") # StorageSlot.store sets it again.
 	reparent(rv.stash, false)
 	transform = local
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT

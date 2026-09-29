@@ -26,7 +26,7 @@ const TRIP_INTERVAL := 1.0
 ## First ids are fixed: the winch hooks (made by every machine's RV).
 const HOOK_IDS: Array[int] = [1, 2]
 const PLAYER_CALLS: Array[StringName] = [&"hurt", &"poison", &"knock", &"revive", &"say"]
-const META_KEYS: Array[StringName] = [&"fuel", &"puffs", &"cook", &"tire", &"part", &"wheel"]
+const META_KEYS: Array[StringName] = [&"fuel", &"puffs", &"cook", &"tire", &"part", &"wheel", &"slot"]
 
 var active := false
 var pg: Playground
@@ -518,10 +518,6 @@ func _apply_record(id: int, r: Array, xf: Transform3D, velocity: Vector3) -> voi
 	_applying = true
 	_known[id] = r
 	item.def["name"] = r[3]
-	for k: Variant in (r[4] as Dictionary):
-		item.set_meta(StringName(k), r[4][k])
-	if item.kind == &"patty":
-		ItemLibrary.tint(item, ItemLibrary.patty_color(float(item.get_meta(&"cook", 0.0))))
 	var where: int = r[0]
 	var holder := player_of(int(r[1])) if where == Where.HELD else null
 	if item.holder != holder or where != Where.HELD:
@@ -559,6 +555,13 @@ func _apply_record(id: int, r: Array, xf: Transform3D, velocity: Vector3) -> voi
 			if not is_host():
 				item.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 				item.freeze = true # The host simulates loose things.
+	# Meta last: moving an item clears its storage slot.
+	if not (r[4] as Dictionary).has(&"slot"):
+		item.remove_meta(&"slot")
+	for k: Variant in (r[4] as Dictionary):
+		item.set_meta(StringName(k), r[4][k])
+	if item.kind == &"patty":
+		ItemLibrary.tint(item, ItemLibrary.patty_color(float(item.get_meta(&"cook", 0.0))))
 	_applying = false
 
 
