@@ -41,6 +41,8 @@ var _download := HTTPRequest.new()
 var _download_path := ""
 var _busy := false
 var _apply_error := ""
+## Restarting into the update (so quitting needn't finish it in the background).
+var _restarting := false
 
 
 func _ready() -> void:
@@ -50,18 +52,67 @@ func _ready() -> void:
 	_download.use_threads = true
 	add_child(_download)
 	_load_settings()
+	if _finish_update_if_asked():
+		return
 	if not BuildInfo.can_update():
 		_set_state(State.DISABLED, "Development build: updates are off.")
 		return
+	var programs := OS.get_environment("LOCALAPPDATA")
 	_install = UpdateLogic.detect(OS.get_name(), OS.get_executable_path(), OS.get_environment("APPIMAGE"),
-		ProjectSettings.globalize_path("user://"))
+		ProjectSettings.globalize_path("user://"), OS.get_environment("TEMP"),
+		programs.path_join("Programs") if programs != "" else "")
 	UpdateLogic.cleanup(_install)
 	if _install.mode == UpdateLogic.Mode.UNSUPPORTED:
 		_set_state(State.DISABLED, _install.problem)
 		return
+	if UpdateLogic.has_pending(_install):
+		# Quit last time before an update could be swapped in: finish it now, then play.
+		print("[updater] Finishing the update installed last time.")
+		UpdateLogic.finish_in_background(_install, OS.get_process_id(), true)
+		get_tree().quit.call_deferred()
+		return
+	if _install.relocated and FileAccess.file_exists(_install.launch):
+		# Run from the zip, but a copy's been installed by an update: play that one.
+		print("[updater] Starting the installed copy: ", _install.launch)
+		OS.create_process(_install.launch, [])
+		get_tree().quit.call_deferred()
+		return
 	_set_state(State.IDLE, "")
 	if auto_update:
 		get_tree().create_timer(AUTO_CHECK_DELAY, true).timeout.connect(_auto_check)
+
+
+func _exit_tree() -> void:
+	# Quitting with an update ready (Windows portable): it's swapped in once the game's gone.
+	if _install and state == State.READY and _install.deferred and not _restarting:
+		UpdateLogic.finish_in_background(_install, OS.get_process_id(), false)
+
+
+## Started as a new version to finish a Windows portable update (`UpdateLogic.finish`): swap
+## this copy's files over the install once the old game has exited, start it, and quit.
+func _finish_update_if_asked() -> bool:
+	var target := ""
+	var wait_pid := 0
+	var then_run := ""
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with(UpdateLogic.FINISH_ARG):
+			target = arg.trim_prefix(UpdateLogic.FINISH_ARG)
+		elif arg.begins_with(UpdateLogic.WAIT_ARG):
+			wait_pid = int(arg.trim_prefix(UpdateLogic.WAIT_ARG))
+		elif arg.begins_with(UpdateLogic.THEN_ARG):
+			then_run = arg.trim_prefix(UpdateLogic.THEN_ARG)
+	if target == "":
+		return false
+	state = State.DISABLED
+	get_window().mode = Window.MODE_MINIMIZED
+	var err := UpdateLogic.finish(OS.get_executable_path().get_base_dir(), target, wait_pid)
+	if err != "":
+		print("[updater] ", err)
+		OS.alert("The update couldn't be finished: %s\nStart Detour again to try once more." % err, "Detour")
+	elif then_run != "":
+		OS.create_process(then_run, [])
+	get_tree().quit.call_deferred()
+	return true
 
 
 func _process(_delta: float) -> void:
@@ -107,8 +158,10 @@ func update_now() -> void:
 func restart() -> void:
 	if state != State.READY:
 		return
+	_restarting = true
 	var err := UpdateLogic.launch(_install, _download_path)
 	if err < 0:
+		_restarting = false
 		_set_state(State.FAILED, "Couldn't start the new version. Please start Detour again.")
 		return
 	get_tree().quit()
@@ -182,7 +235,10 @@ func _check_and_install() -> void:
 	if _apply_error != "":
 		_set_state(State.FAILED, _apply_error)
 		return
-	_set_state(State.READY, "%s is installed. Restart to play it." % new_version)
+	if _install.relocated:
+		_set_state(State.READY, "%s is ready. Restart to play it (from now on Detour runs from %s)." % [new_version, _install.target])
+	else:
+		_set_state(State.READY, "%s is installed. Restart to play it." % new_version)
 
 
 ## Runs on a worker thread: hashing and unpacking a 150 MB download takes a few seconds.

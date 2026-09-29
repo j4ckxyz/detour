@@ -15,6 +15,7 @@ func _initialize() -> void:
 	_detection()
 	_replace_tree()
 	_folder_zip()
+	_windows_portable()
 	if OS.get_name() != "Windows":
 		_folder_tar()
 		_appimage()
@@ -77,8 +78,13 @@ func _detection() -> void:
 
 	var win := UpdateLogic.detect("Windows", _root.path_join("Detour.exe"), "", _root)
 	_check(win.mode == UpdateLogic.Mode.FOLDER_ZIP, "writable Windows folder updates in place")
+	_check(win.deferred and not win.relocated, "and swaps files once the game has exited")
 	var locked := UpdateLogic.detect("Windows", _root.path_join("missing/Detour.exe"), "", _root)
 	_check(locked.mode == UpdateLogic.Mode.WINDOWS_INSTALLER and locked.staging.begins_with(_root), "read-only Windows install uses the installer")
+	var zipped := UpdateLogic.detect("Windows", "C:\\Users\\Sam\\AppData\\Local\\Temp\\Temp1_Detour-windows-x86_64.zip\\Detour.exe", "", _root,
+		"c:\\users\\sam\\appdata\\local\\temp", "C:\\Users\\Sam\\AppData\\Local\\Programs")
+	_check(zipped.mode == UpdateLogic.Mode.FOLDER_ZIP and zipped.relocated and zipped.deferred, "run from inside the zip: updates install a copy of its own")
+	_check(zipped.target.ends_with("Programs/Detour") and zipped.launch.ends_with("Programs/Detour/Detour.exe"), "in LOCALAPPDATA\\Programs\\Detour: %s" % zipped.launch)
 
 
 func _replace_tree() -> void:
@@ -114,6 +120,53 @@ func _folder_zip() -> void:
 	_check(_read(target.path_join("Detour.exe")) == "v2" and _read(target.path_join("rvcore.x86_64.dll")) == "v2 lib", "zip contents installed")
 	UpdateLogic.cleanup(inst)
 	_check(not DirAccess.dir_exists_absolute(inst.staging), "zip leftovers cleaned up")
+
+
+## Windows portable: the update's unpacked beside the install (nothing in use is touched),
+## kept through a relaunch's cleanup, then the new copy swaps its files in once the old game
+## has exited.
+func _windows_portable() -> void:
+	var target := _dir("portable/Detour")
+	_write(target.path_join("Detour.exe"), "v1")
+	_write(target.path_join("rvcore.x86_64.dll"), "v1 lib")
+	_write(target.path_join("settings.txt"), "mine")
+	var archive := _root.path_join("portable/Detour-windows-x86_64.zip")
+	var zip := ZIPPacker.new()
+	zip.open(archive)
+	for pair: Array in [["Detour.exe", "v2"], ["rvcore.x86_64.dll", "v2 lib"], ["extra/readme.txt", "new"]]:
+		zip.start_file(pair[0])
+		zip.write_file((pair[1] as String).to_utf8_buffer())
+		zip.close_file()
+	zip.close()
+	var inst := _install(UpdateLogic.Mode.FOLDER_ZIP, target, target.path_join(UpdateLogic.STAGING))
+	inst.launch = target.path_join("Detour.exe")
+	inst.deferred = true
+	DirAccess.make_dir_recursive_absolute(inst.staging)
+	var download := inst.staging.path_join("Detour-windows-x86_64.zip")
+	DirAccess.copy_absolute(archive, download)
+	var err := UpdateLogic.apply(inst, download)
+	_check(err == "", "portable unpack: %s" % err)
+	_check(_read(target.path_join("Detour.exe")) == "v1", "nothing in use is touched while the game runs")
+	_check(UpdateLogic.has_pending(inst), "the update waits, unpacked")
+	UpdateLogic.cleanup(inst)
+	_check(UpdateLogic.has_pending(inst) and not FileAccess.file_exists(download), "a relaunch keeps it (and drops the download)")
+	var pending := inst.staging.path_join(UpdateLogic.PENDING)
+	err = UpdateLogic.finish(pending, target, 0)
+	_check(err == "", "the new copy swaps itself in: %s" % err)
+	_check(_read(target.path_join("Detour.exe")) == "v2" and _read(target.path_join("rvcore.x86_64.dll")) == "v2 lib", "portable files replaced")
+	_check(_read(target.path_join("extra/readme.txt")) == "new" and _read(target.path_join("settings.txt")) == "mine", "new files added, others kept")
+	_check(not UpdateLogic.has_pending(inst), "and it's not applied twice")
+	UpdateLogic.cleanup(inst)
+	_check(not DirAccess.dir_exists_absolute(inst.staging), "portable leftovers cleaned up")
+	# Run from the zip: the first update installs a whole copy of its own.
+	var own := _root.path_join("portable/Programs/Detour")
+	var moved := _install(UpdateLogic.Mode.FOLDER_ZIP, own, own.path_join(UpdateLogic.STAGING))
+	moved.launch = own.path_join("Detour.exe")
+	moved.deferred = true
+	moved.relocated = true
+	err = UpdateLogic.apply(moved, archive)
+	_check(err == "" and UpdateLogic.finish(moved.staging.path_join(UpdateLogic.PENDING), own, 0) == "", "relocated install: %s" % err)
+	_check(_read(own.path_join("Detour.exe")) == "v2", "a copy of its own, ready to run")
 
 
 func _folder_tar() -> void:

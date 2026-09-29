@@ -544,7 +544,12 @@ Downloaded builds keep themselves current from this repo's GitHub releases:
 - **How each platform is replaced:**
   - **macOS**: the `.app` bundle.
   - **Linux**: the AppImage file, or the files from the tarball.
-  - **Windows**: the files in the install folder. If that folder isn't writable (an
+  - **Windows portable (zip)**: the running game holds its own `.exe` open, so the new
+    version is unpacked beside it and swaps itself in once the game has exited (on
+    **Restart to update**, when you quit, or on the next launch), then starts. Run straight
+    from inside the zip (without extracting it), the update installs a copy in
+    `%LOCALAPPDATA%\Programs\Detour`, and the copy in the zip hands over to it from then on.
+  - **Windows installer**: the files in the install folder; if that folder isn't writable (an
     all-users install), the installer runs silently on restart instead.
 - **When updates are off:**
   - Builds run from source or the editor never update themselves.
