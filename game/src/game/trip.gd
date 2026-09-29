@@ -20,6 +20,8 @@ const CAVE_LOOT: Array[Array] = [
 ## How close (m) the RV must get to a pad's centre to arrive (stations sit beside the road:
 ## their centre is ~14 m from it).
 const ARRIVE_RADIUS := 20.0
+const START_HOUR := 8.0
+const HOURS_PER_SECOND := 1.0 / 60.0
 const SAVE_DIR := "user://saves"
 ## Items a station restocks (kind, count).
 const RESTOCK: Array[Array] = [
@@ -34,6 +36,9 @@ var data: Dictionary
 ## Index into `data.pads` of the last stop reached (0 = the camp).
 var checkpoint := 0
 var elapsed := 0.0
+## Game time: hours since midnight before the trip (starts at 08:00; one game hour passes per
+## real minute, so a day is 24 minutes).
+var hours := START_HOUR
 var distance_driven := 0.0
 var stalls := 0
 var is_finished := false
@@ -241,6 +246,7 @@ func _physics_process(dt: float) -> void:
 	if is_finished or rv == null or rv.freeze:
 		return
 	elapsed += dt
+	hours += dt * HOURS_PER_SECOND
 	notice_time = maxf(0.0, notice_time - dt)
 	if _last_rv_pos != Vector3.INF:
 		distance_driven += Vector2(rv.global_position.x - _last_rv_pos.x, rv.global_position.z - _last_rv_pos.z).length()
@@ -324,6 +330,17 @@ func summary() -> String:
 	]
 
 
+## The time of day, "14:05".
+func clock_text() -> String:
+	var h := fposmod(hours, 24.0)
+	return "%02d:%02d" % [int(h), int(fposmod(h * 60.0, 60.0))]
+
+
+## Day of the trip, 1 on the first.
+func day() -> int:
+	return int(hours / 24.0) + 1
+
+
 static func _clock(seconds: float) -> String:
 	var s := int(seconds)
 	return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
@@ -342,7 +359,7 @@ func save() -> void:
 		return
 	f.store_string(JSON.stringify({
 		"gen": WorldGen.gen_version(), "seed": world.get_code(), "checkpoint": checkpoint,
-		"elapsed": elapsed, "distance": distance_driven, "stalls": stalls,
+		"elapsed": elapsed, "distance": distance_driven, "stalls": stalls, "hours": hours,
 		"extra": JSON.from_native(extra_save.call() if extra_save.is_valid() else {}),
 	}, "\t"))
 
@@ -357,6 +374,7 @@ func load_save() -> bool:
 	elapsed = float(d.get("elapsed", 0.0))
 	distance_driven = float(d.get("distance", 0.0))
 	stalls = int(d.get("stalls", 0))
+	hours = float(d.get("hours", START_HOUR))
 	var extra: Variant = JSON.to_native(d.get("extra", {}))
 	loaded_extra = extra if extra is Dictionary else {}
 	return checkpoint > 0

@@ -42,6 +42,7 @@ var _defaults: Dictionary[StringName, Array] = {
 	&"throw_item": [_mouse(MOUSE_BUTTON_RIGHT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)],
 	&"drop_item": [_key(KEY_Q), _key(KEY_G), _button(JOY_BUTTON_B)],
 	&"winch_select": [_key(KEY_R), _button(JOY_BUTTON_Y)],
+	&"flashlight": [_key(KEY_L), _button(JOY_BUTTON_DPAD_UP)],
 	&"slot_1": [_key(KEY_1)],
 	&"slot_2": [_key(KEY_2)],
 	&"slot_3": [_key(KEY_3)],

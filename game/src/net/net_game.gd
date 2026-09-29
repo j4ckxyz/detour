@@ -652,7 +652,7 @@ func _spray(index: int, from: Vector3) -> void:
 # --- the trip --------------------------------------------------------------------------------
 
 func _trip_state() -> Array:
-	return [pg.trip.checkpoint, pg.trip.elapsed, pg.trip.distance_driven, pg.trip.stalls, pg.trip.is_finished]
+	return [pg.trip.checkpoint, pg.trip.elapsed, pg.trip.distance_driven, pg.trip.stalls, pg.trip.is_finished, pg.trip.hours]
 
 
 func _apply_trip_state(s: Array) -> void:
@@ -661,6 +661,7 @@ func _apply_trip_state(s: Array) -> void:
 	pg.trip.distance_driven = s[2]
 	pg.trip.stalls = s[3]
 	pg.trip.is_finished = s[4]
+	pg.trip.hours = s[5]
 
 
 @rpc("authority", "unreliable_ordered")

@@ -2132,8 +2132,8 @@ Legend:
 | Mud | ✅ DONE (M3) |
 | Ice | ✅ DONE (M8: frozen ponds on the road, frozen lakes; planks give grip) |
 | Caves | ✅ DONE (M8: roadside caves with supplies; placeholder rock) |
-| Weather | MISSING |
-| Day/night | MISSING |
+| Weather | ✅ DONE (M9: seeded spells: rain, snow, fog, storms; wet grip, gusts) |
+| Day/night | ✅ DONE (M9: clock, moving sun/moon, dusk, night, flashlight) |
 | Multiplayer lobby | ✅ DONE (M6: main menu host/join; LAN list, direct IP, relay room codes) |
 | Player replication | ✅ DONE (M6) |
 | Shared RV networking | ✅ DONE (M6: driver simulates, ownership handoff) |

@@ -27,6 +27,7 @@ walk around, winch, push and repair. Play solo or together on a LAN, by IP or th
 | **Right click** | Throw the held item (inside the RV: put it down) |
 | **Q** / **G** | Drop the held item (inside the RV it's stowed and rides along) |
 | **R** | With the winch remote: switch between front and rear winch |
+| **L** | Flashlight on/off |
 | **1**–**4** / **mouse wheel** | Pick a hotbar slot (small items pocket; big ones need an empty hand) |
 | **F** | Get up from a seat |
 | **Esc** | Pause menu |
@@ -121,6 +122,21 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   - The RV starts with the hammer and drill on the tool wall, burgers and patties on the
     fridge, a soda in a cup holder, first aid and scrap on the bed, and the EpiPen, antidote
     and bear spray on the shelf; the winch remote lies on the dashboard.
+
+## Time of day and weather
+
+- **Clock**: trips start at **08:00** on day 1; one game hour passes per real minute (a day
+  is 24 minutes). The top of the screen shows "Day 1, 14:05 · Rain". Tows cost an hour.
+- **Day and night**: the sun rises in the east at 06:00 and sets in the west at 18:00; dawn
+  and dusk tint the sky and sunlight orange; nights are dark blue under a faint moon. Use the
+  RV's headlights and your **flashlight** (**L** on foot; the HUD reminds you when it's dark).
+- **Weather** comes in 3-hour spells, the same for everyone on a seed (the first morning is
+  always fine): clear, cloudy, rain, fog or storms. In Frostpeak Pass wet spells are snow; Red
+  Rock Canyon stays dry (clouds instead of rain, no fog).
+  - Rain and snow fall around you; clouds dim and grey the sky; fog closes in.
+  - Rain wets the ground over a minute or so (it dries slowly afterwards): wet tires grip up
+    to 15 % less.
+  - Storms bring lightning flashes and gusts that rock the tall RV sideways.
 
 ## Health and survival
 - **Health** (100). Hurts: **falls** (a ~5 m drop is safe, ~8 m costs a quarter, ~15 m nearly
@@ -506,7 +522,7 @@ Planned (see PLAN.md), roughly in the order they're coming:
 - **More obstacles**: rockslides, cliffs and steps, lava; rivers that wind through the land
   (fords are straight channels today) and caves you drive through.
 - **World variety**: a volcanic biome, real models and textures for the new biomes (the
-  trees and caves are placeholder shapes), weather, day/night.
+  trees and caves are placeholder shapes), more weather effects (puddles, snow cover building up).
 - **Co-op**: proximity voice chat; saving each player's inventory with the trip.
 - **Sound**: engine, horn, tires, ambience, music. The game is currently **silent**.
 - **Menus and options**: settings (key rebinding, graphics, audio), cosmetics, and the

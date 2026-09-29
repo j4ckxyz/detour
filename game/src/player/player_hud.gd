@@ -6,6 +6,8 @@ const TEXT := Color(0.96, 0.93, 0.86)
 const DIM := Color(0.96, 0.93, 0.86, 0.7)
 
 var player: Player
+## Set by the game when it's dark out (the HUD then mentions the flashlight).
+var dark := false
 
 var _dot := Label.new()
 var _prompt := Label.new()
@@ -95,6 +97,8 @@ func _process(_delta: float) -> void:
 			bits.append("%s winch: %s" % [w.label.capitalize(), state])
 	if player.pushing:
 		bits.append("Pushing!")
+	if dark and not player.flashlight.visible and not player.inside:
+		bits.append("Dark: L flashlight")
 	if player.swimming:
 		bits.append("Swimming (Space: up)")
 	var health := "Health %d" % roundi(player.health)

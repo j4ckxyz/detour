@@ -95,6 +95,11 @@ var surface_query: Callable
 var ice_query: Callable
 ## Optional `func(x, z) -> float`: the water surface there (-10000 if dry).
 var water_query: Callable
+## 0..1: how wet the ground is (rain); the tires grip a little less.
+var wetness := 0.0
+## Storm gusts (a unit-ish vector scaled by strength); pushes the tall RV sideways.
+var wind := Vector3.ZERO
+const WIND_FORCE := 2200.0
 ## How deep the RV stands in water (metres over the bottom of the body), for the HUD.
 var wading := 0.0
 ## Grip left on ice (planks laid on it give it back).
@@ -518,6 +523,7 @@ func _physics_process(dt: float) -> void:
 			if ice_query.is_valid():
 				var ice: float = ice_query.call(wheel.contact.x, wheel.contact.z)
 				wheel.surface_grip *= lerpf(1.0, ICE_GRIP, ice)
+			wheel.surface_grip *= 1.0 - 0.15 * wetness
 
 	# Drivetrain: the engine is coupled to the driven wheels' rolling speed. (Feeding it
 	# wheelspin too would couple the light axle to the flywheel through a stiff clutch,
@@ -561,6 +567,8 @@ func _physics_process(dt: float) -> void:
 	for winch: RVWinch in winches:
 		winch.step(dt)
 	_wade(dt)
+	if wind != Vector3.ZERO:
+		apply_force(wind * WIND_FORCE, global_basis.y * 1.5) # High up: it rocks the RV.
 	_anti_roll(wheels[0], wheels[1], 26000.0)
 	_anti_roll(wheels[2], wheels[3], 18000.0)
 	apply_central_force(-linear_velocity * linear_velocity.length() * DRAG)

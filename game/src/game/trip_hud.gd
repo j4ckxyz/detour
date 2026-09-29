@@ -4,6 +4,7 @@ extends CanvasLayer
 ## notices, and the summary at the end.
 
 var trip: Trip
+var weather: Weather
 
 var _line := Label.new()
 var _notice := Label.new()
@@ -39,6 +40,8 @@ func _process(_delta: float) -> void:
 			_line.text = "%s — find the road" % next[0]
 		else:
 			_line.text = "%s — %.1f km down the road" % [next[0], float(next[1]) / 1000.0]
+	if weather:
+		_line.text = "Day %d, %s · %s\n%s" % [trip.day(), trip.clock_text(), weather.describe(), _line.text]
 	if Session.is_online():
 		var names: PackedStringArray = []
 		for peer: int in Session.players:

@@ -100,6 +100,7 @@ var target_prompt := ""
 
 var camera := Camera3D.new()
 var hand := Node3D.new()
+var flashlight := SpotLight3D.new()
 ## Which winch the remote works (index into rv.winches).
 var winch_choice := 0
 var message := ""
@@ -173,6 +174,14 @@ func _ready() -> void:
 	add_child(camera)
 	hand.name = "Hand"
 	camera.add_child(hand)
+	flashlight.name = "Flashlight"
+	flashlight.position = Vector3(0.2, -0.15, -0.2)
+	flashlight.spot_range = 28.0
+	flashlight.spot_angle = 24.0
+	flashlight.light_energy = 3.0
+	flashlight.light_color = Color(1.0, 0.95, 0.85)
+	flashlight.visible = false
+	camera.add_child(flashlight)
 	var ghost_material := StandardMaterial3D.new()
 	ghost_material.albedo_color = Color(0.6, 1.0, 0.6, 0.35)
 	ghost_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -215,6 +224,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.is_action_pressed(&"interact"):
 			bleed_out = 0.0 # Give up and pass out now.
 			get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed(&"flashlight") and not is_driving():
+		flashlight.visible = not flashlight.visible
+		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed(&"winch_select") and held and held.kind == &"winch_remote" and rv:
 		winch_choice = (winch_choice + 1) % rv.winches.size()
@@ -455,7 +468,7 @@ func forget(item: Item) -> void:
 func net_state() -> Array:
 	var pos := _proxy.position if inside else global_position
 	var v := _proxy.velocity if inside else velocity
-	return [inside, pos, v, _yaw, _pitch, _crouch, seat, downed, health, venom > 0.0, selected]
+	return [inside, pos, v, _yaw, _pitch, _crouch, seat, downed, health, venom > 0.0, selected, flashlight.visible]
 
 
 ## Puppets: takes on a snapshot from the player's machine.
@@ -472,6 +485,7 @@ func apply_net_state(s: Array) -> void:
 	downed = s[7]
 	health = s[8]
 	venom = 1.0 if s[9] else 0.0
+	flashlight.visible = s[11]
 	if int(s[10]) != selected:
 		selected = s[10]
 		for i: int in SLOTS:

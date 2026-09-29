@@ -47,6 +47,7 @@ var trip := Trip.new()
 var trip_hud := TripHud.new()
 var wildlife := Wildlife.new()
 var net := NetGame.new()
+var weather := Weather.new()
 ## Loose items in the world.
 var items := Node3D.new()
 var rv: RV
@@ -127,7 +128,11 @@ func _ready() -> void:
 	player_hud.visible = false
 	add_child(player_hud)
 	trip_hud.trip = trip
+	trip_hud.weather = weather
 	add_child(trip_hud)
+	weather.name = "Weather"
+	weather.setup(world.get_code())
+	add_child(weather)
 	if Session.is_host():
 		menu.add_action("Tow to the last checkpoint", tow_to_checkpoint)
 		menu.add_action("Restart this trip", restart_trip)
@@ -175,6 +180,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key and key.pressed and not key.echo and PRESET_KEYS.has(key.physical_keycode):
 		_apply_preset(PRESET_KEYS[key.physical_keycode])
+
+
+func _process(dt: float) -> void:
+	var cam := get_viewport().get_camera_3d()
+	var at := cam.global_position if cam else rv.global_position
+	weather.update(trip.hours, at, world.biome_at(at.x, at.z), dt)
+	lighting.set_conditions(fposmod(trip.hours, 24.0), weather.cloud, weather.fog, weather.flash)
+	rv.wetness = weather.wetness
+	player_hud.dark = lighting.daylight < 0.35
+	rv.wind = weather.wind
 
 
 func _physics_process(_dt: float) -> void:
@@ -231,6 +246,7 @@ func tow_to_checkpoint() -> void:
 	player.global_position = by_the_door() + Vector3.UP * 0.1
 	player.reset_physics_interpolation()
 	trip.elapsed += 15.0 * 60.0
+	trip.hours += 1.0
 	trip.show_notice("Towed back to the last checkpoint (+15 min).", 6.0)
 
 
