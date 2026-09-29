@@ -18,6 +18,7 @@ const SAVE_DIR := "user://saves"
 ## Items a station restocks (kind, count).
 const RESTOCK: Array[Array] = [
 	[&"plank", 2], [&"jerrycan", 1], [&"scrap_metal", 2], [&"motor_oil", 1], [&"burger", 2], [&"spare_tire", 1],
+	[&"patty", 2], [&"soda", 1], [&"epipen", 1], [&"antidote", 1], [&"bear_spray", 1],
 ]
 
 var world: WorldGen

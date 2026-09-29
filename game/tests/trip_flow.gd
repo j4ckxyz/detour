@@ -23,6 +23,7 @@ func _start(fresh: bool) -> void:
 		await get_tree().process_frame
 	_pg = PLAYGROUND.instantiate()
 	_pg.fresh_start = fresh
+	_pg.peaceful = true
 	add_child(_pg)
 	var waited := 0
 	while not _pg.is_spawned and waited < HZ * 60:

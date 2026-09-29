@@ -11,6 +11,10 @@ extends CharacterBody3D
 
 ## Seat changes: &"" when standing up. The playground switches cameras and controls on this.
 signal seat_changed(seat: StringName)
+## Health ran out (true) or someone got them back up (false).
+signal downed_changed(is_downed: bool)
+## Bled out while down: the playground wakes them up again by the RV.
+signal passed_out
 
 ## Physics layer of players.
 const LAYER := 8
@@ -33,6 +37,22 @@ const MAX_HEALTH := 100.0
 ## Push on the RV per player (N), fading out by PUSH_FADE_SPEED (m/s).
 const PUSH_FORCE := 3000.0
 const PUSH_FADE_SPEED := 1.4
+## Seconds a downed player lasts before passing out, and how fast they crawl meanwhile.
+const BLEED_OUT := 60.0
+const CRAWL_SPEED := 0.8
+const DOWNED_EYE_HEIGHT := 0.45
+## Health an EpiPen gets you back up with.
+const REVIVE_HEALTH := 40.0
+## Snake venom: health lost per second, and how long a bite keeps working without antidote.
+const VENOM_DPS := 1.2
+const VENOM_TIME := 90.0
+## Landing faster than this (m/s) hurts, by FALL_DAMAGE per m/s over (a ~5 m drop is safe,
+## ~8 m costs a quarter of your health, ~15 m nearly all of it).
+const FALL_SAFE_SPEED := 10.0
+const FALL_DAMAGE := 9.0
+## The RV moving into you faster than this (m/s) knocks you over, by RV_HIT_DAMAGE per m/s over.
+const RV_HIT_SPEED := 3.5
+const RV_HIT_DAMAGE := 9.0
 
 ## The RV this player can board.
 var rv: RV
@@ -55,6 +75,14 @@ var seat := &""
 ## In the RV's interior space (walking inside, or seated).
 var inside := false
 var health := MAX_HEALTH
+## Out of health: crawling, waiting for an EpiPen, bleeding out (`bleed_out` seconds left).
+var downed := false
+var bleed_out := 0.0
+## Seconds of snake venom left working (0 = not poisoned).
+var venom := 0.0
+## What hurt last, and a 0..1 flash for the HUD that fades after each hit.
+var hurt_cause := ""
+var hurt_flash := 0.0
 ## Current interaction target (an Interactable or an Item) and its prompt.
 var target: Node3D
 var target_prompt := ""
@@ -75,6 +103,7 @@ var _proxy := CharacterBody3D.new()
 var _prev_rv_velocity := Vector3.ZERO
 var _ghost := MeshInstance3D.new()
 var _tool_timer := 0.0
+var _rv_hit_cooldown := 0.0
 
 
 func _init() -> void:
@@ -105,11 +134,16 @@ func local_position() -> Vector3:
 	return _proxy.position
 
 
+func is_crouching() -> bool:
+	return _crouch > 0.5 and not downed
+
+
 func is_on_ground() -> bool:
 	return _proxy.is_on_floor() if inside else is_on_floor()
 
 
 func _ready() -> void:
+	add_to_group(&"players")
 	camera.name = "Eyes"
 	camera.fov = 75.0
 	camera.near = 0.05
@@ -152,6 +186,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_echo():
 		return
+	if downed:
+		if event.is_action_pressed(&"use_item") and find_item(&"epipen"):
+			consume(find_item(&"epipen"))
+			revive(null)
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed(&"interact"):
+			bleed_out = 0.0 # Give up and pass out now.
+			get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed(&"winch_select") and held and held.kind == &"winch_remote" and rv:
 		winch_choice = (winch_choice + 1) % rv.winches.size()
 		get_viewport().set_input_as_handled()
@@ -183,6 +226,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(dt: float) -> void:
+	_tick_health(dt)
 	_work_winch_remote()
 	_work_held_tool(dt)
 	if seat != &"":
@@ -190,9 +234,11 @@ func _physics_process(dt: float) -> void:
 		return
 	var wish := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back") if input_enabled else Vector2.ZERO
 	var crouching := input_enabled and Input.is_action_pressed(&"crouch")
-	_crouch = move_toward(_crouch, 1.0 if crouching else 0.0, dt * 6.0)
+	_crouch = move_toward(_crouch, 1.0 if crouching or downed else 0.0, dt * 6.0)
 	var speed := CROUCH_SPEED if crouching else (SPRINT_SPEED if Input.is_action_pressed(&"sprint") else WALK_SPEED)
-	var jump := input_enabled and Input.is_action_just_pressed(&"jump") and not crouching
+	if downed:
+		speed = CRAWL_SPEED
+	var jump := input_enabled and Input.is_action_just_pressed(&"jump") and not crouching and not downed
 	if inside:
 		_move_inside(dt, wish, speed, jump)
 	else:
@@ -219,10 +265,13 @@ func _move_outside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
 	var was_on_floor := is_on_floor()
 	var wished := velocity
 	move_and_slide()
+	if not was_on_floor and is_on_floor() and -wished.y > FALL_SAFE_SPEED:
+		hurt((-wished.y - FALL_SAFE_SPEED) * FALL_DAMAGE, "fell")
 	if was_on_floor and is_on_wall():
 		_step_up(self, Vector3(velocity.x, 0.0, velocity.z) * dt)
 	_push_rv(wished, wish)
-	if rv and rv.door_open:
+	_check_run_over(dt)
+	if rv and rv.door_open and not downed:
 		var local := rv.to_local(global_position)
 		var toward_rv := (rv.global_basis.inverse() * velocity).x < -0.2
 		if rv.interior.in_doorway(local, 0.9) and local.y < rv.interior.floor_y + 0.6 and toward_rv:
@@ -252,6 +301,122 @@ func _move_inside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
 		_follow_rv(p)
 
 
+## The RV doesn't collide with people (it would stop dead against them): instead, standing in
+## its way while it moves hurts and knocks you aside.
+func _check_run_over(dt: float) -> void:
+	_rv_hit_cooldown = maxf(0.0, _rv_hit_cooldown - dt)
+	if rv == null or _rv_hit_cooldown > 0.0:
+		return
+	for i: int in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		if col.get_collider() == rv and col.get_normal().y > 0.7:
+			return # Riding on it (the roof, the bumper).
+	var local := rv.to_local(global_position + Vector3.UP * 0.9)
+	var half := Playground.RV_HALF_EXTENTS + Vector3(RADIUS, 0.0, RADIUS)
+	if absf(local.x) > half.x or absf(local.z) > half.z or local.y < -0.6 or local.y > 3.4:
+		return
+	var rv_v := rv.point_velocity(global_position)
+	var away := Vector3(global_position.x - rv.global_position.x, 0.0, global_position.z - rv.global_position.z)
+	var side := rv.global_basis.x * signf(local.x) if absf(local.x) / half.x > absf(local.z) / half.z else rv.global_basis.z * signf(local.z)
+	var closing := (rv_v - velocity).dot(side)
+	if closing < RV_HIT_SPEED or away.length() < 0.01:
+		return
+	_rv_hit_cooldown = 1.0
+	velocity = rv_v + side * 2.5 + Vector3.UP * 3.0
+	hurt((closing - RV_HIT_SPEED) * RV_HIT_DAMAGE + 5.0, "hit by the RV")
+
+
+## Takes `amount` of health (`cause` for the HUD). At zero you go down.
+func hurt(amount: float, cause: String) -> void:
+	if downed or amount <= 0.0:
+		return
+	health -= amount
+	hurt_cause = cause
+	hurt_flash = 1.0
+	if health <= 0.0:
+		go_down()
+
+
+func heal(amount: float) -> void:
+	if not downed:
+		health = minf(MAX_HEALTH, health + amount)
+
+
+func poison() -> void:
+	venom = VENOM_TIME
+
+
+## Out of health: down on the ground, crawling, until an EpiPen or bleeding out.
+func go_down() -> void:
+	if downed:
+		return
+	health = 0.0
+	downed = true
+	bleed_out = BLEED_OUT
+	if seat != &"":
+		stand_up()
+	if held and held.def.get("two_handed", false):
+		drop_held()
+	add_to_group(&"interactable") # Teammates revive you by looking at you.
+	downed_changed.emit(true)
+
+
+## Back on your feet (an EpiPen: `by` another player, or null for your own).
+func revive(_by: Player) -> void:
+	if not downed:
+		return
+	downed = false
+	health = REVIVE_HEALTH
+	venom = minf(venom, 20.0) # It buys time; the antidote still cures it.
+	remove_from_group(&"interactable")
+	downed_changed.emit(false)
+
+
+## Wakes up after passing out (the playground has moved us back to the RV).
+func wake_up(with_health: float) -> void:
+	downed = false
+	health = with_health
+	venom = 0.0
+	remove_from_group(&"interactable")
+	downed_changed.emit(false)
+
+
+func _tick_health(dt: float) -> void:
+	hurt_flash = maxf(0.0, hurt_flash - dt * 1.5)
+	if venom > 0.0:
+		venom = maxf(0.0, venom - dt)
+		if not downed:
+			health -= VENOM_DPS * dt
+			hurt_cause = "snake venom"
+			if health <= 0.0:
+				go_down()
+	if downed:
+		bleed_out -= dt
+		if bleed_out <= 0.0:
+			bleed_out = 0.0
+			passed_out.emit()
+
+
+# Downed players are interactable (for teammates with an EpiPen).
+func interact_prompt(player: Player) -> String:
+	if player == self or not downed:
+		return ""
+	if player.find_item(&"epipen"):
+		return "Revive with your EpiPen"
+	return "Needs an EpiPen to get up"
+
+
+func interact(player: Player) -> void:
+	var pen := player.find_item(&"epipen")
+	if player != self and downed and pen:
+		player.consume(pen)
+		revive(player)
+
+
+func interact_reach() -> float:
+	return 2.2
+
+
 ## Walking into the RV pushes it (PLAN.md §4.2): a scripted force at the contact, strongest
 ## from a standstill and gone by a brisk walk, so pushing helps but never launches it.
 func _push_rv(wished: Vector3, wish: Vector2) -> void:
@@ -277,7 +442,7 @@ func _push_rv(wished: Vector3, wish: Vector2) -> void:
 ## Tools you hold the button down for (the drill): ticks while Use is held.
 func _work_held_tool(dt: float) -> void:
 	_tool_timer = maxf(0.0, _tool_timer - dt)
-	if held == null or not input_enabled or seat != &"" or not Input.is_action_pressed(&"use_item"):
+	if held == null or not input_enabled or downed or seat != &"" or not Input.is_action_pressed(&"use_item"):
 		return
 	var action := ItemLibrary.hold_action(held.kind)
 	if action.is_valid() and _tool_timer <= 0.0:
@@ -287,7 +452,7 @@ func _work_held_tool(dt: float) -> void:
 func _work_winch_remote() -> void:
 	if rv == null:
 		return
-	var remote := held != null and held.kind == &"winch_remote" and input_enabled
+	var remote := held != null and held.kind == &"winch_remote" and input_enabled and not downed
 	for i: int in rv.winches.size():
 		var drive := 0
 		if remote and i == winch_choice:
@@ -491,8 +656,8 @@ func _stow(item: Item) -> void:
 	item.stow(rv, Transform3D(Basis(Vector3.UP, _yaw), spot + Vector3.UP * (item.base_offset + 0.01)))
 
 
-func eat(item: Item) -> void:
-	health = minf(MAX_HEALTH, health + 30.0)
+func eat(item: Item, amount: float = 30.0) -> void:
+	heal(amount)
 	consume(item)
 
 
@@ -510,7 +675,7 @@ func aim_rv() -> Dictionary:
 
 
 func _place_camera() -> void:
-	var eye_height := lerpf(EYE_HEIGHT, CROUCH_EYE_HEIGHT, _crouch)
+	var eye_height := lerpf(EYE_HEIGHT, DOWNED_EYE_HEIGHT if downed else CROUCH_EYE_HEIGHT, _crouch)
 	if seat != &"" and rv:
 		var rv_xf := rv.get_global_transform_interpolated()
 		var eye: Vector3 = rv.seats[seat]["eye"]
@@ -526,14 +691,14 @@ func _place_camera() -> void:
 func _find_target() -> void:
 	target = null
 	target_prompt = ""
-	if not input_enabled or seat != &"":
+	if not input_enabled or seat != &"" or downed:
 		return
 	var eye := camera.global_position
 	var forward := -camera.global_basis.z
 	var best := -INF
 	for node: Node in get_tree().get_nodes_in_group(&"interactable"):
 		var n := node as Node3D
-		if n == null or n == held or not n.is_visible_in_tree():
+		if n == null or n == held or n == self or not n.is_visible_in_tree():
 			continue
 		var to := n.global_position - eye
 		var dist := to.length()

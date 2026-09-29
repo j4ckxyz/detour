@@ -17,7 +17,9 @@ static var DEFS: Dictionary[StringName, Dictionary] = {
 	&"scrap_metal": {"name": "Scrap metal", "model": "scrapmetal", "mass": 3.0,
 		"hold": Transform3D(Basis(Vector3.RIGHT, 0.9), Vector3(0.22, -0.3, -0.6))},
 	&"motor_oil": {"name": "Motor oil", "model": "oilbottle", "mass": 1.0, "hold": SMALL_HOLD},
-	&"burger": {"name": "Burger", "model": "burger", "mass": 0.3, "hold": SMALL_HOLD},
+	&"burger": {"name": "Burger", "model": "burger", "mass": 0.3, "hold": SMALL_HOLD, "heal": 30.0},
+	&"patty": {"name": "Frozen patty", "model": "@patty", "mass": 0.2, "hold": SMALL_HOLD},
+	&"soda": {"name": "Soda", "model": "@soda", "mass": 0.35, "hold": SMALL_HOLD, "heal": 10.0},
 	&"antidote": {"name": "Antidote", "model": "antidote", "mass": 0.2, "hold": SMALL_HOLD},
 	&"epipen": {"name": "EpiPen", "model": "epipen", "mass": 0.1, "hold": SMALL_HOLD},
 	&"bear_spray": {"name": "Bear spray", "model": "bearspray", "mass": 0.4, "hold": SMALL_HOLD},
@@ -42,6 +44,15 @@ const JERRY_CAN_LITRES := 20.0
 const PLANK_REACH := 5.5
 ## Must match rvgen::route::PLANK_LENGTH and the plank model.
 const PLANK_LENGTH := 5.0
+## Bear spray: puffs per can, and the cone it reaches (metres, cos of the half angle).
+const SPRAY_PUFFS := 6
+const SPRAY_RANGE := 7.0
+const SPRAY_CONE := 0.8
+const FIRST_AID_HEAL := 60.0
+## A patty's cooking (seconds on a grill): thawed, cooked, burnt.
+const PATTY_THAWED := 6.0
+const PATTY_COOKED := 14.0
+const PATTY_BURNT := 32.0
 
 static var _meshes: Dictionary[String, Mesh] = {}
 
@@ -91,9 +102,55 @@ static func _dress(item: Item, mesh: Mesh, scale: float = 1.0) -> void:
 ## Callable if it has no use of its own (yet).
 static func use_action(kind: StringName) -> Callable:
 	match kind:
-		&"burger":
+		&"burger", &"soda":
 			return func(item: Item, player: Player) -> bool:
-				player.eat(item)
+				player.eat(item, item.def["heal"])
+				return true
+		&"patty":
+			return func(item: Item, player: Player) -> bool:
+				var cook := float(item.get_meta(&"cook", 0.0))
+				if cook < PATTY_THAWED:
+					player.say("Rock hard. Cook it on a grill or the RV's stove first.")
+					return false
+				if cook < PATTY_COOKED:
+					player.eat(item, 5.0)
+					player.say("Still raw in the middle. Not great.")
+				elif cook < PATTY_BURNT:
+					player.eat(item, 40.0)
+				else:
+					player.eat(item, 10.0)
+					player.say("Crunchy.")
+				return true
+		&"first_aid":
+			return func(item: Item, player: Player) -> bool:
+				if player.health >= Player.MAX_HEALTH:
+					player.say("You're not hurt.")
+					return false
+				player.heal(FIRST_AID_HEAL)
+				player.consume(item)
+				return true
+		&"antidote":
+			return func(item: Item, player: Player) -> bool:
+				if player.venom <= 0.0:
+					player.say("Save it for a snake bite.")
+					return false
+				player.venom = 0.0
+				player.consume(item)
+				player.say("The venom's gone.")
+				return true
+		&"epipen":
+			return func(_item: Item, player: Player) -> bool:
+				player.say("For getting someone (or yourself) back up when they're down.")
+				return false
+		&"bear_spray":
+			return func(item: Item, player: Player) -> bool:
+				var puffs := int(item.get_meta(&"puffs", SPRAY_PUFFS))
+				if puffs <= 0:
+					player.say("Empty.")
+					return false
+				item.set_meta(&"puffs", puffs - 1)
+				item.def["name"] = "Bear spray (%d)" % (puffs - 1) if puffs > 1 else "Empty bear spray"
+				spray(player)
 				return true
 		&"winch_hook":
 			return func(item: Item, player: Player) -> bool:
@@ -230,8 +287,19 @@ static func use_hint(item: Item, player: Player) -> String:
 			if litres <= 0.0:
 				return "empty: fill it at a gas station pump"
 			return "LMB pour %d L into the tank" % roundi(litres) if aim.get("kind") == "fuel" else "look at the fuel cap (left side)"
-		&"burger":
-			return "LMB eat"
+		&"burger", &"soda":
+			return "LMB eat" if item.kind == &"burger" else "LMB drink"
+		&"patty":
+			var cook := float(item.get_meta(&"cook", 0.0))
+			return "put it on a grill or the RV's stove" if cook < PATTY_THAWED else "LMB eat"
+		&"first_aid":
+			return "LMB patch yourself up (+%d)" % roundi(FIRST_AID_HEAL)
+		&"antidote":
+			return "LMB cure snake venom" if player.venom > 0.0 else "cures snake venom"
+		&"epipen":
+			return "revives a downed player (E on them, or LMB when you're down)"
+		&"bear_spray":
+			return "LMB spray (%d left): scares off wildlife" % int(item.get_meta(&"puffs", SPRAY_PUFFS))
 		&"winch_hook":
 			var anchor: Variant = find_anchor(player)
 			return "LMB hook onto the %s" % anchor["what"] if anchor != null else "look at a tree, rock or stump to hook on"
@@ -240,6 +308,48 @@ static func use_hint(item: Item, player: Player) -> String:
 		&"winch_remote":
 			return "hold LMB reel in · RMB pay out · R switch winch"
 	return ""
+
+
+## A puff of bear spray from the player's hand: an orange cloud, and every animal in the cone
+## is scared off.
+static func spray(player: Player) -> void:
+	var from := player.camera.global_position
+	var forward := -player.camera.global_basis.z
+	for n: Node in player.get_tree().get_nodes_in_group(&"wildlife"):
+		var animal := n as Node3D
+		var to := animal.global_position + Vector3.UP * 0.5 - from
+		var d := to.length()
+		if d < SPRAY_RANGE and (d < 1.2 or to.dot(forward) / d > SPRAY_CONE):
+			animal.call(&"sprayed", player.global_position)
+	var cloud := CPUParticles3D.new()
+	cloud.one_shot = true
+	cloud.explosiveness = 0.8
+	cloud.amount = 40
+	cloud.lifetime = 1.2
+	cloud.direction = Vector3.FORWARD
+	cloud.spread = 14.0
+	cloud.initial_velocity_min = 5.0
+	cloud.initial_velocity_max = 7.0
+	cloud.damping_min = 4.0
+	cloud.damping_max = 6.0
+	cloud.gravity = Vector3(0.0, 0.3, 0.0)
+	cloud.scale_amount_min = 0.3
+	cloud.scale_amount_max = 0.9
+	var puff := SphereMesh.new()
+	puff.radius = 0.25
+	puff.height = 0.5
+	puff.radial_segments = 6
+	puff.rings = 3
+	var mist := StandardMaterial3D.new()
+	mist.albedo_color = Color(1.0, 0.45, 0.15, 0.35)
+	mist.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mist.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	puff.material = mist
+	cloud.mesh = puff
+	player.get_tree().current_scene.add_child(cloud)
+	cloud.global_transform = Transform3D(player.camera.global_basis, from + forward * 0.6 + Vector3.DOWN * 0.15)
+	cloud.emitting = true
+	cloud.finished.connect(cloud.queue_free)
 
 
 ## A winch anchor under the crosshair within reach: {position, what}, or null.
@@ -311,6 +421,10 @@ static func plank_placement(player: Player) -> Variant:
 static func _mesh(model: String) -> Mesh:
 	if model == "@hook" and not _meshes.has(model):
 		_meshes[model] = _hook_mesh()
+	if model == "@patty" and not _meshes.has(model):
+		_meshes[model] = _disc_mesh(0.065, 0.025, Color(0.85, 0.6, 0.6))
+	if model == "@soda" and not _meshes.has(model):
+		_meshes[model] = _disc_mesh(0.033, 0.12, Color(0.8, 0.12, 0.12))
 	if not _meshes.has(model):
 		var path := (TripStops.KENNEY % model.trim_prefix("kenney:")) if model.begins_with("kenney:") else MODELS % model
 		var scene := load(path) as PackedScene
@@ -358,3 +472,54 @@ static func _hook_mesh() -> Mesh:
 		st.commit(mesh)
 		mesh.surface_set_material(mesh.get_surface_count() - 1, part[2])
 	return mesh
+
+
+## A little low-poly cylinder (a patty, a can), standing on its base.
+static func _disc_mesh(radius: float, height: float, color: Color) -> Mesh:
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = radius
+	cyl.bottom_radius = radius
+	cyl.height = height
+	cyl.radial_segments = 10
+	cyl.rings = 1
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.roughness = 0.7
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.append_from(cyl, 0, Transform3D(Basis.IDENTITY, Vector3.UP * height * 0.5))
+	var mesh := st.commit()
+	mesh.surface_set_material(0, mat)
+	return mesh
+
+
+## Recolours one item (a patty cooking) without touching the shared mesh.
+static func tint(item: Item, color: Color) -> void:
+	var mi := item.get_child(0) as MeshInstance3D
+	var mat := mi.material_override as StandardMaterial3D
+	if mat == null:
+		mat = StandardMaterial3D.new()
+		mat.roughness = 0.7
+		mi.material_override = mat
+	mat.albedo_color = color
+
+
+## A patty's colour for how cooked it is.
+static func patty_color(cook: float) -> Color:
+	if cook < PATTY_THAWED:
+		return Color(0.85, 0.6, 0.6).lerp(Color(0.8, 0.35, 0.35), cook / PATTY_THAWED) # Frosty pink to raw.
+	if cook < PATTY_COOKED:
+		return Color(0.8, 0.35, 0.35).lerp(Color(0.45, 0.26, 0.15), (cook - PATTY_THAWED) / (PATTY_COOKED - PATTY_THAWED))
+	if cook < PATTY_BURNT:
+		return Color(0.45, 0.26, 0.15)
+	return Color(0.12, 0.1, 0.09)
+
+
+static func patty_name(cook: float) -> String:
+	if cook < PATTY_THAWED:
+		return "Frozen patty"
+	if cook < PATTY_COOKED:
+		return "Raw patty"
+	if cook < PATTY_BURNT:
+		return "Cooked patty"
+	return "Burnt patty"

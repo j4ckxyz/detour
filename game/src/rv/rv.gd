@@ -208,6 +208,11 @@ func _build_wheels() -> void:
 		wheels.append(wheel)
 
 
+## The kitchen stove's top, RV space (cooks patties like any grill).
+const STOVE_TOP := Vector3(0.83, 1.79, 1.3)
+var stove := Grill.new()
+
+
 func _build_interior() -> void:
 	interior.build(load(MODEL_COLLISION) as PackedScene)
 	add_child(interior)
@@ -222,6 +227,9 @@ func _build_interior() -> void:
 	door.prompt_for = func(_p: Player) -> String: return "Close door" if door_open else "Open door"
 	door.used.connect(func(_p: Player) -> void: door_open = not door_open)
 	add_child(door)
+	stove.name = "Stove"
+	stove.position = STOVE_TOP
+	add_child(stove)
 
 	# (seat, marker, label, how far behind the seat the player stands up)
 	var seat_specs: Array[Array] = [

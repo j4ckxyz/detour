@@ -12,10 +12,26 @@ var _prompt := Label.new()
 var _status := Label.new()
 var _hotbar := Label.new()
 var _message := Label.new()
+var _downed := Label.new()
+var _flash := ColorRect.new()
 
 
 func _ready() -> void:
 	layer = 40
+	_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flash.color = Color(0.7, 0.0, 0.0, 0.0)
+	add_child(_flash)
+	_downed.add_theme_font_size_override("font_size", 24)
+	_downed.add_theme_color_override("font_color", Color(1.0, 0.85, 0.8))
+	_downed.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_downed.add_theme_constant_override("outline_size", 8)
+	_downed.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_downed.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_downed.offset_top = -120.0
+	_downed.offset_bottom = -40.0
+	_downed.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	add_child(_downed)
 	_dot.text = "·"
 	_dot.add_theme_font_size_override("font_size", 28)
 	_dot.add_theme_color_override("font_color", Color(1, 1, 1, 0.75))
@@ -79,7 +95,13 @@ func _process(_delta: float) -> void:
 			bits.append("%s winch: %s" % [w.label.capitalize(), state])
 	if player.pushing:
 		bits.append("Pushing!")
-	bits.append("Health %d" % roundi(player.health))
+	var health := "Health %d" % roundi(player.health)
+	if player.venom > 0.0:
+		health += "  POISONED (antidote!)"
+	bits.append(health)
+	var danger := _danger()
+	if danger != "":
+		bits.append(danger)
 	_status.text = "     ".join(bits)
 	var bar: PackedStringArray = []
 	for i: int in Player.SLOTS:
@@ -89,3 +111,27 @@ func _process(_delta: float) -> void:
 	_hotbar.text = "  ".join(bar)
 	_message.visible = player.message_time > 0.0
 	_message.text = player.message
+	_downed.visible = player.downed
+	if player.downed:
+		var help := "LMB  use your EpiPen" if player.find_item(&"epipen") else "A teammate with an EpiPen can get you up"
+		_downed.text = "You're down (%s)!  %d s\n%s   ·   E  pass out (wake up by the RV)" % [player.hurt_cause, ceili(player.bleed_out), help]
+	var alpha := 0.35 if player.downed else player.hurt_flash * 0.3 + (0.08 if player.venom > 0.0 else 0.0)
+	_flash.color = Color(0.45, 0.6, 0.0, alpha) if player.venom > 0.0 and not player.downed and player.hurt_flash < 0.1 else Color(0.7, 0.0, 0.0, alpha)
+
+
+## Warnings about nearby animals (until they have sounds): a rattle, a bear coming.
+func _danger() -> String:
+	if player.inside:
+		return ""
+	var warn := ""
+	for n: Node in get_tree().get_nodes_in_group(&"wildlife"):
+		var snake := n as Snake
+		if snake and snake.is_rattling() and snake.target == player:
+			warn = "*rattle rattle* A snake! Back off"
+		var bear := n as Bear
+		if bear and bear.target == player and bear.state in [Bear.State.ALERT, Bear.State.CHASE, Bear.State.ATTACK]:
+			return "A BEAR! Run for the RV or use bear spray"
+		var eagle := n as Eagle
+		if eagle and eagle.target == player and eagle.state == Eagle.State.DIVE:
+			warn = "An eagle's diving at you!"
+	return warn

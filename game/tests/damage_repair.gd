@@ -20,6 +20,7 @@ var _failures: PackedStringArray = []
 func _ready() -> void:
 	_pg = PLAYGROUND.instantiate()
 	_pg.fresh_start = true
+	_pg.peaceful = true
 	add_child(_pg)
 	_run()
 

@@ -21,6 +21,7 @@ var _min_up := 1.0
 func _ready() -> void:
 	_pg = PLAYGROUND.instantiate()
 	_pg.fresh_start = true
+	_pg.peaceful = true
 	add_child(_pg)
 	_run()
 

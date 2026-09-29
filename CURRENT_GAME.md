@@ -22,8 +22,8 @@ push. No other players yet.
 | **Ctrl** (hold) | Crouch |
 | **Space** | Jump |
 | **Mouse** | Look |
-| **E** | Interact with what you're looking at: open/close the door, sit in a seat (the driver's seat takes the wheel), pick up an item |
-| **Left click** | Use the held item (e.g. eat a burger) |
+| **E** | Interact with what you're looking at: open/close the door, sit in a seat (the driver's seat takes the wheel), pick up an item, put a patty on a grill; when you're down: give up and pass out |
+| **Left click** | Use the held item (e.g. eat a burger, spray bear spray); when you're down: use your EpiPen |
 | **Right click** | Throw the held item (inside the RV: put it down) |
 | **Q** / **G** | Drop the held item (inside the RV it's stowed and rides along) |
 | **R** | With the winch remote: switch between front and rear winch |
@@ -109,9 +109,41 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   held two-handed and dropped if you sit), drop, throw (heavier things go less far) and use.
   Put something down inside the RV and it stays where you put it and rides along.
   Items in the world: planks, jerry can, scrap metal, spare tire and motor oil by the RV at
-  the start; winch remote, first-aid kit and two burgers inside. Burgers heal 30 (eat with
-  left click); the other items' uses arrive with their systems (winch, repairs, fuel).
-- **Health** is shown (100); nothing hurts you yet.
+  the start; inside: winch remote, first-aid kit, two burgers, two frozen patties, a soda,
+  an EpiPen, an antidote, bear spray, a hammer, a drill and scrap.
+
+## Health and survival
+- **Health** (100). Hurts: **falls** (a ~5 m drop is safe, ~8 m costs a quarter, ~15 m nearly
+  everything), **the RV** running into you (it doesn't stop for people: get out of the way),
+  **bears**, **snakes** and **eagles**. A red flash shows each hit.
+- **Snake venom**: a bite poisons you (the screen tints green): −1.2 health a second for 90 s
+  unless you use an **antidote**.
+- **Downed**: at 0 health you drop to the ground and can only crawl (0.8 m/s). You bleed out in
+  **60 s**. Left click uses an **EpiPen** from your hotbar to get back up with 40 health; a
+  teammate can revive you with theirs (E on you). **E** gives up; bleeding out or giving up
+  wakes you by the RV with 50 health (+5 min on the trip clock).
+- **Food and medicine**: burger +30, soda +10, first-aid kit +60, cooked patty +40 (a raw one
+  +5, a burnt one +10; a frozen one can't be eaten).
+- **Cooking**: frozen patties go on a grill (E while holding one): **the RV's stove**, the
+  **camp fire** and a **grill at each gas station**. They thaw (6 s), cook (14 s) and burn
+  (32 s), changing colour; pick them off with E.
+- **Wildlife** (placeholder low-poly shapes for now), placed the same way for the same seed,
+  more and meaner further along the road; nothing notices you while you're inside the RV:
+  - **Rattlesnakes** by the road near obstacles, where you have to get out. They **rattle**
+    when you come within 6 m (3.6 m crouching): go round. Closer than 1.6 m they **bite** (8
+    and venom).
+  - **Bears** in the woods beside obstacles (never near the camp or home). A bear sees you
+    within 24 m (12 m crouching), **rears up** as a warning, then **charges** at 6.3 m/s
+    (you sprint at 7) and **swipes** for 30. It gives up if you get in the RV, go down, get
+    45 m away or lead it 80 m from home.
+  - **Eagles** circle over gas stations and the later road. They dive at anyone outside
+    holding something small (food, medicine, bear spray), snatch it with a scratch (5) and
+    drop it 60–90 m away.
+  - **Bear spray** (6 puffs): left click sprays a 7 m cone that sends bears and snakes off
+    (and makes an eagle drop what it's carrying). The RV driving at an animal scares it off
+    too.
+  - The HUD warns you: "*rattle rattle*", "A BEAR!", "An eagle's diving at you!" (until
+    sounds land). `-- --peaceful` turns wildlife off.
 
 ## The trip
 
@@ -141,8 +173,8 @@ Long have 5 and 11 stations). The default seed is `DT2-01YPW-3A7T8`.
   by the RV.
 - **Gas stations** (checkpoints): a shop with a diner sign, a canopy over two pumps, a welding
   bench, barrels and crates. Drive up to one and the game **saves**, says so, and **restocks**:
-  2 planks, a jerry can, 2 scrap metal, motor oil, 2 burgers and a spare tire in front of the
-  shop.
+  2 planks, a jerry can, 2 scrap metal, motor oil, 2 burgers, a spare tire, 2 frozen patties,
+  a soda, an EpiPen, an antidote and bear spray in front of the shop. There's a grill too.
 - **Home**: a house with a fence and a big "HOME" sign. Arrive and the trip ends with a
   summary: time, distance driven, stalls and winch rope reeled in.
 - **Saves**: quitting and relaunching continues from the last gas station (per seed; start

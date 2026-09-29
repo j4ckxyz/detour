@@ -99,6 +99,8 @@ static func _camp() -> Node3D:
 	fire.light_energy = 1.5
 	fire.omni_range = 6.0
 	_place(camp, fire, Vector3(-2.0, 0.6, 7.5))
+	_place(camp, _block(Vector3(0.8, 0.04, 0.6), Color(0.15, 0.15, 0.15), false), Vector3(-2.0, 0.5, 7.5)) # Grate.
+	_place(camp, Grill.new(), Vector3(-2.0, 0.54, 7.5))
 	_place(camp, model("survival/signpost_single", 2.2, 1), Vector3(6.0, 0.0, 5.5))
 	var text := _label("CAMP\nHome is down the road", 40)
 	text.position = Vector3(6.0, 1.55, 5.43)
@@ -142,6 +144,11 @@ static func _station(index: int, stations: int) -> Node3D:
 	for p: Vector3 in [Vector3(-5.6, 0, 6.2), Vector3(-5.9, 0, 7.1), Vector3(5.8, 0, 9.8)]:
 		_place(st, model("survival/barrel", 1.0, 1), p)
 	_place(st, model("survival/crate", 0.9, 1), Vector3(-5.2, 0.0, 9.6), 0.3)
+	_place(st, _block(Vector3(0.9, 0.9, 0.6), Color(0.12, 0.12, 0.13)), Vector3(-6.8, 0.0, 3.2)) # Barbecue.
+	_place(st, Grill.new(), Vector3(-6.8, 0.9, 3.2), PI / 2.0)
+	var bbq := _label("GRILL", 40)
+	bbq.position = Vector3(-6.8, 1.5, 2.85)
+	st.add_child(bbq)
 	var lamp := OmniLight3D.new()
 	lamp.light_energy = 2.0
 	lamp.omni_range = 12.0

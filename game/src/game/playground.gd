@@ -8,6 +8,7 @@ extends Node3D
 ##   --preset=NAME    potato | low | medium | high (default: detected)
 ##   --automatic      start with the automatic gearbox
 ##   --new            ignore any saved progress for this seed (start at the camp)
+##   --peaceful       no wildlife
 ##
 ## Keys: see the F1 help. F5-F8 switch graphics presets, F3 perf overlay.
 
@@ -43,12 +44,15 @@ var player := Player.new()
 var player_hud := PlayerHud.new()
 var trip := Trip.new()
 var trip_hud := TripHud.new()
+var wildlife := Wildlife.new()
 ## Loose items in the world.
 var items := Node3D.new()
 var rv: RV
 var is_spawned := false
 ## Ignore saved progress (tests set this before adding the playground).
 var fresh_start := false
+## No wildlife (tests that aren't about it set this before adding the playground).
+var peaceful := false
 
 var _args: Dictionary[String, String] = {}
 var _spawn_near := START
@@ -102,6 +106,7 @@ func _ready() -> void:
 	player.rv = rv
 	player.world_items = items
 	player.seat_changed.connect(_on_seat_changed)
+	player.passed_out.connect(_on_passed_out)
 	player_hud.player = player
 	player_hud.visible = false
 	add_child(player_hud)
@@ -156,10 +161,17 @@ func _physics_process(_dt: float) -> void:
 	if is_spawned and rv.freeze and streamer.has_collision_at(rv.global_position):
 		rv.freeze = false
 		rv.reset_physics_interpolation()
+	if is_spawned and not player.inside:
+		_catch_falling_player()
 	if is_spawned or not streamer.has_collision_at(_spawn_near):
 		return
 	_place_rv(trip.start_transform())
 	trip.build()
+	wildlife.name = "Wildlife"
+	add_child(wildlife)
+	wildlife.setup(world, rv, items, trip.data)
+	if not (peaceful or _args.has("peaceful")):
+		wildlife.populate()
 	_spawn_player()
 	if trip.checkpoint == 0:
 		_spawn_starter_items()
@@ -168,6 +180,16 @@ func _physics_process(_dt: float) -> void:
 		trip.show_notice("Welcome back: continuing from gas station %d." % trip.checkpoint, 6.0)
 	is_spawned = true
 	spawned.emit()
+
+
+## Someone who slipped under the ground (a glitch, a teleport onto a slope) is put back on it.
+func _catch_falling_player() -> void:
+	var p := player.global_position
+	var ground := world.height_at(p.x, p.z)
+	if p.y < ground - 3.0 and streamer.has_collision_at(p):
+		player.global_position = Vector3(p.x, ground + 0.5, p.z)
+		player.velocity = Vector3.ZERO
+		player.reset_physics_interpolation()
 
 
 ## "Call a tow": the RV (and you) go back to the last checkpoint. It costs 15 minutes.
@@ -179,10 +201,7 @@ func tow_to_checkpoint() -> void:
 	if player.inside:
 		player.leave_rv()
 	_place_rv(trip.start_transform())
-	var door := Vector3(rv.interior.door_x_outer + 1.6, 0.0, (rv.interior.door_z.x + rv.interior.door_z.y) * 0.5)
-	var at := rv.to_global(door)
-	at.y = world.height_at(at.x, at.z) + 0.2
-	player.global_position = at
+	player.global_position = by_the_door() + Vector3.UP * 0.1
 	player.reset_physics_interpolation()
 	trip.elapsed += 15.0 * 60.0
 	trip.show_notice("Towed back to the last checkpoint (+15 min).", 6.0)
@@ -193,11 +212,29 @@ func restart_trip() -> void:
 	get_tree().reload_current_scene()
 
 
-## Puts the player on foot by the RV's door, facing it.
-func _spawn_player() -> void:
+## Where someone stands outside the RV's door (world space, on the ground).
+func by_the_door() -> Vector3:
 	var door := Vector3(rv.interior.door_x_outer + 1.6, 0.0, (rv.interior.door_z.x + rv.interior.door_z.y) * 0.5)
 	var at := rv.to_global(door)
 	at.y = world.height_at(at.x, at.z) + 0.1
+	return at
+
+
+## Bled out: they come to by the RV (or where they lay, if that was inside it).
+func _on_passed_out() -> void:
+	var cause := player.hurt_cause
+	if not player.inside:
+		player.global_position = by_the_door()
+		player.velocity = Vector3.ZERO
+		player.reset_physics_interpolation()
+	player.wake_up(50.0)
+	trip.elapsed += 5.0 * 60.0
+	trip.show_notice("You passed out (%s) and came to by the RV (+5 min)." % cause, 6.0)
+
+
+## Puts the player on foot by the RV's door, facing it.
+func _spawn_player() -> void:
+	var at := by_the_door()
 	add_child(player)
 	player.global_position = at
 	var to_rv := rv.global_position - at
@@ -226,6 +263,9 @@ func _spawn_starter_items() -> void:
 		[&"burger", Vector3(-0.7, 1.6, -0.5)], [&"burger", Vector3(-0.95, 1.6, -0.45)],
 		[&"hammer", Vector3(0.85, 1.8, -1.1)], [&"drill", Vector3(0.85, 1.8, -1.35)],
 		[&"scrap_metal", Vector3(0.0, 0.9, -0.9)], [&"scrap_metal", Vector3(0.0, 0.9, -1.4)],
+		[&"epipen", Vector3(-0.3, 1.34, -2.15)], [&"antidote", Vector3(-0.15, 1.34, -2.2)],
+		[&"bear_spray", Vector3(0.95, 1.8, -0.85)], [&"soda", Vector3(0.7, 1.8, 0.7)],
+		[&"patty", Vector3(0.75, 1.8, 0.45)], [&"patty", Vector3(0.9, 1.8, 0.45)],
 	]
 	for spec: Array in inside:
 		var item := ItemLibrary.create(spec[0])

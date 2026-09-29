@@ -2120,13 +2120,13 @@ Legend:
 | Spare tires | ✅ DONE (M4) |
 | Fuel | ✅ DONE (M4) |
 | Jerry cans | ✅ DONE (M4) |
-| Player health | MISSING |
-| Downed state | MISSING |
-| Revive | MISSING |
-| Food | MISSING |
-| Antidote | MISSING |
-| Wildlife | MISSING |
-| Bear spray | MISSING |
+| Player health | ✅ DONE (M5: falls, RV, wildlife) |
+| Downed state | ✅ DONE (M5: crawl, 60 s bleed-out) |
+| Revive | ✅ DONE (M5: EpiPen, self or teammate) |
+| Food | ✅ DONE (M5: burgers, soda, patties cooked on grills/stove) |
+| Antidote | ✅ DONE (M5: snake venom) |
+| Wildlife | ✅ DONE (M5: bears, rattlesnakes, eagles; placeholder looks) |
+| Bear spray | ✅ DONE (M5) |
 | Multiple biomes | MISSING |
 | Rivers/lakes | MISSING |
 | Mud | ✅ DONE (M3) |
