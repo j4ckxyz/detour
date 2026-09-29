@@ -23,7 +23,6 @@ var _defaults: Dictionary[StringName, Array] = {
 	&"rv_toggle_gearbox": [_key(KEY_T), _button(JOY_BUTTON_DPAD_DOWN)],
 	&"rv_reset": [_key(KEY_BACKSPACE), _button(JOY_BUTTON_RIGHT_STICK)],
 	&"pause_menu": [_key(KEY_ESCAPE), _button(JOY_BUTTON_START)],
-	&"camera_toggle": [_key(KEY_C), _button(JOY_BUTTON_BACK)],
 	&"camera_look_left": [_axis(JOY_AXIS_RIGHT_X, -1.0)],
 	&"camera_look_right": [_axis(JOY_AXIS_RIGHT_X, 1.0)],
 	&"camera_look_up": [_axis(JOY_AXIS_RIGHT_Y, -1.0)],

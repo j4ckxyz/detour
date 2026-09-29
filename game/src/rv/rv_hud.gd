@@ -10,7 +10,7 @@ const REDLINE := Color(0.92, 0.36, 0.25)
 const HELP := """W/S  throttle / brake     A/D  steer     Space  handbrake
 Q  clutch (hold + move mouse: H-pattern)     E/Z or wheel  shift up / down
 1-5, R  pick a gear     T  manual / automatic     I  start engine
-L  headlights     C  chase / cab camera     Backspace  back on the wheels
+L  headlights     F  get up     Backspace  back on the wheels
 Click  capture mouse     Esc  menu (updates, quit)     F1  this help     F3  perf"""
 
 var rv: RV
@@ -119,7 +119,7 @@ func _process(_delta: float) -> void:
 	if d.is_cranking():
 		bits.append("cranking…")
 	elif not d.running:
-		bits.append("STALLED")
+		bits.append("STALLED (I to start)")
 		warn = true
 	if d.grinding > 0.0:
 		bits.append("GRIND")

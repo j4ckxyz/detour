@@ -508,6 +508,8 @@ func _on_seat_changed(seat: StringName) -> void:
 		rv.handbrake = false
 		if absf(rv.forward_speed()) < 1.0:
 			rv.parking_brake = true
+			if not rv.is_automatic():
+				rv.drivetrain.shift_to_neutral() # Left idling, not stalling against the brake.
 
 
 func _on_reset_requested() -> void:

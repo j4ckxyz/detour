@@ -1,6 +1,7 @@
 extends Node
-## Screenshot tour of a trip's places: the camp and the valley wall behind it, the road, the
-## valley's walls, a washed-out gap, a gas station and home.
+## Screenshot tour of a trip's places: the camp, two people by the RV, the valley wall behind
+## the camp, the road, the valley's walls, a washed-out gap, a gas station and home. (It uses
+## the chase camera, which only these debug tours can.)
 ##
 ##   godot --path game res://src/debug/trip_tour.tscn -- --shots=/tmp/trip
 
@@ -28,10 +29,24 @@ func _tour() -> void:
 	var trip := _pg.trip
 	var cam := _pg.camera
 	_pg.player.take_wheel()
+	cam.mode = RVCamera.Mode.CHASE # Debug only: players are always in first person.
 	await _seconds(3.0)
 	cam.set_look(2.6, -0.2)
 	await _seconds(0.5)
 	await _snap("camp")
+	# Two people by the RV's door, as others see them.
+	var people: Array[Node3D] = []
+	for i: int in 2:
+		var body := PillAvatar.build(Session.COLORS[i + 1], "Player %d" % (i + 2))
+		_pg.add_child(body)
+		var at := _pg.by_the_door() + _pg.rv.global_basis.z * (1.2 * i - 0.6)
+		body.global_transform = Transform3D(Basis.looking_at(_pg.rv.global_basis.x, Vector3.UP).rotated(Vector3.UP, 0.4 - 0.8 * i), at)
+		people.append(body)
+	cam.set_look(1.9, -0.05)
+	await _seconds(0.6)
+	await _snap("people")
+	for body: Node3D in people:
+		body.queue_free()
 	cam.set_look(0.0, -0.12)
 	cam.mode = RVCamera.Mode.COCKPIT
 	await _seconds(0.5)

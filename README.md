@@ -25,7 +25,7 @@ Check files against `SHA256SUMS` in the release.
 
 **Controls:** W/S throttle and brake, A/D steer, Space handbrake, Q clutch (hold it and move
 the mouse to work the H-pattern), E/Z or the mouse wheel to shift, 1–5 and R to pick a gear,
-T for manual/automatic, I to start the engine, L headlights, C chase/cab camera, Backspace to
+T for manual/automatic, I to start the engine, L headlights, F to get up, Backspace to
 get back on the wheels, Esc menu, F1 help, F3 performance overlay. Full list, including
 controller buttons: [CURRENT_GAME.md](CURRENT_GAME.md#controls).
 

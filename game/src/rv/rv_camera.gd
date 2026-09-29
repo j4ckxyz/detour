@@ -1,8 +1,8 @@
 class_name RVCamera
 extends Camera3D
-## Follows the RV: a chase view that trails behind and can be orbited, or the driver's eyes
-## in the cab. Click to capture the mouse (the Esc menu releases it), C (camera_toggle) to
-## switch.
+## The driver's eyes in the cab: the game is first person only, driving included. Click to
+## capture the mouse (the Esc menu releases it), then look round the cab with it (or the right
+## stick). The chase view is for the debug screenshot tours only; players can't switch to it.
 
 enum Mode { CHASE, COCKPIT }
 
@@ -13,10 +13,10 @@ enum Mode { CHASE, COCKPIT }
 
 var rv: RV
 var driver_input: RVDriverInput
-var mode := Mode.CHASE
+var mode := Mode.COCKPIT
 
 var _look_yaw := 0.0 # Relative to the RV's heading.
-var _look_pitch := -0.12
+var _look_pitch := -0.05
 var _chase_yaw := 0.0 # Smoothed heading the chase view trails.
 var _has_chase_yaw := false
 
@@ -28,11 +28,6 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not current:
-		return
-	if event.is_action_pressed(&"camera_toggle") and not event.is_echo():
-		mode = Mode.COCKPIT if mode == Mode.CHASE else Mode.CHASE
-		_look_yaw = 0.0
-		_look_pitch = -0.05 if mode == Mode.COCKPIT else -0.12
 		return
 	var motion := event as InputEventMouseMotion
 	if motion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \

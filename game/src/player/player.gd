@@ -165,7 +165,7 @@ func _ready() -> void:
 	if puppet:
 		collision_layer = 0
 		collision_mask = 0
-		_build_avatar()
+	_build_avatar()
 	camera.name = "Eyes"
 	camera.fov = 75.0
 	camera.near = 0.05
@@ -285,8 +285,8 @@ func _physics_process(dt: float) -> void:
 func _process(dt: float) -> void:
 	message_time = maxf(0.0, message_time - dt)
 	_place_camera()
+	_pose_avatar()
 	if puppet:
-		_pose_avatar()
 		return
 	_find_target()
 	_update_ghost()
@@ -515,56 +515,12 @@ func _follow_snapshots(dt: float) -> void:
 		velocity = _net_velocity
 
 
-## A simple stand-in body for other players: a jacket in their colour, a head, a name.
+## Everyone is a pill-shaped person (see PillAvatar): others see yours in your colour with
+## your name over it; your own casts just its shadow (you see the world from its eyes).
 func _build_avatar() -> void:
-	_avatar = Node3D.new()
-	_avatar.name = "Avatar"
+	var color := Session.color_of(peer_id)
+	_avatar = PillAvatar.build(color, Session.name_of(peer_id) if puppet else "", not puppet)
 	add_child(_avatar)
-	var jacket := StandardMaterial3D.new()
-	jacket.albedo_color = Session.color_of(peer_id)
-	var skin := StandardMaterial3D.new()
-	skin.albedo_color = Color(0.93, 0.76, 0.62)
-	var dark := StandardMaterial3D.new()
-	dark.albedo_color = Color(0.2, 0.2, 0.25)
-	var body := CapsuleMesh.new()
-	body.radius = 0.28
-	body.height = 1.1
-	body.radial_segments = 8
-	body.rings = 2
-	body.material = jacket
-	_avatar_part(body, Vector3(0.0, 1.0, 0.0))
-	var legs := BoxMesh.new()
-	legs.size = Vector3(0.42, 0.55, 0.26)
-	legs.material = dark
-	_avatar_part(legs, Vector3(0.0, 0.3, 0.0))
-	var head := SphereMesh.new()
-	head.radius = 0.16
-	head.height = 0.32
-	head.radial_segments = 8
-	head.rings = 4
-	head.material = skin
-	_avatar_part(head, Vector3(0.0, 1.68, 0.0))
-	var cap := BoxMesh.new()
-	cap.size = Vector3(0.3, 0.08, 0.36)
-	cap.material = jacket
-	_avatar_part(cap, Vector3(0.0, 1.81, -0.04))
-	var tag := Label3D.new()
-	tag.text = Session.name_of(peer_id)
-	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	tag.position = Vector3(0.0, 2.15, 0.0)
-	tag.font_size = 40
-	tag.outline_size = 10
-	tag.no_depth_test = true
-	tag.fixed_size = false
-	tag.pixel_size = 0.004
-	_avatar.add_child(tag)
-
-
-func _avatar_part(mesh: Mesh, pos: Vector3) -> void:
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.position = pos
-	_avatar.add_child(mi)
 
 
 func _pose_avatar() -> void:

@@ -65,6 +65,7 @@ func _tour() -> void:
 	await _seconds(0.5)
 	await _snap("inside_holding")
 	player.take_wheel()
+	cam.mode = RVCamera.Mode.CHASE # Debug only: players are always in first person.
 	_pg.driver.enabled = false
 	await _seconds(2.5) # Let the view stream in and the RV settle.
 	await _snap("parked_chase")

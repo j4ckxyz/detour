@@ -55,6 +55,8 @@ var clutch_pedal := 0.0
 var axle_torque := 0.0
 ## The last shift that was refused (manual, clutch not pressed), for UI feedback.
 var grinding := 0.0
+## Manual: feather the clutch so letting it out doesn't stall (set while not braking).
+var anti_stall := false
 
 var _crank_timer := -1.0
 var _auto_shift_timer := 0.0
@@ -105,6 +107,13 @@ func shift_to(new_gear: int) -> bool:
 	return true
 
 
+## Out of gear, whatever the clutch is doing (the driver getting up leaves it idling).
+func shift_to_neutral() -> void:
+	if gear != 0:
+		gear = 0
+		gear_changed.emit(gear)
+
+
 func crank() -> void:
 	if running or _crank_timer >= 0.0:
 		return
@@ -129,14 +138,25 @@ func step(dt: float, throttle: float, clutch_input: float, wheel_omega: float) -
 	if automatic:
 		_auto_gearbox(dt, throttle, wheel_omega)
 	else:
-		var rate := 1.0 / (PEDAL_PRESS_TIME if clutch_input > clutch_pedal else PEDAL_RELEASE_TIME)
-		clutch_pedal = move_toward(clutch_pedal, clampf(clutch_input, 0.0, 1.0), rate * dt)
+		var target := clampf(clutch_input, 0.0, 1.0)
+		var releasing := target < clutch_pedal
+		var rate := 1.0 / (PEDAL_RELEASE_TIME if releasing else PEDAL_PRESS_TIME)
+		if releasing and anti_stall and running and gear != 0:
+			# A key is all-or-nothing, so the foot feathers it for you: the pedal waits at
+			# the bite point while the engine sags, and backs off before it would stall.
+			rate *= smoothstep(IDLE_RPM * 0.6, IDLE_RPM * 0.95, rpm)
+			if rpm < IDLE_RPM * 0.6:
+				target = maxf(clutch_pedal, 0.6)
+				rate = 1.0 / PEDAL_PRESS_TIME
+		clutch_pedal = move_toward(clutch_pedal, target, rate * dt)
 
 	var omega := rpm * TAU / 60.0
 	var engine_torque := -friction_torque(rpm) if rpm > 1.0 else 0.0
 	if running:
-		# Idle governor opens the throttle a little when the engine sags below idle.
-		var governor := clampf((IDLE_RPM - rpm) / 250.0, 0.0, 1.0) * 0.4
+		# Idle governor: opens the throttle as the engine sags below idle, up to full, so a
+		# gently released clutch creeps the RV off at idle like a big old V8 (dumping it, or
+		# letting it out against the brakes, still stalls).
+		var governor := clampf((IDLE_RPM - rpm) / 150.0, 0.0, 1.0)
 		var open := maxf(throttle, governor)
 		if rpm > REDLINE_RPM or _auto_shift_timer > 0.0:
 			open = governor # Rev limiter; the automatic also backs off while it shifts.

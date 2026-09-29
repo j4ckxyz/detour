@@ -51,8 +51,8 @@ Walk through the open side door to get in or out; small ledges and rocks are ste
 | **T** | Switch manual ↔ automatic gearbox |
 | **I** | Start the engine (needs the clutch down or neutral) |
 | **L** | Headlights on/off |
-| **C** | Switch chase camera ↔ cab (driver's-eye) camera |
-| **Mouse** | Look around / orbit the chase camera (while the mouse is captured) |
+| **F** | Get up from the driver's seat |
+| **Mouse** | Look around the cab (while the mouse is captured) |
 | **Left click** | Capture the mouse |
 | **Backspace** | Put the RV back on its wheels at the nearest clear, level spot |
 | **Esc** | Pause menu (resume, update, auto-update toggle, quit); also releases the mouse |
@@ -72,14 +72,13 @@ Left stick walk, right stick look, **A** jump, **L3** sprint, **R3** crouch, **X
 | **Right trigger** | Throttle |
 | **Left trigger** | Brake (reverse in automatic, as above) |
 | **Left stick** | Steer |
-| **Right stick** | Look / orbit camera |
+| **Right stick** | Look around the cab |
 | **X** (hold) | Clutch |
 | **RB** / **LB** | Shift up / down (with clutch assist) |
 | **B** | Handbrake |
 | **Y** | Start engine |
 | **D-pad up** | Headlights |
 | **D-pad down** | Manual ↔ automatic |
-| **View / Back** | Chase ↔ cab camera |
 | **Menu / Start** | Pause menu |
 | **R3** (right stick click) | Back on the wheels |
 
@@ -95,6 +94,12 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
 
 ## On foot
 
+- **First person, always**: on foot, in a seat and driving you see through your character's
+  eyes; there's no third-person or chase view.
+- **Everyone is a pill-shaped person** (primitives for now, a Blender model later): one
+  rounded body whose top is the head, dark glasses, a beanie and a vest in the player's
+  colour over a white shirt, light trousers, stubby arms and feet. Your own body casts a
+  shadow.
 - **First-person player** with walking (4.2 m/s), sprinting (7 m/s), crouching and jumping; steps
   up ledges up to 40 cm; collides with the terrain, rocks, trees and the RV's hull.
 - **Interaction**: a crosshair and a short "E  …" label for whatever you're looking at within
@@ -375,20 +380,26 @@ Long have 5 and 11 stations). The default seed is `DT4-00000-000DG`.
 - **Steering**: 34° at a standstill, narrowing to 10° at ~100 km/h. Proper Ackermann geometry
   (the inner wheel turns tighter). Keyboard steering eases in and self-centres.
 - **Brakes**: ~0.8 g total, biased 60 % to the front. The handbrake works on the rear.
-- **Parking brake**: on automatically when the RV spawns or is reset; it releases when you
-  touch the throttle.
+- **Parking brake**: on automatically when the RV spawns or is reset, and when you get up
+  from the driver's seat at a standstill (a manual box also goes to neutral, so it idles
+  rather than stalls); it releases when you touch the throttle or let the clutch out in gear.
 - **Air drag and rolling resistance.**
 
 ### Engine and gearbox
 - An old big-block V8:
   - Torque peaks at 520 N·m at 2400 rpm.
-  - Idles at 750 rpm, with an idle governor.
+  - Idles at 750 rpm, with an idle governor strong enough to creep the RV off in 1st with no
+    throttle.
   - Rev limiter at 3800 rpm.
   - Engine braking when you lift off.
 - **Stalling**: dump the clutch at low revs, or let the revs fall below ~380 rpm in gear, and
   the engine dies. Press **I** with the clutch down (or in neutral) to crank it for 0.7 s.
 - **Clutch**: an analog pedal. It presses in 0.12 s and lets out in 0.55 s, biting mid-travel.
-  Slip it with some throttle to pull away smoothly.
+  Slip it with some throttle to pull away smoothly. A key is all-or-nothing, so letting **Q**
+  go (when you're not braking) feathers it for you: the pedal waits at the bite point while
+  the revs sag and backs off before a stall. So from a standstill: engine on, **Q**, **1**,
+  let **Q** go and it pulls away (add **W** to go faster). Letting the clutch out against
+  the brakes, or braking to a stop in gear without it, still stalls.
 - **Manual 5-speed + reverse**:
 
   | Gear | Top speed (at the rev limiter) |
@@ -410,9 +421,8 @@ Long have 5 and 11 stations). The default seed is `DT4-00000-000DG`.
   - Hold the brake at a standstill to engage reverse.
 
 ### Cameras and lights
-- **Chase camera**: trails the RV's heading, can be orbited with the mouse or right stick, and
-  pulls in if terrain or a rock gets between it and the RV.
-- **Cab camera**: sits at the driver's eyes and can look about ±125° left/right.
+- **Driving view**: the driver's eyes in the cab, looking about ±125° left/right. (A chase
+  camera exists only for the debug screenshot tours.)
 - **Headlights**: two spot lights (70 m reach) that cast shadows on the high preset.
 
 ### Spawning and recovery
@@ -441,7 +451,7 @@ Long have 5 and 11 stations). The default seed is `DT4-00000-000DG`.
   - Joining checks the game version and protocol; a mismatch or a full game (4 players) is
     refused with a readable reason.
 - **Co-op** (up to 4 players, drop-in: join a trip in progress and appear by the RV):
-  - Everyone sees everyone else as a simple figure in their jacket colour with a name tag;
+  - Everyone sees everyone else as their pill-shaped person in their colour with a name tag;
     they crouch, lie down when downed and sit in the seats.
   - **The driver's machine simulates the RV** (no input lag for the driver); everyone else
     follows it smoothly. When nobody drives, the host simulates it. Only one person per seat.
@@ -539,7 +549,8 @@ Downloaded builds keep themselves current from this repo's GitHub releases:
 
 Planned (see PLAN.md), roughly in the order they're coming:
 
-- **Players**: the roof ladder and roof; real character models and cosmetics.
+- **Players**: the roof ladder and roof; a Blender character model (and animation) to
+  replace the primitive one, and cosmetics.
 - **The trip**: a paper map, route forks and loot detours.
 - **More obstacles**: rockslides, cliffs and steps, lava; rivers that wind through the land
   (fords are straight channels today) and caves you drive through.

@@ -48,6 +48,8 @@ var handbrake := false
 ## Holds the rear wheels like the handbrake until the driver first touches the throttle,
 ## so a parked RV doesn't roll off a slope.
 var parking_brake := true
+## The clutch (the pedal or the shift assist) was down since the last time it came up.
+var _clutch_was_down := false
 var headlights := false:
 	set(on):
 		headlights = on
@@ -548,6 +550,13 @@ func _physics_process(dt: float) -> void:
 		if drivetrain.can_shift() and _pending_gear != drivetrain.gear:
 			drivetrain.shift_to(_pending_gear)
 			_assist_timer = minf(_assist_timer, 0.05)
+	# Letting the clutch out in gear means "go": the parking brake comes off with it.
+	if clutch > 0.5:
+		_clutch_was_down = true
+	elif _clutch_was_down and drivetrain.gear != 0 and not drivetrain.automatic:
+		_clutch_was_down = false
+		parking_brake = false
+	drivetrain.anti_stall = service_brake < 0.1 and not handbrake and not parking_brake
 	var axle_torque := drivetrain.step(dt, drive_throttle, clutch, ground_omega)
 	var drive := axle_torque / WHEEL_RADIUS
 
