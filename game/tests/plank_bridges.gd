@@ -78,6 +78,12 @@ func _run() -> void:
 	var low := await _drive(2.5, 40.0, past)
 	_check(_progress() > s + half + 8.0 and low > deck - 1.0, "the RV creeps across on the planks (%.1f m along, gap at %.1f m, lowest %.1f m, road %.1f m)" % [_progress(), s, low, deck])
 
+	# The hole in a timber bridge's deck, from the deck itself.
+	var bridge := _first(Trip.BRIDGE)
+	_check(not bridge.is_empty(), "the trip has a bridge")
+	if not bridge.is_empty():
+		await _bridge_hole(bridge)
+
 	# The rest of the plank gaps in a few more trips are all the same size or less.
 	for code: String in ["DT6-00000-0000M", "DT6-00000-0009Q"]:
 		await _start(code)
@@ -85,6 +91,42 @@ func _run() -> void:
 			if int(o["kind"]) == Trip.GAP:
 				_check(float(o["length"]) <= ItemLibrary.PLANK_LENGTH - 1.6 + 0.001, "%s: a %.1f m gap" % [code, o["length"]])
 	_finish()
+
+
+## Two planks across the hole in a bridge's deck, laid from the preview, and the RV over them.
+func _bridge_hole(bridge: Dictionary) -> void:
+	var s := float(bridge["s"])
+	var half := float(bridge["length"]) * 0.5
+	var dir: Vector3 = bridge["dir"]
+	var right := dir.cross(Vector3.UP)
+	var hole := float(bridge["hole"])
+	var hole_centre: Vector3 = (bridge["pos"] as Vector3) + dir * float(bridge["hole_at"])
+	var deck := (bridge["pos"] as Vector3).y
+	_check(hole <= ItemLibrary.PLANK_LENGTH - 1.6 + 0.001, "the hole is %.1f m across" % hole)
+	await _teleport(s - half - 14.0)
+	await _stand_at(hole_centre - dir * (hole * 0.5 + 2.0), dir)
+	var plank := await _hold_plank()
+	_w.face(hole_centre + Vector3.DOWN * 3.0)
+	await _w.hold(0.3)
+	var plan := ItemLibrary.plank_plan(_pg.player)
+	_check(not plan.is_empty() and plan["bridging"] and plan["secure"], "on the deck, looking into the hole: a secure bridge")
+	if not plan.is_empty():
+		var xf: Transform3D = plan["xf"]
+		var surface := _ground(hole_centre - dir * (hole * 0.5 + 1.0)).y # (The deck's top, a little above the road's level.)
+		_check(absf((xf.origin - hole_centre).dot(dir)) < 0.6 and absf(xf.origin.y - surface) < 0.15, "centred on the hole (%.2f m off), level with the deck (%.2f m)" % [(xf.origin - hole_centre).dot(dir), xf.origin.y - surface])
+	_drop(plank)
+	var laid: Array[Item] = []
+	for side: float in [-1.0, 1.0]:
+		var next := await _hold_plank()
+		_w.face(hole_centre + right * side * 0.7 + Vector3.DOWN * 3.0)
+		await _w.hold(0.3)
+		await _w.press(&"use_item")
+		_check(next.is_placed(), "a plank laid on the %s" % ("left" if side < 0.0 else "right"))
+		laid.append(next)
+	await _teleport(s - half - 14.0)
+	var past := func() -> bool: return _progress() > s + half + 8.0
+	var low := await _drive(2.5, 60.0, past)
+	_check(_progress() > s + half + 8.0 and low > deck - 1.5, "the RV creeps over the bridge and the hole on the planks (%.1f m along, bridge at %.1f m, lowest %.1f m, deck %.1f m)" % [_progress(), s, low, deck])
 
 
 # --- helpers ---------------------------------------------------------------------------------
@@ -102,7 +144,10 @@ func _rests_on_both_banks(xf: Transform3D) -> bool:
 ## On the road `back` metres before the gap's near edge, facing it.
 func _stand(gap: Dictionary, back: float) -> void:
 	var dir: Vector3 = gap["dir"]
-	var at: Vector3 = (gap["pos"] as Vector3) - dir * (float(gap["length"]) * 0.5 + back)
+	await _stand_at((gap["pos"] as Vector3) - dir * (float(gap["length"]) * 0.5 + back), dir)
+
+
+func _stand_at(at: Vector3, dir: Vector3) -> void:
 	at.y = _ground(at).y + 0.1
 	var player := _pg.player
 	player.global_position = at

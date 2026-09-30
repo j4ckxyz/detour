@@ -102,6 +102,8 @@ sequentially with **RB** / **LB**.
 - **Terrain benchmark** (`src/debug/terrain_bench.tscn`): **1**–**4** presets, **F3** overlay,
   hold **right mouse** + **WASD** to fly, **Q/E** down/up, **Shift** fast.
 - **Drive tour** (`src/debug/drive_tour.tscn`): drives itself and saves screenshots.
+- **Plank tour** (`src/debug/plank_tour.tscn`): the pile of planks before the first gap, the
+  preview from a few places, two planks laid and the view from the driver's seat.
 
 ---
 

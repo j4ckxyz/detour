@@ -363,8 +363,9 @@ static func use_hint(item: Item, player: Player) -> String:
 			if find_anchor(player) != null:
 				return use + " hook on"
 		&"plank":
-			if plank_placement(player) != null:
-				return use + " lay"
+			var plan := plank_plan(player)
+			if not plan.is_empty():
+				return use + (" lay" if plan["secure"] else " lay (barely on)")
 		&"winch_remote":
 			return "%s in · %s out · %s other winch" % [use, Controls.prompt(&"throw_item"), Controls.prompt(&"winch_select")]
 	return ""
