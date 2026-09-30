@@ -17,6 +17,8 @@ extends Node3D
 
 ## Emitted once the RV has been placed on solid ground and can drive.
 signal spawned
+## The RV and everyone went back to the last stop (a wreck, a tow, everyone down).
+signal sent_back(reason: String)
 
 const DEFAULT_SEED := "DT5-00000-000ZG" # A short trip: woods, mud, gaps and a bridge with a hole; canyon: a climb, a ledge, a ford; the pass: ice, beams and a hill.
 const START := Vector3(64.0, 0.0, 64.0)
@@ -155,6 +157,12 @@ func _setup() -> void:
 	trip.name = "Trip"
 	add_child(trip)
 	trip.setup(world, rv, items)
+	trip.checkpoint_reached.connect(func(_i: int, _total: int) -> void:
+		if Sfx.armed:
+			Sfx.play_ui(self, "ui/chime", -6.0))
+	trip.finished.connect(func() -> void:
+		if Sfx.armed:
+			Sfx.play_ui(self, "ui/home", -4.0))
 	trip.extra_save = _save_extra
 	if Session.mode == Session.Mode.CLIENT:
 		# Joining: the host says where the RV is (the full state follows once we're in).
@@ -200,6 +208,7 @@ func _setup() -> void:
 	player.passed_out.connect(_on_passed_out)
 	player.water_query = world.water_level
 	player.ice_query = world.ice_at
+	player.surface_query = surface_at
 	player_hud.player = player
 	player_hud.visible = false
 	add_child(player_hud)
@@ -234,6 +243,7 @@ func _setup() -> void:
 
 
 func _exit_tree() -> void:
+	Sfx.armed = false
 	if not player.is_inside_tree():
 		player.free() # Quit before spawning.
 
@@ -366,8 +376,10 @@ func _physics_process(dt: float) -> void:
 			trip.restock(trip.checkpoint)
 		trip.show_notice("Welcome back.", 5.0)
 	is_spawned = true
+	Sfx.armed = true
 	rv.audio.arm()
 	ambience.arm()
+	Achievements.watch(self)
 	net.start(self)
 	spawned.emit()
 
@@ -392,6 +404,7 @@ func tow_to_checkpoint() -> void:
 	if player.inside:
 		player.leave_rv()
 	_place_rv(trip.start_transform())
+	sent_back.emit("Towed")
 	player.global_position = by_the_door() + Vector3.UP * 0.1
 	player.reset_physics_interpolation()
 	trip.elapsed += 15.0 * 60.0
@@ -467,6 +480,7 @@ func back_to_checkpoint(reason: String) -> void:
 	trip.elapsed += CHECKPOINT_MINUTES * 60.0
 	trip.hours += CHECKPOINT_MINUTES / 60.0
 	var message := "%s Back to %s (+%d min)." % [reason, trip.stop_name(trip.checkpoint), roundi(CHECKPOINT_MINUTES)]
+	sent_back.emit(reason)
 	return_to_rv(message)
 	net.back_to_checkpoint(message)
 	autosave()
@@ -691,6 +705,25 @@ func _saved_item(e: Array) -> Item:
 	if item.kind == &"patty":
 		ItemLibrary.tint(item, ItemLibrary.patty_color(float(item.get_meta(&"cook", 0.0))))
 	return item
+
+
+## What the ground's like at `p` (for footsteps): water, ice, mud, else by biome (steep ground is
+## bare rock): 0 woods (grass), 1 bayou (grass, mud where it's wet), 2 canyon (dirt), 3 pass (snow).
+func surface_at(p: Vector3, steep: bool) -> StringName:
+	if world.water_level(p.x, p.z) > p.y + 0.05:
+		return &"water"
+	if world.ice_at(p.x, p.z) > 0.5:
+		return &"ice"
+	if world.mud_at(p.x, p.z) > 0.4:
+		return &"mud"
+	match world.biome_at(p.x, p.z):
+		3:
+			return &"rock" if steep else &"snow"
+		2:
+			return &"rock" if steep else &"dirt"
+		1:
+			return &"grass"
+	return &"rock" if steep else &"grass"
 
 
 ## The hammer hit something: a clank where it landed.

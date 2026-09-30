@@ -23,6 +23,10 @@ const ENGINE_COAST_DB := -4.0
 const ENGINE_LOAD_DB := -1.0
 const TIRE_ROAD_DB := -4.0
 const TIRE_GRAVEL_DB := -6.0
+const HORN_DB := -2.0
+const WINCH_DB := -6.0
+## The horn is at the front (RV space).
+const HORN_AT := Vector3(0.0, 0.8, -3.7)
 const WIND_RUSH_DB := -3.0
 ## Speed (m/s) at which tire and wind noise reach their loudest.
 const FULL_SPEED := 26.0
@@ -40,9 +44,14 @@ var crank_player: AudioStreamPlayer3D
 var tire_road: AudioStreamPlayer3D
 var tire_gravel: AudioStreamPlayer3D
 var wind_rush: AudioStreamPlayer3D
+var horn_player: AudioStreamPlayer3D
+## One motor sound per winch (front, rear).
+var winch_players: Array[AudioStreamPlayer3D] = []
 ## Whether the trip is under way (see `arm`).
 var armed := false
 
+var _horn := 0.0
+var _winch: Array[float] = [0.0, 0.0]
 var _engine_on := 0.0 # 0..1: the engine's sound fading in and out with `running`.
 var _rpm := 0.0
 var _rpm_lag := 0.0
@@ -74,7 +83,16 @@ func setup(owner_rv: RV) -> void:
 	wind_rush = Sfx.source(self, "WindRush", "ambience/wind_bed", true, Sfx.EFFECTS, 6.0, 90.0)
 	for p: AudioStreamPlayer3D in [tire_road, tire_gravel, wind_rush]:
 		p.position = UNDER_AT
+	horn_player = Sfx.source(self, "Horn", "rv/horn", true, Sfx.EFFECTS, 10.0, 220.0)
+	horn_player.position = HORN_AT
+	for winch: RVWinch in rv.winches:
+		var motor := Sfx.source(self, "WinchMotor" + winch.label.capitalize(), "rv/winch_motor", true, Sfx.EFFECTS, 5.0, 70.0)
+		motor.position = winch.position
+		winch_players.append(motor)
+		winch.snapped.connect(_on_snapped.bind(winch))
 	rv.damage.hit_taken.connect(_on_knocked)
+	rv.damage.part_lost.connect(func(_part: StringName) -> void: _on_lost())
+	rv.damage.wheel_lost.connect(func(_i: int) -> void: _on_lost())
 
 
 ## The trip is under way: sounds start, and what's already going on (the engine running, a
@@ -105,6 +123,8 @@ func _process(dt: float) -> void:
 		grounded += 1 if wheel.grounded else 0
 	var velocity := rv.linear_velocity
 	apply_tires(velocity.length(), float(grounded) / maxf(1.0, float(rv.wheels.size())), velocity.y, dt)
+	apply_horn(rv.horn, dt)
+	apply_winches(dt)
 	_events(dt)
 
 
@@ -169,6 +189,35 @@ func apply_tires(speed: float, grounded: float, vertical: float, dt: float) -> v
 		if _air_time > 0.3 and _fall_speed > LANDING_SPEED.x:
 			land(inverse_lerp(LANDING_SPEED.x, LANDING_SPEED.y, _fall_speed))
 		_air_time = 0.0
+
+
+## The horn: sounds while the button's down (a quick fade in and out so it doesn't click).
+func apply_horn(pressed: bool, dt: float) -> void:
+	_horn = move_toward(_horn, 1.0 if pressed else 0.0, dt * (30.0 if pressed else 14.0))
+	Sfx.set_level(horn_player, _horn, HORN_DB)
+
+
+## The winch motors: running while a hooked winch is being reeled in or paid out, higher pitched
+## the harder it pulls.
+func apply_winches(dt: float) -> void:
+	for i: int in winch_players.size():
+		var w := rv.winches[i]
+		var running := w.is_anchored() and w.drive != 0
+		_winch[i] = move_toward(_winch[i], 1.0 if running else 0.0, dt * 6.0)
+		winch_players[i].pitch_scale = 0.8 if w.drive > 0 else 0.9 + 0.5 * clampf(w.tension / RVWinch.MAX_PULL, 0.0, 1.0)
+		Sfx.set_level(winch_players[i], _winch[i], WINCH_DB)
+
+
+## The rope parting: a crack and a twang at the winch.
+func _on_snapped(winch: RVWinch) -> void:
+	if armed:
+		Sfx.play_at(self, "rv/winch_snap", to_global(winch.position), -1.0, randf_range(0.95, 1.05))
+
+
+## A panel or a wheel came off.
+func _on_lost() -> void:
+	if armed:
+		Sfx.play_at(self, "rv/part_fall", global_position, -2.0, randf_range(0.92, 1.08))
 
 
 ## Gear changes, the engine starting and stalling, the door, knocks.

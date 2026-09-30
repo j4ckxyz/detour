@@ -15,6 +15,9 @@ var holder: Player
 var base_offset := 0.0
 ## Online: the same number for this item on every machine (0 until the host numbers it).
 var net_id := 0
+## How fast it was going last physics tick, and how long until another landing may sound.
+var _last_speed := 0.0
+var _land_wait := 0.0
 
 ## Online, set by `NetGame`: told about every item that appears and every one freed.
 static var on_ready: Callable
@@ -27,6 +30,9 @@ func _ready() -> void:
 	collision_layer = LAYER
 	collision_mask = TerrainStreamer.WORLD_LAYER | RV.VEHICLE_LAYER | LAYER
 	continuous_cd = true
+	contact_monitor = true # For the sound of landing.
+	max_contacts_reported = 1
+	body_entered.connect(_on_touched)
 	if on_ready.is_valid():
 		on_ready.call(self)
 
@@ -34,6 +40,20 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE and net_id != 0 and on_freed.is_valid():
 		on_freed.call(net_id)
+
+
+func _physics_process(dt: float) -> void:
+	_land_wait = maxf(0.0, _land_wait - dt)
+	if not freeze:
+		_last_speed = linear_velocity.length()
+
+
+## A loose item hit something: a thud, louder the harder it came down.
+func _on_touched(_body: Node) -> void:
+	if freeze or holder != null or _land_wait > 0.0 or _last_speed < 1.5:
+		return
+	_land_wait = 0.25
+	Sfx.cue(self, "items/drop", global_position, lerpf(-20.0, -4.0, clampf((_last_speed - 1.5) / 7.0, 0.0, 1.0)), 5.0, 50.0)
 
 
 func display_name() -> String:
@@ -80,6 +100,7 @@ func is_placed() -> bool:
 
 ## Takes the item into a hand (frozen, no collision) under `hand`.
 func grab(player: Player, hand: Node3D) -> void:
+	Sfx.cue(self, "items/pickup", global_position, -8.0, 3.0, 25.0)
 	set_meta(&"placed", false)
 	remove_meta(&"slot")
 	if winch_of():

@@ -556,6 +556,499 @@ def crickets_loop() -> np.ndarray:
     return normalize_lufs(x - x.mean(axis=0), -30.0)
 
 
+# --- the horn, the winch, tools, things you pick up, footsteps, animals and chimes ---------------
+
+
+def _shape(n: int, attack: float, decay: float) -> np.ndarray:
+    """A fast rise and an exponential fall."""
+    t = np.arange(n) / SR
+    return (1.0 - np.exp(-t / max(attack, 1e-4))) * np.exp(-t / decay)
+
+
+def _band(rng: np.random.Generator, n: int, lo: float, hi: float, order: int = 2) -> np.ndarray:
+    """White noise between `lo` and `hi` Hz, unit deviation."""
+    x = filt(rng.standard_normal(n), lambda f: hp(f, lo, order) * lp(f, hi, order))
+    return x / (np.std(x) + 1e-12)
+
+
+def _thump(n: int, f_start: float, f_end: float, decay: float) -> np.ndarray:
+    """A sine that drops in pitch as it dies away: the body of any knock."""
+    t = np.arange(n) / SR
+    glide = f_end + (f_start - f_end) * np.exp(-t / (decay * 0.35))
+    phase = 2.0 * np.pi * np.cumsum(glide) / SR
+    return np.sin(phase) * np.exp(-t / decay) * (1.0 - np.exp(-t / 0.002))
+
+
+def _ring(n: int, f0: float, partials: list[tuple[float, float, float]], rng: np.random.Generator | None = None) -> np.ndarray:
+    """A struck bar or bell: (frequency ratio, decay seconds, gain) for each partial."""
+    t = np.arange(n) / SR
+    out = np.zeros(n)
+    for ratio, tau, gain in partials:
+        detune = 1.0 + (0.002 * rng.standard_normal() if rng is not None else 0.0)
+        out += gain * np.sin(2.0 * np.pi * f0 * ratio * detune * t) * np.exp(-t / tau)
+    return out
+
+
+@sound("rv")
+def horn() -> np.ndarray:
+    """The RV's horn: two tones a third apart (330 and 415 Hz) with a buzz, like a truck's. 1.2 s,
+    loops (whole cycles of every part). The game fades it in and out with the button."""
+    n = int(1.2 * SR)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    for f, a in ((330.0, 1.0), (415.0, 0.9)):
+        for k, h in enumerate((1.0, 0.65, 0.5, 0.32, 0.2, 0.1), start=1):
+            x += a * h * np.sin(2.0 * np.pi * f * k * t)
+    x = x * (1.0 + 0.05 * np.sin(2.0 * np.pi * 90.0 * t))
+    x = np.tanh(1.3 * x / np.std(x))
+    x = filt(x, lambda f: hp(f, 180.0, 2) * lp(f, 3300.0, 3))
+    return dsp.normalize_rms(dsp.remove_dc(x), -20.0, -3.0)
+
+
+@sound("rv")
+def winch_motor() -> np.ndarray:
+    """The winch's electric motor and gears: a whine with a slow wobble and a rattle of gear
+    teeth at 22 Hz. 2 s, loops. The game raises the pitch with the rope's load."""
+    rng = rng_for("winch_motor")
+    n = int(2.0 * SR)
+    t = np.arange(n) / SR
+    whine = sum(a * np.sin(2.0 * np.pi * f * t) for f, a in ((240.0, 1.0), (480.0, 0.5), (720.0, 0.3), (960.0, 0.15)))
+    whine = whine * (1.0 + 0.08 * np.sin(2.0 * np.pi * 3.0 * t))
+    pulses = np.zeros(n)
+    pulses[(np.arange(44) / 22.0 * SR).astype(int)] = 1.0
+    rattle = filt(pulses, lambda f: hp(f, 250.0, 2) * lp(f, 1700.0, 2))
+    hum = filt(rng.standard_normal(n), lambda f: hp(f, 40.0, 2) * lp(f, 320.0, 2))
+    x = whine / np.std(whine) + 0.8 * rattle / np.std(rattle) + 0.5 * hum / np.std(hum)
+    x = np.tanh(1.1 * x)
+    x = filt(x, lambda f: lp(f, 3500.0, 2))
+    return dsp.normalize_rms(dsp.remove_dc(x), -22.0, -3.0)
+
+
+@sound("rv")
+def winch_snap() -> np.ndarray:
+    """The rope letting go: a whip crack and a low twang as the cable recoils."""
+    rng = rng_for("winch_snap")
+    n = int(0.9 * SR)
+    t = np.arange(n) / SR
+    crack = _band(rng, n, 900.0, 6000.0) * np.exp(-t / 0.012)
+    twang = np.sin(2.0 * np.pi * 190.0 * t * (1.0 + 0.05 * np.exp(-t / 0.2))) * np.exp(-t / 0.22)
+    body = _thump(n, 120.0, 55.0, 0.09)
+    x = 0.9 * crack + 0.5 * twang + 0.7 * body
+    x = filt(x, lambda f: lp(f, 6500.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.25), -4.0)
+
+
+@sound("rv")
+def part_fall() -> np.ndarray:
+    """A panel coming off the RV and clanging on the road."""
+    rng = rng_for("part_fall")
+    n = int(1.0 * SR)
+    x = _ring(n, 340.0, [(1.0, 0.24, 1.0), (1.83, 0.16, 0.6), (2.9, 0.1, 0.4), (4.6, 0.05, 0.2)], rng)
+    x += 0.6 * _thump(n, 160.0, 70.0, 0.06) + 0.5 * _band(rng, n, 500.0, 3500.0) * np.exp(-np.arange(n) / SR / 0.02) * 0.4
+    # It bounces once more, softer.
+    again = np.zeros(n)
+    dsp.add_at(again, x[: int(0.5 * SR)], 0.21, 0.35)
+    x = x + again
+    x = filt(x, lambda f: lp(f, 5000.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.3), -5.0)
+
+
+@sound("rv")
+def tape_insert() -> np.ndarray:
+    """A cassette going into the deck: the flap, a plastic click, the motor taking up the tape."""
+    rng = rng_for("tape_insert")
+    n = int(1.1 * SR)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    dsp.add_at(x, _latch(rng, n, 0.0, 1.0)[: int(0.1 * SR)], 0.0, 1.0)
+    dsp.add_at(x, _thump(int(0.2 * SR), 140.0, 80.0, 0.05), 0.12, 0.7)
+    spin = np.sin(2.0 * np.pi * np.cumsum(120.0 + 180.0 * np.clip((t - 0.3) / 0.35, 0.0, 1.0)) / SR) * np.clip((t - 0.3) / 0.15, 0.0, 1.0) * np.exp(-np.maximum(t - 0.75, 0.0) / 0.1)
+    whirr = _band(rng, n, 1500.0, 4200.0) * np.clip((t - 0.3) / 0.2, 0.0, 1.0) * np.exp(-np.maximum(t - 0.75, 0.0) / 0.1)
+    x = x + 0.25 * spin + 0.1 * whirr
+    dsp.add_at(x, _latch(rng, n, 0.0, 1.0)[: int(0.1 * SR)], 0.8, 0.7)
+    x = filt(x, lambda f: lp(f, 5000.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.1), -7.0)
+
+
+# Tools and things you handle.
+
+
+@sound("tools")
+def winch_hook() -> np.ndarray:
+    """The winch hook clinking onto something (or into its holder)."""
+    rng = rng_for("winch_hook")
+    n = int(0.5 * SR)
+    x = _ring(n, 1500.0, [(1.0, 0.09, 1.0), (1.9, 0.06, 0.55), (3.1, 0.035, 0.3)], rng)
+    x += 0.5 * _thump(n, 200.0, 110.0, 0.03) + 0.3 * _band(rng, n, 1000.0, 5000.0) * np.exp(-np.arange(n) / SR / 0.006)
+    x = filt(x, lambda f: lp(f, 6000.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.15), -6.0)
+
+
+@sound("tools")
+def drill_bolt() -> np.ndarray:
+    """The power drill running a bolt in: a whine rising as it bites, then a ratchet click."""
+    rng = rng_for("drill_bolt")
+    n = int(0.42 * SR)
+    t = np.arange(n) / SR
+    f = 260.0 + 620.0 * np.clip(t / 0.3, 0.0, 1.0) ** 0.7
+    whine = np.sin(2.0 * np.pi * np.cumsum(f) / SR) + 0.5 * np.sin(4.0 * np.pi * np.cumsum(f) / SR)
+    buzz = whine * (0.75 + 0.25 * np.sin(2.0 * np.pi * 55.0 * t))
+    env = np.clip(t / 0.02, 0.0, 1.0) * np.exp(-np.maximum(t - 0.3, 0.0) / 0.03)
+    x = 0.6 * buzz * env + 0.3 * _band(rng, n, 400.0, 2500.0) * env * 0.5
+    dsp.add_at(x, _latch(rng, n, 0.0, 1.0)[: int(0.08 * SR)], 0.31, 0.9)
+    x = filt(x, lambda f: lp(f, 4500.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.005, 0.05), -7.0)
+
+
+@sound("tools")
+def weld_zap() -> np.ndarray:
+    """The welder: an arc crackling and spitting for a second."""
+    rng = rng_for("weld_zap")
+    n = int(1.2 * SR)
+    t = np.arange(n) / SR
+    crackle = np.zeros(n)
+    count = 420
+    np.add.at(crackle, rng.integers(0, n, count), rng.exponential(1.0, count) ** 1.3 * np.where(rng.random(count) < 0.5, -1.0, 1.0))
+    crackle = filt(crackle, lambda f: hp(f, 900.0, 2) * lp(f, 6500.0, 2))
+    hum = np.sin(2.0 * np.pi * 100.0 * t) + 0.5 * np.sin(2.0 * np.pi * 200.0 * t)
+    env = np.clip(t / 0.05, 0.0, 1.0) * np.exp(-np.maximum(t - 0.95, 0.0) / 0.08) * (0.7 + 0.3 * np.sin(2.0 * np.pi * 7.0 * t + 1.0))
+    x = (crackle / np.std(crackle) * 0.45 + hum / np.std(hum) * 0.2) * env
+    return dsp.normalize_rms(dsp.fade(dsp.remove_dc(x), 0.01, 0.1), -25.0, -4.0)
+
+
+@sound("tools")
+def pour() -> np.ndarray:
+    """Liquid glugging out of a can or bottle. 1.5 s, loops."""
+    rng = rng_for("pour")
+    n = int(1.5 * SR)
+    stream = filt(pinkish(rng.standard_normal(n)), lambda f: hp(f, 300.0, 2) * lp(f, 2600.0, 2)) * swell(n, 5.0, 0.35, rng)
+    glugs = np.zeros(n)
+    for _ in range(9):
+        at = float(rng.uniform(0.0, 1.5))
+        k = np.arange(int(0.07 * SR)) / SR
+        f0 = float(rng.uniform(260.0, 520.0))
+        bubble = np.sin(2.0 * np.pi * np.cumsum(f0 * (1.0 + 2.2 * k / 0.07)) / SR) * np.exp(-k / 0.03)
+        dsp.add_at(glugs, bubble, at, float(rng.uniform(0.3, 1.0)), wrap=True)
+    x = stream / np.std(stream) + 0.6 * glugs / (np.std(glugs) + 1e-9)
+    x = filt(x, lambda f: lp(f, 3600.0, 2))
+    return dsp.normalize_rms(dsp.remove_dc(x), -24.0, -3.0)
+
+
+@sound("tools")
+def plank_lay() -> np.ndarray:
+    """A plank set down on the ground: a wooden thunk and a knock as it settles."""
+    rng = rng_for("plank_lay")
+    n = int(0.6 * SR)
+    x = _thump(n, 130.0, 70.0, 0.08) + 0.6 * _ring(n, 310.0, [(1.0, 0.09, 0.5), (2.4, 0.04, 0.2)], rng)
+    x += 0.4 * _band(rng, n, 200.0, 1600.0) * np.exp(-np.arange(n) / SR / 0.04) * 0.5
+    again = np.zeros(n)
+    dsp.add_at(again, x[: int(0.3 * SR)], 0.16, 0.35)
+    x = filt(x + again, lambda f: lp(f, 4200.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.2), -6.0)
+
+
+@sound("items")
+def pickup() -> np.ndarray:
+    """Picking something up: cloth and a small scrape."""
+    rng = rng_for("pickup")
+    n = int(0.25 * SR)
+    t = np.arange(n) / SR
+    x = _band(rng, n, 800.0, 2400.0) * np.sin(np.pi * np.clip(t / 0.2, 0.0, 1.0)) ** 2 * 0.5 + 0.4 * _thump(n, 150.0, 90.0, 0.03)
+    x = filt(x, lambda f: lp(f, 3500.0, 3))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.005, 0.06), -9.0)
+
+
+@sound("items")
+def drop() -> np.ndarray:
+    """Putting something down or letting it fall: a soft thud."""
+    rng = rng_for("drop")
+    n = int(0.35 * SR)
+    x = _thump(n, 110.0, 60.0, 0.07) + 0.4 * _band(rng, n, 150.0, 1400.0) * np.exp(-np.arange(n) / SR / 0.03) * 0.5
+    x = filt(x, lambda f: lp(f, 3000.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.1), -7.0)
+
+
+@sound("items")
+def throw() -> np.ndarray:
+    """A whoosh as something's thrown."""
+    rng = rng_for("throw")
+    n = int(0.4 * SR)
+    t = np.arange(n) / SR
+    noise = rng.standard_normal(n)
+    sweep = np.zeros(n)
+    for centre, w in ((500.0, 1.0), (900.0, 0.8), (1500.0, 0.6)):
+        sweep += w * filt(noise, lambda f: bell(f, centre, 0.5))
+    x = sweep * np.sin(np.pi * np.clip(t / 0.35, 0.0, 1.0)) ** 2
+    x = filt(x, lambda f: hp(f, 250.0, 2) * lp(f, 3200.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.02, 0.08), -10.0)
+
+
+@sound("items")
+def eat() -> np.ndarray:
+    """A few crunchy bites and a swallow."""
+    rng = rng_for("eat")
+    n = int(0.9 * SR)
+    x = np.zeros(n)
+    for at in (0.02, 0.17, 0.3, 0.44):
+        k = int(0.09 * SR)
+        bite = _band(rng, k, 600.0, 4200.0) * np.exp(-np.arange(k) / SR / 0.028)
+        dsp.add_at(x, bite, at, float(rng.uniform(0.6, 1.0)))
+    dsp.add_at(x, _thump(int(0.2 * SR), 220.0, 110.0, 0.06), 0.62, 0.6)
+    x = filt(x, lambda f: lp(f, 4500.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.1), -9.0)
+
+
+@sound("items")
+def drink() -> np.ndarray:
+    """A can popped and a couple of gulps."""
+    rng = rng_for("drink")
+    n = int(1.0 * SR)
+    x = np.zeros(n)
+    fizz = _band(rng, int(0.35 * SR), 1500.0, 5000.0) * np.exp(-np.arange(int(0.35 * SR)) / SR / 0.12) * 0.35
+    dsp.add_at(x, fizz, 0.0, 1.0)
+    for at in (0.42, 0.62, 0.84):
+        k = int(0.14 * SR)
+        gulp = _thump(k, 240.0, 120.0, 0.05) * 0.7
+        dsp.add_at(x, gulp, at, 1.0)
+    x = filt(x, lambda f: lp(f, 4500.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.1), -10.0)
+
+
+@sound("items")
+def epipen() -> np.ndarray:
+    """The EpiPen: a firm click and a short hiss."""
+    rng = rng_for("epipen")
+    n = int(0.6 * SR)
+    t = np.arange(n) / SR
+    x = np.zeros(n)
+    dsp.add_at(x, _latch(rng, n, 0.0, 1.0)[: int(0.08 * SR)], 0.0, 1.3)
+    hiss = _band(rng, n, 1000.0, 3800.0) * _shape(n, 0.01, 0.12) * 0.25
+    x = x + np.roll(hiss, int(0.05 * SR))
+    x = filt(x, lambda f: lp(f, 4200.0, 3))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.1), -8.0)
+
+
+@sound("items")
+def spray() -> np.ndarray:
+    """A puff of bear spray: a hard hiss."""
+    rng = rng_for("spray")
+    n = int(0.9 * SR)
+    t = np.arange(n) / SR
+    x = _band(rng, n, 500.0, 3600.0) * np.clip(t / 0.03, 0.0, 1.0) * np.exp(-np.maximum(t - 0.55, 0.0) / 0.12)
+    x = x * (0.85 + 0.15 * np.sin(2.0 * np.pi * 11.0 * t))
+    x = filt(x, lambda f: lp(f, 4200.0, 3))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.005, 0.15), -9.0)
+
+
+# Footsteps: four of each, a little different.
+
+STEP_SURFACES: dict[str, dict] = {
+    "grass": dict(thump=(95.0, 55.0, 0.05, 0.45), noise=(1200.0, 5000.0, 0.07, 0.55), grains=6, grain_band=(2500.0, 6000.0)),
+    "dirt": dict(thump=(115.0, 65.0, 0.06, 0.6), noise=(300.0, 2800.0, 0.09, 0.7), grains=12, grain_band=(2000.0, 5000.0)),
+    "rock": dict(thump=(150.0, 90.0, 0.03, 0.5), noise=(900.0, 4500.0, 0.03, 0.9), grains=2, grain_band=(3000.0, 6000.0), ring=(1700.0, 0.025, 0.12)),
+    "snow": dict(thump=(70.0, 50.0, 0.06, 0.3), noise=(1200.0, 4200.0, 0.16, 0.7), grains=40, grain_band=(2000.0, 4200.0)),
+    "ice": dict(thump=(100.0, 70.0, 0.03, 0.3), noise=(2000.0, 5500.0, 0.03, 0.5), grains=3, grain_band=(3000.0, 6000.0), ring=(2600.0, 0.06, 0.2)),
+    "wood": dict(thump=(125.0, 75.0, 0.07, 0.7), noise=(500.0, 2500.0, 0.03, 0.35), grains=0, grain_band=(1000.0, 3000.0), ring=(310.0, 0.09, 0.4)),
+    "rvfloor": dict(thump=(95.0, 60.0, 0.06, 0.5), noise=(700.0, 2500.0, 0.03, 0.3), grains=0, grain_band=(1000.0, 3000.0), ring=(210.0, 0.12, 0.25)),
+}
+
+
+def _step(surface: str, i: int) -> np.ndarray:
+    name = f"step_{surface}_{i}"
+    rng = rng_for(name)
+    p = STEP_SURFACES[surface]
+    n = int(0.34 * SR)
+    t = np.arange(n) / SR
+    fs, fe, tau, gain = p["thump"]
+    pitch = float(rng.uniform(0.92, 1.1))
+    x = gain * _thump(n, fs * pitch, fe * pitch, tau)
+    lo, hi, ntau, ngain = p["noise"]
+    x += ngain * 0.35 * _band(rng, n, lo * pitch, hi, 2) * _shape(n, 0.004, ntau * float(rng.uniform(0.9, 1.15)))
+    for _ in range(p["grains"]):
+        at = float(rng.uniform(0.0, ntau * 2.4))
+        k = int(0.012 * SR)
+        grain = _band(rng, k, *p["grain_band"]) * np.exp(-np.arange(k) / SR / 0.003)
+        dsp.add_at(x, grain, at, float(rng.uniform(0.04, 0.16)))
+    if "ring" in p:
+        f0, rtau, rgain = p["ring"]
+        x += rgain * np.sin(2.0 * np.pi * f0 * pitch * t) * np.exp(-t / rtau) * 0.6
+    x = filt(x, lambda f: lp(f, 5200.0, 3))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.08), -9.0)
+
+
+def _splash(name: str, longer: float) -> np.ndarray:
+    rng = rng_for(name)
+    n = int(0.55 * SR)
+    t = np.arange(n) / SR
+    body = _band(rng, n, 250.0, 3500.0) * _shape(n, 0.012, 0.11 * longer)
+    x = 0.6 * body
+    for _ in range(4):
+        at = float(rng.uniform(0.02, 0.22))
+        k = int(0.06 * SR)
+        f0 = float(rng.uniform(380.0, 700.0))
+        bubble = np.sin(2.0 * np.pi * np.cumsum(f0 * (1.0 + 2.0 * np.arange(k) / k)) / SR) * np.exp(-np.arange(k) / SR / 0.02)
+        dsp.add_at(x, bubble, at, float(rng.uniform(0.15, 0.4)))
+    x += 0.4 * _thump(n, 140.0, 70.0, 0.05)
+    x = filt(x, lambda f: lp(f, 5000.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.15), -8.0)
+
+
+def _mud(name: str) -> np.ndarray:
+    rng = rng_for(name)
+    n = int(0.45 * SR)
+    t = np.arange(n) / SR
+    squelch = _band(rng, n, 150.0, 1500.0) * _shape(n, 0.01, 0.12)
+    glide = np.sin(2.0 * np.pi * np.cumsum(320.0 - 200.0 * np.clip(t / 0.2, 0.0, 1.0)) / SR) * np.exp(-t / 0.09)
+    x = 0.6 * squelch + 0.5 * glide + 0.5 * _thump(n, 90.0, 55.0, 0.06)
+    x = filt(x, lambda f: lp(f, 2600.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.12), -8.0)
+
+
+def _register_steps() -> None:
+    for surface in STEP_SURFACES:
+        for i in (1, 2, 3, 4):
+            SOUNDS[f"step_{surface}_{i}"] = ((lambda s=surface, k=i: _step(s, k)), "steps")
+    for i in (1, 2, 3):
+        SOUNDS[f"step_water_{i}"] = ((lambda k=i: _splash(f"step_water_{k}", 1.0)), "steps")
+        SOUNDS[f"step_mud_{i}"] = ((lambda k=i: _mud(f"step_mud_{k}")), "steps")
+    SOUNDS["splash"] = ((lambda: _splash("splash", 2.2)), "steps")
+
+
+_register_steps()
+
+
+# Animals.
+
+
+@sound("wildlife")
+def rattle() -> np.ndarray:
+    """A rattlesnake's rattle: dry, fast buzzing that swells and fades. 1.5 s, loops."""
+    rng = rng_for("rattle")
+    secs = 1.5
+    n = int(secs * SR)
+    pulses = 48
+    x = np.zeros(n)
+    for i in range(pulses):
+        at = i / pulses * secs + float(rng.normal(0.0, 0.0008))
+        k = int(0.014 * SR)
+        burst = _band(rng, k, 1800.0, 5200.0) * np.exp(-np.arange(k) / SR / 0.004)
+        dsp.add_at(x, burst, at, float(rng.uniform(0.6, 1.0)) * (0.7 + 0.3 * np.sin(2.0 * np.pi * i / 6.0)), wrap=True)
+    x = x * swell(n, 2.0, 0.15, rng)
+    x = filt(x, lambda f: hp(f, 1200.0, 2) * lp(f, 5600.0, 3))
+    return dsp.normalize_rms(dsp.remove_dc(x), -24.0, -3.0)
+
+
+@sound("wildlife")
+def snake_hiss() -> np.ndarray:
+    """A snake striking: a short, sharp hiss."""
+    rng = rng_for("snake_hiss")
+    n = int(0.5 * SR)
+    x = _band(rng, n, 2200.0, 5800.0) * _shape(n, 0.02, 0.12)
+    x = filt(x, lambda f: lp(f, 6000.0, 3))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.005, 0.1), -9.0)
+
+
+@sound("wildlife")
+def bear_roar() -> np.ndarray:
+    """A bear rearing up and roaring: a rough, falling growl with a chest rumble."""
+    rng = rng_for("bear_roar")
+    secs = 2.0
+    n = int(secs * SR)
+    t = np.arange(n) / SR
+    f0 = 118.0 - 34.0 * np.clip(t / secs, 0.0, 1.0) + 6.0 * np.sin(2.0 * np.pi * 5.0 * t)
+    phase = 2.0 * np.pi * np.cumsum(f0) / SR
+    growl = 0.5 + 0.5 * np.sin(2.0 * np.pi * 38.0 * t)
+    voice = np.zeros(n)
+    for k in range(1, 22):
+        voice += np.sin(k * phase) / k ** 0.8
+    voice = voice * (0.55 + 0.45 * growl)
+    voice = filt(voice, lambda f: 1.0 + 1.7 * bell(f, 650.0, 0.35) + 1.2 * bell(f, 1250.0, 0.3))
+    breath = _band(rng, n, 200.0, 2500.0) * (0.5 + 0.5 * growl)
+    env = np.clip(t / 0.18, 0.0, 1.0) * np.clip((secs - t) / 0.6, 0.0, 1.0) ** 1.4 * (1.0 - 0.25 * np.clip((t - 0.3) / 1.2, 0.0, 1.0))
+    x = (voice / np.std(voice) + 0.35 * breath) * env
+    x = np.tanh(1.2 * x)
+    x = filt(x, lambda f: hp(f, 50.0, 2) * lp(f, 3600.0, 3))
+    return peak_normalize(dsp.remove_dc(x), -5.0)
+
+
+@sound("wildlife")
+def bear_swipe() -> np.ndarray:
+    """A bear's paw swiping: a whoosh, then a heavy thump and a grunt."""
+    rng = rng_for("bear_swipe")
+    n = int(0.7 * SR)
+    t = np.arange(n) / SR
+    whoosh = _band(rng, n, 250.0, 2400.0) * np.sin(np.pi * np.clip(t / 0.25, 0.0, 1.0)) ** 2
+    hit = _thump(n, 90.0, 45.0, 0.1)
+    x = np.zeros(n)
+    x += 0.6 * whoosh
+    dsp.add_at(x, hit, 0.22, 1.0)
+    grunt = np.sin(2.0 * np.pi * np.cumsum(95.0 - 30.0 * np.clip((t - 0.2) / 0.3, 0.0, 1.0)) / SR) * np.exp(-np.maximum(t - 0.2, 0.0) / 0.12) * np.clip((t - 0.2) / 0.03, 0.0, 1.0)
+    x += 0.5 * grunt
+    x = filt(x, lambda f: lp(f, 2800.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.15), -6.0)
+
+
+@sound("wildlife")
+def eagle_screech() -> np.ndarray:
+    """An eagle's cry: three thin, falling screeches."""
+    rng = rng_for("eagle_screech")
+    n = int(1.4 * SR)
+    x = np.zeros(n)
+    for at, f_hi, dur in ((0.0, 2900.0, 0.42), (0.5, 2700.0, 0.4), (0.98, 2500.0, 0.38)):
+        k = int(dur * SR)
+        t = np.arange(k) / SR
+        f = f_hi * (1.0 - 0.35 * (t / dur) ** 0.8) * (1.0 + 0.015 * np.sin(2.0 * np.pi * 42.0 * t))
+        phase = 2.0 * np.pi * np.cumsum(f) / SR
+        cry = np.sin(phase) + 0.45 * np.sin(2.0 * phase) + 0.2 * np.sin(3.0 * phase)
+        rasp = _band(rng, k, 1500.0, 6000.0) * 0.25
+        env = np.clip(t / 0.03, 0.0, 1.0) * np.clip((dur - t) / 0.12, 0.0, 1.0)
+        dsp.add_at(x, (cry / np.std(cry) + rasp) * env, at, 1.0)
+    x = filt(x, lambda f: hp(f, 900.0, 2) * lp(f, 6800.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.05), -8.0)
+
+
+# Chimes.
+
+
+def _bell(n: int, f0: float, decay: float, gain: float = 1.0) -> np.ndarray:
+    return gain * _ring(n, f0, [(1.0, decay, 1.0), (2.0, decay * 0.6, 0.35), (2.76, decay * 0.3, 0.18), (5.4, decay * 0.12, 0.06)])
+
+
+@sound("ui")
+def chime() -> np.ndarray:
+    """Reaching a gas station: three soft bell notes going up."""
+    n = int(1.9 * SR)
+    x = np.zeros(n)
+    for at, f0 in ((0.0, 784.0), (0.22, 987.8), (0.44, 1174.7)):
+        dsp.add_at(x, _bell(int(1.4 * SR), f0, 0.55), at, 1.0)
+    x = filt(x, lambda f: lp(f, 5000.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.4), -9.0)
+
+
+@sound("ui")
+def toast() -> np.ndarray:
+    """An achievement: two notes, a rising fifth."""
+    n = int(1.2 * SR)
+    x = np.zeros(n)
+    for at, f0 in ((0.0, 659.3), (0.16, 987.8)):
+        dsp.add_at(x, _bell(int(1.0 * SR), f0, 0.4), at, 1.0)
+    x = filt(x, lambda f: lp(f, 5000.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.3), -10.0)
+
+
+@sound("ui")
+def home() -> np.ndarray:
+    """Getting home: a little rising arpeggio that settles into a chord."""
+    n = int(3.4 * SR)
+    x = np.zeros(n)
+    for at, f0 in ((0.0, 523.3), (0.18, 659.3), (0.36, 784.0), (0.54, 1046.5)):
+        dsp.add_at(x, _bell(int(1.8 * SR), f0, 0.7), at, 0.8)
+    for f0 in (523.3, 659.3, 784.0):
+        dsp.add_at(x, _bell(int(2.6 * SR), f0, 1.0), 0.8, 0.5)
+    x = filt(x, lambda f: lp(f, 5000.0, 2))
+    return peak_normalize(dsp.fade(dsp.remove_dc(x), 0.0, 0.8), -9.0)
+
+
 # --- main ---------------------------------------------------------------------------------------
 
 # Stronger compression for noise-like beds, which Vorbis spends most of its bits on.

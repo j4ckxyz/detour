@@ -117,6 +117,7 @@ static func use_action(kind: StringName) -> Callable:
 					player.eat(item, 5.0)
 					player.say("Still raw in the middle. Not great.")
 				elif cook < PATTY_BURNT:
+					player.did.emit(&"cooked_patty")
 					player.eat(item, 40.0)
 				else:
 					player.eat(item, 10.0)
@@ -136,6 +137,7 @@ static func use_action(kind: StringName) -> Callable:
 					player.say("You feel fine.")
 					return false
 				player.venom = 0.0
+				player.did.emit(&"antidote")
 				player.consume(item)
 				player.say("The venom's gone.")
 				return true
@@ -180,7 +182,9 @@ static func use_action(kind: StringName) -> Callable:
 					return false
 				player.consume(scrap)
 				# A few good whacks, and it's patched.
-				player.swing(struck_at(player, float(aim["distance"])), 3, func() -> void: player.rv.op(&"patch_part", [id]))
+				player.swing(struck_at(player, float(aim["distance"])), 3, func() -> void:
+					player.rv.op(&"patch_part", [id])
+					player.did.emit(&"repair"))
 				return true
 		&"rv_part":
 			return func(item: Item, player: Player) -> bool:
@@ -190,6 +194,8 @@ static func use_action(kind: StringName) -> Callable:
 					return false
 				player.consume(item)
 				player.rv.op(&"refit_part", [id])
+				player.did.emit(&"repair")
+				Sfx.cue(player, "rv/part_fall", player.camera.global_position + -player.camera.global_basis.z * 0.8, -12.0, 4.0, 30.0)
 				return true
 		&"spare_tire", &"rv_wheel":
 			return func(item: Item, player: Player) -> bool:
@@ -206,6 +212,9 @@ static func use_action(kind: StringName) -> Callable:
 				else:
 					return false
 				player.consume(item)
+				player.did.emit(&"tire_fitted")
+				player.did.emit(&"repair")
+				Sfx.cue(player, "tools/winch_hook", player.camera.global_position + -player.camera.global_basis.z * 0.8, -10.0, 4.0, 30.0)
 				player.say("Wheel on. It's hanging loose.")
 				return true
 		&"motor_oil":
@@ -213,6 +222,8 @@ static func use_action(kind: StringName) -> Callable:
 				if player.aim_rv().get("kind") != "engine" or player.rv.damage.oil > 0.95:
 					return false
 				player.rv.op(&"add_oil")
+				player.did.emit(&"repair")
+				Sfx.cue(player, "tools/pour", player.camera.global_position, -8.0, 4.0, 30.0)
 				player.consume(item)
 				return true
 		&"jerrycan":
@@ -222,6 +233,10 @@ static func use_action(kind: StringName) -> Callable:
 					return false
 				var poured := minf(litres, RVDamage.TANK - player.rv.damage.fuel)
 				player.rv.op(&"add_fuel", [poured])
+				if poured > 0.0:
+					player.did.emit(&"can_poured")
+					player.did.emit(&"repair")
+					Sfx.cue(player, "tools/pour", player.camera.global_position, -8.0, 4.0, 30.0)
 				item.set_meta(&"fuel", litres - poured)
 				item.def["name"] = "Jerry can (%d L)" % roundi(litres - poured) if litres - poured > 0.5 else "Empty jerry can"
 				return poured > 0.0
@@ -232,6 +247,8 @@ static func use_action(kind: StringName) -> Callable:
 					return false
 				player.held = null
 				item.place(player.world_items, xf)
+				player.did.emit(&"plank")
+				Sfx.cue(player, "tools/plank_lay", (xf as Transform3D).origin, -6.0, 5.0, 40.0)
 				return true
 	return Callable()
 
@@ -249,6 +266,7 @@ static func hold_action(kind: StringName) -> Callable:
 			if not d.wheel_on[i] or d.bolts[i] >= RVDamage.BOLTS:
 				return 0.0
 			player.rv.op(&"tighten_bolt", [i])
+			Sfx.cue(player, "tools/drill_bolt", player.camera.global_position + -player.camera.global_basis.z * 0.8, -7.0, 4.0, 30.0)
 			if not player.rv.is_simulated:
 				d.bolts[i] += 1 # Shown straight away; the RV's own machine confirms.
 			return 0.45 # One bolt at a time.
@@ -313,12 +331,15 @@ static func use_hint(item: Item, player: Player) -> String:
 static func spray(player: Player) -> void:
 	var from := player.camera.global_position
 	var forward := -player.camera.global_basis.z
+	Sfx.cue(player, "items/spray", from + forward * 0.5, -3.0, 6.0, 50.0)
 	for n: Node in player.get_tree().get_nodes_in_group(&"wildlife"):
 		var animal := n as Node3D
 		var to := animal.global_position + Vector3.UP * 0.5 - from
 		var d := to.length()
 		if d < SPRAY_RANGE and (d < 1.2 or to.dot(forward) / d > SPRAY_CONE):
 			animal.call(&"spray_from", player.global_position)
+			if animal is Bear:
+				player.did.emit(&"sprayed_bear")
 	var cloud := CPUParticles3D.new()
 	cloud.one_shot = true
 	cloud.local_coords = true # (World-space particles get culled away from the origin.)

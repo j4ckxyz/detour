@@ -17,6 +17,9 @@ signal downed_changed(is_downed: bool)
 signal passed_out
 ## Each blow of a hammer swing (`swing`), where it landed: for the clank and the sparks.
 signal struck(at: Vector3)
+## Something the player did that counts towards an achievement (see `Achievements`): &"repair",
+## &"plank", &"epipen", &"revive", &"bitten", &"antidote", &"burger", ...
+signal did(what: StringName)
 
 ## Physics layer of players.
 const LAYER := 8
@@ -54,6 +57,8 @@ const FALL_SAFE_SPEED := 10.0
 const FALL_DAMAGE := 9.0
 ## The RV moving into you faster than this (m/s) shoves you out of its way (it never hurts).
 const RV_SHOVE_SPEED := 3.5
+## Metres between footsteps at a walk.
+const STRIDE := 1.9
 ## Walking in through the door (up the step and over the sill) or out takes about this long
 ## (s); the pace is `DOOR_PACE` m/s along the way.
 const DOOR_PACE := 2.4
@@ -68,6 +73,9 @@ var remote: Callable
 ## Optional `func(x, z) -> float`s: the water surface there (-10000 if dry), and how icy.
 var water_query: Callable
 var ice_query: Callable
+## Optional `func(at: Vector3, steep: bool) -> StringName`: what the ground's like there
+## (&"grass", &"dirt", &"rock", &"snow", &"ice", &"mud", &"water"), for footsteps.
+var surface_query: Callable
 ## In water deeper than your chest: swimming (slow; Jump swims up).
 var swimming := false
 ## The RV this player can board.
@@ -117,6 +125,9 @@ var pushing := false
 
 var _yaw := 0.0
 var _pitch := 0.0
+## Metres left to walk before the next footstep, and whether we were swimming last frame.
+var _stride_left := 0.9
+var _was_swimming := false
 ## Walking in (1) or out (-1) through the door: the body glides from where it was to where it
 ## ends up (RV space) instead of appearing there. 0 when not.
 var _transit := 0
@@ -310,10 +321,65 @@ func _process(dt: float) -> void:
 	message_time = maxf(0.0, message_time - dt)
 	_place_camera()
 	_pose_avatar()
+	_footsteps(dt)
 	if puppet:
 		return
 	_find_target()
 	_update_ghost()
+
+
+## Footsteps: one every `STRIDE` metres walked, on whatever's underfoot (the RV's floor, planks,
+## or the ground by its biome), softer crouching and louder at a run; a splash going into water.
+func _footsteps(dt: float) -> void:
+	if not Sfx.armed or downed or seat != &"":
+		return
+	var speed := 0.0
+	var grounded := false
+	if puppet:
+		speed = Vector2(_net_velocity.x, _net_velocity.z).length()
+		grounded = absf(_net_velocity.y) < 2.5
+	elif inside:
+		speed = Vector2(_proxy.velocity.x, _proxy.velocity.z).length()
+		grounded = _proxy.is_on_floor()
+	elif _transit == 0:
+		speed = Vector2(velocity.x, velocity.z).length()
+		grounded = is_on_floor() and not swimming
+	var in_water := swimming and not inside
+	if in_water != _was_swimming:
+		_was_swimming = in_water
+		if in_water:
+			Sfx.cue(self, "steps/splash", global_position, -3.0, 6.0, 60.0)
+	if not grounded or speed < 0.6:
+		_stride_left = minf(_stride_left, STRIDE * 0.5) # The next step comes soon after starting off.
+		return
+	_stride_left -= speed * dt
+	if _stride_left > 0.0:
+		return
+	_stride_left += STRIDE * (1.25 if is_crouching() else 1.0)
+	var loud := -12.0 if is_crouching() else (-3.0 if speed > SPRINT_SPEED * 0.85 else -8.0)
+	var surface := step_surface()
+	var variants := 3 if surface in [&"water", &"mud"] else 4
+	Sfx.cue(self, Sfx.pick("steps/step_" + String(surface), variants), global_position, loud, 4.0, 40.0)
+
+
+## What's underfoot: &"rvfloor" in the RV, &"wood" on a laid plank, else the ground's kind.
+func step_surface() -> StringName:
+	if inside:
+		return &"rvfloor"
+	var steep := false
+	for i: int in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		if col.get_normal().y < 0.7:
+			continue
+		if col.get_collider() is Item:
+			return &"wood"
+		if col.get_collider() == rv:
+			return &"rvfloor"
+	if is_on_floor() and get_floor_normal().y < 0.86:
+		steep = true
+	if surface_query.is_valid():
+		return surface_query.call(global_position, steep)
+	return &"rock" if steep else &"grass"
 
 
 ## Shows where a held plank would go.
@@ -425,6 +491,7 @@ func poison() -> void:
 	if inside:
 		return # Nothing bites you in the RV.
 	venom = VENOM_TIME
+	did.emit(&"bitten")
 
 
 ## A shove (a bear's swipe): added to our velocity.
@@ -588,6 +655,7 @@ func interact(player: Player) -> void:
 	var pen := player.find_item(&"epipen")
 	if player != self and downed and pen:
 		player.consume(pen)
+		player.did.emit(&"revive")
 		revive(player)
 
 
@@ -859,6 +927,9 @@ func find_item(kind: StringName) -> Item:
 
 ## Uses up an item from the hotbar (scrap for a repair, an empty oil bottle...).
 func consume(item: Item) -> void:
+	if item.kind == &"epipen":
+		did.emit(&"epipen")
+		Sfx.cue(self, "items/epipen", camera.global_position, -4.0, 4.0, 30.0)
 	var i := slots.find(item)
 	if i >= 0:
 		slots[i] = null
@@ -887,6 +958,7 @@ func throw_held() -> void:
 	held = null
 	var forward := -camera.global_basis.z
 	var speed := THROW_SPEED / sqrt(maxf(1.0, item.mass))
+	Sfx.cue(self, "items/throw", camera.global_position, -6.0, 4.0, 30.0)
 	item.release(world_items, item.global_transform, velocity + forward * speed)
 
 
@@ -899,10 +971,14 @@ func _stow(item: Item) -> void:
 	query.exclude = [_proxy.get_rid()]
 	var hit := rv.interior.space_state().intersect_ray(query)
 	var spot: Vector3 = hit["position"] if hit else Vector3(ahead.x, rv.interior.floor_y, ahead.z)
+	Sfx.cue(self, "items/drop", rv.to_global(spot), -14.0, 3.0, 20.0)
 	item.stow(rv, Transform3D(Basis(Vector3.UP, _yaw), spot + Vector3.UP * (item.base_offset + 0.01)))
 
 
 func eat(item: Item, amount: float = 30.0) -> void:
+	if item.kind == &"burger":
+		did.emit(&"burger")
+	Sfx.cue(self, "items/drink" if item.kind == &"soda" else "items/eat", camera.global_position, -4.0, 4.0, 30.0)
 	heal(amount)
 	consume(item)
 

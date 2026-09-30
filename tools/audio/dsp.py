@@ -147,4 +147,8 @@ def write_ogg(path: Path, x: np.ndarray, sr: int = SR, quality: float = 0.5) -> 
     """Writes Ogg Vorbis (`quality` 0..1 ~ q0..q10). `x` is (n,) or (n, 2), float in +-1."""
     path.parent.mkdir(parents=True, exist_ok=True)
     x = np.clip(x, -0.999, 0.999).astype(np.float32)
-    sf.write(str(path), x, sr, format="OGG", subtype="VORBIS", compression_level=quality)
+    channels = 1 if x.ndim == 1 else x.shape[1]
+    # In pieces: libsndfile's Vorbis writer crashes on one long buffer (a minute of mono is enough).
+    with sf.SoundFile(str(path), "w", samplerate=sr, channels=channels, format="OGG", subtype="VORBIS", compression_level=quality) as f:
+        for start in range(0, len(x), 1 << 15):
+            f.write(x[start : start + (1 << 15)])

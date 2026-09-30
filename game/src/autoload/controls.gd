@@ -98,8 +98,9 @@ var _defaults: Dictionary[StringName, Array] = {
 	&"leave_seat": [_key(KEY_F), _button(JOY_BUTTON_DPAD_RIGHT)],
 }
 
-## Where the bindings are kept (tests point it elsewhere).
-var path := PATH
+## Where the bindings are kept. Headless runs (the tests) use their own, so the player's own
+## keys can't change what a test presses.
+var path := PATH if DisplayServer.get_name() != "headless" else "user://controls_headless.cfg"
 ## Whether the last input came from a controller (so prompts name its buttons).
 var using_pad := false
 

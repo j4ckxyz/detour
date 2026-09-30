@@ -13,7 +13,7 @@ const HZ := 60
 const AUDIO_DIR := "res://assets/audio"
 const CREDITS := "res://assets/CREDITS.md"
 ## All the sounds together stay small (MB).
-const MAX_SIZE_MB := 8.0
+const MAX_SIZE_MB := 12.0
 
 var _pg: Playground
 var _failures: PackedStringArray = []
@@ -48,6 +48,7 @@ func _run() -> void:
 	_weather_beds()
 	_muffled_indoors()
 	_thunder()
+	await _effects()
 	_pg.trip.clear_save()
 	_pg.queue_free()
 	Session.seed_code = ""
@@ -352,6 +353,190 @@ func _thunder() -> void:
 	weather.kind = Weather.Kind.CLEAR
 	weather.intensity = 0.0
 	amb.update(60.0)
+
+
+## The horn, the winches, footsteps, things picked up and dropped, animals and chimes.
+func _effects() -> void:
+	var rv := _pg.rv
+	var audio := rv.audio
+	var player := _pg.player
+	# The horn: sounds while the button's held; the snapshot carries it so everyone hears it.
+	rv.horn = false
+	await _hold(0.3)
+	_check(not audio.horn_player.playing, "no horn until the button")
+	rv.horn = true
+	await _hold(0.3)
+	_check(audio.horn_player.playing and audio.horn_player.volume_db > -12.0 and audio.horn_player.bus == &"Effects", "the horn sounds while the button's down (%.1f dB)" % audio.horn_player.volume_db)
+	_check(rv.snapshot()[14] == true, "and the network snapshot carries it")
+	rv.horn = false
+	await _hold(0.8)
+	_check(not audio.horn_player.playing, "and it stops when let go")
+	# The winch motors: hooked on a few metres ahead, reeling in.
+	var winch := rv.winches[0]
+	winch.anchor(winch.mount_position() + rv.global_basis * Vector3(0.0, 0.0, -6.0))
+	winch.drive = -1
+	await _hold(0.6)
+	_check(winch.is_anchored() and audio.winch_players[0].playing and not audio.winch_players[1].playing, "the front winch's motor runs while it reels in")
+	winch.tension = 0.0
+	audio.apply_winches(0.1)
+	var slack := audio.winch_players[0].pitch_scale
+	winch.tension = 40000.0
+	audio.apply_winches(0.1)
+	_check(audio.winch_players[0].pitch_scale > slack + 0.15, "and whines higher under load (%.2f → %.2f)" % [slack, audio.winch_players[0].pitch_scale])
+	winch.drive = 0
+	await _hold(0.8)
+	_check(not audio.winch_players[0].playing, "and stops when it does")
+	winch.stow_hook()
+	var before := _one_shots("winch_snap")
+	winch.snapped.emit()
+	_check(_one_shots("winch_snap") == before + 1, "a snapped rope cracks")
+	before = _one_shots("part_fall")
+	rv.damage.part_lost.emit(&"Hood")
+	_check(_one_shots("part_fall") == before + 1, "a panel coming off clangs")
+
+	# Footsteps: every few metres walked, on the ground's kind; none standing still or before the trip.
+	var ground := rv.to_global(Vector3(rv.interior.door_x_outer + 5.0, 0.0, 0.0))
+	ground.y = _pg.world.height_at(ground.x, ground.z) + 0.2
+	player.global_position = ground
+	player.velocity = Vector3.ZERO
+	player.reset_physics_interpolation()
+	var away := rv.global_basis * Vector3.RIGHT # Walk away from the RV: nothing in the way.
+	player.look(atan2(-away.x, -away.z), 0.0)
+	player.surface_query = func(_at: Vector3, _steep: bool) -> StringName: return &"snow"
+	await _hold(1.0)
+	_check(_heard(player, "steps/step_") == 0, "standing still: no footsteps")
+	Sfx.armed = false
+	await _hold_action(&"move_forward", 1.5)
+	_check(_heard(player, "steps/step_") == 0, "before the trip's under way: none")
+	Sfx.armed = true
+	await _hold_action(&"move_forward", 3.0)
+	var walked := _heard(player, "steps/step_snow_")
+	_check(walked >= 3 and walked <= 8, "walking 3 s on snow: crunching steps (%d)" % walked)
+	_check(_heard(player, "steps/step_grass_") == 0, "... none of another surface")
+	var walk_db := _step_db(player)
+	_clear_sounds(player)
+	Input.action_press(&"crouch")
+	await _hold_action(&"move_forward", 3.0)
+	Input.action_release(&"crouch")
+	var crouched := _step_db(player)
+	_check(crouched < walk_db - 2.0, "crouched steps are quieter (%.1f vs %.1f dB)" % [crouched, walk_db])
+	_check(_heard(player, "steps/step_") <= walked, "and further apart")
+	_clear_sounds(player)
+	_check(player.step_surface() == &"snow", "the surface comes from the ground query")
+	_check(_pg.surface_at(ground, true) in [&"rock", &"water", &"ice", &"mud"] and _pg.surface_at(ground, false) in [&"grass", &"dirt", &"snow", &"water", &"ice", &"mud"], "the playground says what the ground is (%s / %s)" % [_pg.surface_at(ground, true), _pg.surface_at(ground, false)])
+	player.surface_query = _pg.surface_at
+	player.board(rv.to_local(player.global_position))
+	player.look(PI / 2.0, 0.0) # Into the RV, away from the door.
+	await _hold(0.3)
+	_check(player.inside and not player.is_in_transit(), "in the RV")
+	_clear_sounds(player)
+	await _hold_action(&"move_forward", 2.0)
+	_check(player.step_surface() == &"rvfloor" and _heard(player, "steps/step_rvfloor_") >= 1, "inside the RV the steps are on its floor (%d)" % _heard(player, "steps/step_rvfloor_"))
+	player.leave_rv()
+	_clear_sounds(player)
+
+	# Things picked up, thrown, dropped and eaten.
+	player.global_position = ground
+	player.velocity = Vector3.ZERO
+	var item := ItemLibrary.create(&"burger")
+	_pg.items.add_child(item)
+	item.global_position = ground + Vector3.UP * 0.5
+	player.pick_up(item)
+	_check(_heard(item, "items/pickup") == 1, "picking something up rustles")
+	player.eat(item)
+	_check(_heard(player, "items/eat") == 1, "eating crunches")
+	var soda := ItemLibrary.create(&"soda")
+	_pg.items.add_child(soda)
+	player.pick_up(soda)
+	player.eat(soda, 10.0)
+	_check(_heard(player, "items/drink") == 1, "a soda is drunk, not chewed")
+	var can := ItemLibrary.create(&"jerrycan")
+	_pg.items.add_child(can)
+	can.global_position = ground + Vector3.UP * 0.5
+	player.pick_up(can)
+	player.throw_held()
+	_check(_heard(player, "items/throw") == 1, "throwing whooshes")
+	await _hold(2.0)
+	_check(_heard(can, "items/drop") >= 1, "and it thuds where it lands")
+	var pen := ItemLibrary.create(&"epipen")
+	_pg.items.add_child(pen)
+	player.pick_up(pen)
+	player.consume(pen)
+	_check(_heard(player, "items/epipen") == 1, "an EpiPen clicks")
+	var spray := ItemLibrary.create(&"bear_spray")
+	_pg.items.add_child(spray)
+	player.pick_up(spray)
+	spray.use(player)
+	_check(_heard(player, "items/spray") == 1, "bear spray hisses")
+
+	# Animals' voices.
+	var snake := Snake.new()
+	snake.world = _pg.world
+	snake.process_mode = Node.PROCESS_MODE_DISABLED # (Set by hand here.)
+	_pg.wildlife.add_child(snake)
+	snake.global_position = ground + Vector3(20.0, 0.0, 0.0)
+	snake.set_state(Snake.State.RATTLE)
+	_check(snake._rattle != null and snake._rattle.playing, "a snake rattles while it warns")
+	snake.set_state(Snake.State.STRIKE)
+	_check(not snake._rattle.playing and _heard(snake, "wildlife/snake_hiss") == 1, "and hisses as it strikes, the rattle stopped")
+	var bear := Bear.new()
+	bear.world = _pg.world
+	bear.process_mode = Node.PROCESS_MODE_DISABLED
+	_pg.wildlife.add_child(bear)
+	bear.global_position = ground + Vector3(20.0, 0.0, 0.0)
+	bear.set_state(Bear.State.ALERT)
+	_check(_heard(bear, "wildlife/bear_roar") == 1, "a bear roars as it rears up")
+	var eagle := Eagle.new()
+	eagle.world = _pg.world
+	eagle.rv = rv
+	eagle.home = ground + Vector3(20.0, 0.0, 0.0)
+	eagle.process_mode = Node.PROCESS_MODE_DISABLED
+	_pg.wildlife.add_child(eagle)
+	eagle.global_position = ground + Vector3(20.0, 20.0, 0.0)
+	eagle.set_state(Eagle.State.DIVE)
+	_check(_heard(eagle, "wildlife/eagle_screech") == 1, "an eagle screeches as it dives")
+	for animal: Node in [snake, bear, eagle]:
+		animal.queue_free()
+
+	# Chimes.
+	_pg.trip.checkpoint_reached.emit(1, 2)
+	_check(_heard(_pg, "ui/chime") == 1, "reaching a gas station chimes")
+	_pg.trip.finished.emit()
+	_check(_heard(_pg, "ui/home") == 1, "and getting home has its own tune")
+
+
+## How many sounds from a file (or files starting with `needle`) are playing under `node`.
+func _heard(node: Node, needle: String) -> int:
+	var n := 0
+	for c: Node in node.get_children():
+		var p := c as AudioStreamPlayer3D
+		var q := c as AudioStreamPlayer
+		var stream: AudioStream = p.stream if p else (q.stream if q else null)
+		if stream and stream.resource_path.contains(needle):
+			n += 1
+	return n
+
+
+## The loudness of the latest footstep under `node`.
+func _step_db(node: Node) -> float:
+	var last := -INF
+	for c: Node in node.get_children():
+		var p := c as AudioStreamPlayer3D
+		if p and p.stream and p.stream.resource_path.contains("steps/step_"):
+			last = p.volume_db
+	return last
+
+
+func _clear_sounds(node: Node) -> void:
+	for c: Node in node.get_children():
+		if c is AudioStreamPlayer3D and (c as AudioStreamPlayer3D).stream.resource_path.contains("steps/"):
+			c.queue_free()
+
+
+func _hold_action(action: StringName, seconds: float) -> void:
+	Input.action_press(action)
+	await _hold(seconds)
+	Input.action_release(action)
 
 
 func _hold(seconds: float) -> void:

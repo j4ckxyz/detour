@@ -17,6 +17,7 @@ var _cooldown := 0.0
 var _flee_to := Vector3.ZERO
 var _segments: Array[Node3D] = []
 var _head: Node3D
+var _rattle: AudioStreamPlayer3D
 
 
 func _build() -> void:
@@ -38,6 +39,29 @@ func _build() -> void:
 func sprayed(from: Vector3) -> void:
 	_flee_to = away_from(from, 12.0)
 	set_state(State.FLEE)
+
+
+func _on_state(s: int) -> void:
+	if s == State.STRIKE:
+		Sfx.cue(self, "wildlife/snake_hiss", global_position + Vector3.UP * 0.2, 0.0, 6.0, 40.0)
+	_rattling(s == State.RATTLE)
+
+
+## The rattle loops for as long as it's warning someone off.
+func _rattling(on: bool) -> void:
+	if not on:
+		if _rattle and _rattle.playing:
+			_rattle.stop()
+		return
+	if not Sfx.armed:
+		return
+	if _rattle == null:
+		_rattle = Sfx.source(self, "Rattle", "wildlife/rattle", true, Sfx.EFFECTS, 5.0, 45.0)
+		_rattle.position = Vector3(0.0, 0.2, 0.0)
+		_rattle.volume_db = -2.0
+		_rattle.max_db = -2.0
+	if not _rattle.playing:
+		_rattle.play()
 
 
 func think(dt: float) -> void:

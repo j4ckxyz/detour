@@ -119,6 +119,11 @@ func _let_go() -> void:
 
 
 ## Flies straight at `point`; true once within `close`.
+func _on_state(s: int) -> void:
+	if s == State.DIVE:
+		Sfx.cue(self, "wildlife/eagle_screech", global_position, 0.0, 16.0, 160.0)
+
+
 func _fly_to(point: Vector3, rate: float, dt: float, close: float = 0.3) -> bool:
 	var to := point - global_position
 	var d := to.length()

@@ -99,3 +99,63 @@ README). The engine loops are the RV's V8 at four speeds (crossfaded and re-pitc
 | `audio/ambience/thunder_1.ogg` | Distant thunder |
 | `audio/ambience/thunder_2.ogg` | Distant thunder, shorter |
 | `audio/ambience/crickets_loop.ogg` | Crickets at night (loop) |
+| `audio/rv/horn.ogg` | The RV's horn, two tones (loop, fades with the button) |
+| `audio/rv/winch_motor.ogg` | The winch motor and gears (loop, pitch rises with the load) |
+| `audio/rv/winch_snap.ogg` | The winch rope snapping |
+| `audio/rv/part_fall.ogg` | A panel or wheel coming off and clanging on the road |
+| `audio/rv/tape_insert.ogg` | A cassette going into the tape deck |
+| `audio/tools/winch_hook.ogg` | The winch hook clinking onto an anchor |
+| `audio/tools/drill_bolt.ogg` | The drill running a wheel bolt in |
+| `audio/tools/weld_zap.ogg` | The welder's arc |
+| `audio/tools/pour.ogg` | Liquid pouring from a can or bottle (loop, played once) |
+| `audio/tools/plank_lay.ogg` | A plank set down |
+| `audio/items/pickup.ogg` | Picking something up |
+| `audio/items/drop.ogg` | Something dropped or landing (played louder the harder it lands) |
+| `audio/items/throw.ogg` | Throwing something (a whoosh) |
+| `audio/items/eat.ogg` | Eating: bites and a swallow |
+| `audio/items/drink.ogg` | A can opened and drunk |
+| `audio/items/epipen.ogg` | The EpiPen's click and hiss |
+| `audio/items/spray.ogg` | A puff of bear spray |
+| `audio/steps/step_grass_1.ogg` | A footstep on grass (variant 1) |
+| `audio/steps/step_grass_2.ogg` | " |
+| `audio/steps/step_grass_3.ogg` | " |
+| `audio/steps/step_grass_4.ogg` | " |
+| `audio/steps/step_dirt_1.ogg` | A footstep on dirt (variant 1) |
+| `audio/steps/step_dirt_2.ogg` | " |
+| `audio/steps/step_dirt_3.ogg` | " |
+| `audio/steps/step_dirt_4.ogg` | " |
+| `audio/steps/step_rock_1.ogg` | A footstep on rock (variant 1) |
+| `audio/steps/step_rock_2.ogg` | " |
+| `audio/steps/step_rock_3.ogg` | " |
+| `audio/steps/step_rock_4.ogg` | " |
+| `audio/steps/step_snow_1.ogg` | A footstep on crunching snow (variant 1) |
+| `audio/steps/step_snow_2.ogg` | " |
+| `audio/steps/step_snow_3.ogg` | " |
+| `audio/steps/step_snow_4.ogg` | " |
+| `audio/steps/step_ice_1.ogg` | A footstep on ice (variant 1) |
+| `audio/steps/step_ice_2.ogg` | " |
+| `audio/steps/step_ice_3.ogg` | " |
+| `audio/steps/step_ice_4.ogg` | " |
+| `audio/steps/step_wood_1.ogg` | A footstep on a plank (variant 1) |
+| `audio/steps/step_wood_2.ogg` | " |
+| `audio/steps/step_wood_3.ogg` | " |
+| `audio/steps/step_wood_4.ogg` | " |
+| `audio/steps/step_rvfloor_1.ogg` | A footstep on the RV's floor (variant 1) |
+| `audio/steps/step_rvfloor_2.ogg` | " |
+| `audio/steps/step_rvfloor_3.ogg` | " |
+| `audio/steps/step_rvfloor_4.ogg` | " |
+| `audio/steps/step_water_1.ogg` | A footstep on wading through water (variant 1) |
+| `audio/steps/step_mud_1.ogg` | A footstep on mud (variant 1) |
+| `audio/steps/step_water_2.ogg` | " |
+| `audio/steps/step_mud_2.ogg` | " |
+| `audio/steps/step_water_3.ogg` | " |
+| `audio/steps/step_mud_3.ogg` | " |
+| `audio/steps/splash.ogg` | Stepping or falling into water |
+| `audio/wildlife/rattle.ogg` | A rattlesnake's rattle (loop) |
+| `audio/wildlife/snake_hiss.ogg` | A snake striking |
+| `audio/wildlife/bear_roar.ogg` | A bear rearing up and roaring |
+| `audio/wildlife/bear_swipe.ogg` | A bear's paw swiping |
+| `audio/wildlife/eagle_screech.ogg` | An eagle's cry |
+| `audio/ui/chime.ogg` | Reaching a gas station |
+| `audio/ui/toast.ogg` | Earning an achievement |
+| `audio/ui/home.ogg` | Getting home |

@@ -161,6 +161,10 @@ func _build() -> void:
 	settings.text = "Settings"
 	settings.pressed.connect(func() -> void: add_child(SettingsMenu.new()))
 	end.add_child(_button(settings))
+	var achievements := Button.new()
+	achievements.text = "Achievements"
+	achievements.pressed.connect(func() -> void: add_child(AchievementsMenu.new()))
+	end.add_child(_button(achievements))
 	var quit := Button.new()
 	quit.text = "Quit"
 	quit.pressed.connect(func() -> void: get_tree().quit())

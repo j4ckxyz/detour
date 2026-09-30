@@ -87,6 +87,12 @@ func apply_net_state(s: Array, find_player: Callable) -> void:
 func set_state(s: int) -> void:
 	state = s
 	state_time = 0.0
+	_on_state(s)
+
+
+## Called whenever the state changes (on every machine), for the animal's voice.
+func _on_state(_s: int) -> void:
+	pass
 
 
 func ground_at(p: Vector3) -> float:

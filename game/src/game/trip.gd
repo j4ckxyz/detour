@@ -320,6 +320,8 @@ func _wire_station_services() -> void:
 		welder.used.connect(func(player: Player) -> void:
 			if _rv_near(welder, 28.0):
 				rv.op(&"weld")
+				player.did.emit(&"repair")
+				Sfx.cue(self, "tools/weld_zap", welder.global_position, -4.0, 8.0, 60.0)
 				player.say("Frame welded good as new; the mechanic looked the engine over too.")
 			else:
 				player.say("The leads don't reach that far."))

@@ -12,6 +12,7 @@ var _backdrop := ColorRect.new()
 var _panel := PanelContainer.new()
 var _resume := Button.new()
 var _settings := Button.new()
+var _achievements := Button.new()
 var _update := Button.new()
 var _auto := CheckBox.new()
 var _quit := Button.new()
@@ -67,7 +68,7 @@ func _build() -> void:
 	version.add_theme_color_override("font_color", DIM)
 	box.add_child(version)
 
-	for b: Button in [_resume, _settings, _update, _quit]:
+	for b: Button in [_resume, _settings, _achievements, _update, _quit]:
 		b.custom_minimum_size = Vector2(0, 40)
 		b.add_theme_font_size_override("font_size", 17)
 	_resume.text = "Resume"
@@ -76,6 +77,9 @@ func _build() -> void:
 	_settings.text = "Settings"
 	_settings.pressed.connect(open_settings)
 	box.add_child(_settings)
+	_achievements.text = "Achievements"
+	_achievements.pressed.connect(open_achievements)
+	box.add_child(_achievements)
 	_update.pressed.connect(Updater.press)
 	box.add_child(_update)
 	_bar.min_value = 0.0
@@ -134,6 +138,15 @@ func open_settings() -> void:
 		if is_open():
 			_settings.grab_focus())
 	add_child(settings)
+
+
+## The achievements list, over this menu; back to it after.
+func open_achievements() -> void:
+	var list := AchievementsMenu.new()
+	list.closed.connect(func() -> void:
+		if is_open():
+			_achievements.grab_focus())
+	add_child(list)
 
 
 func is_open() -> bool:

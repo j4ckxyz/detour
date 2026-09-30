@@ -142,6 +142,7 @@ func on_hook_grabbed() -> void:
 
 ## Hooks onto a fixed point in the world (a tree, rock, stump or log).
 func anchor(point: Vector3) -> void:
+	Sfx.cue(self, "tools/winch_hook", point, -4.0, 6.0, 60.0)
 	_anchor = point
 	state = State.ANCHORED
 	rope_length = minf(MAX_ROPE, mount_position().distance_to(point))

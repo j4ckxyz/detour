@@ -27,6 +27,7 @@ var calm := 0.0
 var _wander_to := Vector3.ZERO
 var _flee_from := Vector3.ZERO
 var _swiped := false
+var _swipe_heard := false
 var _body: Node3D
 var _legs: Array[Node3D] = []
 
@@ -51,6 +52,12 @@ func _build() -> void:
 func sprayed(from: Vector3) -> void:
 	_flee_from = from
 	set_state(State.FLEE)
+
+
+func _on_state(s: int) -> void:
+	_swipe_heard = false
+	if s == State.ALERT:
+		Sfx.cue(self, "wildlife/bear_roar", global_position + Vector3.UP * 1.4, 2.0, 14.0, 150.0)
 
 
 func think(dt: float) -> void:
@@ -112,6 +119,9 @@ func think(dt: float) -> void:
 
 
 func _process(dt: float) -> void:
+	if state == State.ATTACK and state_time > 0.42 and not _swipe_heard:
+		_swipe_heard = true
+		Sfx.cue(self, "wildlife/bear_swipe", global_position + Vector3.UP * 1.2, 0.0, 8.0, 80.0)
 	var phase := stride(dt, 2.2)
 	for i: int in _legs.size():
 		var swing := sin(phase + (PI if i % 3 == 0 else 0.0)) * clampf(speed / 3.0, 0.0, 0.8)

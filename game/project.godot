@@ -21,6 +21,7 @@ Graphics="*res://src/autoload/graphics.gd"
 Controls="*res://src/autoload/controls.gd"
 Updater="*res://src/autoload/updater.gd"
 Session="*res://src/autoload/session.gd"
+Achievements="*res://src/autoload/achievements.gd"
 
 [audio]
 

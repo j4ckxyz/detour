@@ -30,10 +30,15 @@ AUDIO = ROOT / "game" / "assets" / "audio"
 LOOPS = {
     "engine_idle", "engine_low", "engine_mid", "engine_high", "starter_crank", "tire_road", "tire_gravel",
     "wind_bed", "wind_trees", "rain_loop", "rain_roof", "crickets_loop",
+    "horn", "winch_motor", "pour", "rattle",
 }
 # Sounds that may have bright content (hard knocks); the rest must be soft.
 SOFT_LIMIT_PCT = 1.0
-BRIGHT_OK = {"gear_clunk", "hammer_clank_1", "hammer_clank_2", "hammer_clank_3", "door_open", "door_close", "crash"}
+BRIGHT_OK = {
+    "gear_clunk", "hammer_clank_1", "hammer_clank_2", "hammer_clank_3", "door_open", "door_close", "crash",
+    # Hisses, crackles and rattles are what they are: a snake, a welder's arc, a spray can.
+    "snake_hiss", "weld_zap", "rattle", "spray", "winch_snap",
+}
 
 
 def k_weight(x: np.ndarray, sr: int) -> np.ndarray:
