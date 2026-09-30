@@ -61,11 +61,50 @@ func _manual_drivetrain() -> void:
 	_run(d, 1.5, 0.0, 0.0, 0.0)
 	_check(not d.running and stalled[0], "stalls when the clutch is dumped at rest")
 
-	# Restart: needs the clutch down (or neutral).
+	# Restart: the starter holds the clutch in for you, so it starts in gear with the pedal up.
 	_run(d, 1.0, 0.0, 0.0, 0.0)
 	d.crank()
-	_run(d, 1.0, 0.0, 0.0, 0.0)
-	_check(not d.running, "won't start in gear with the clutch up")
+	_check(d.is_cranking(), "cranking")
+	_run(d, 0.3, 0.0, 0.0, 0.0)
+	_check(d.clutch_pedal > 0.9, "the starter presses the clutch (pedal %.2f)" % d.clutch_pedal)
+	while d.is_cranking():
+		d.step(DT, 0.0, 0.0, 0.0)
+	_check(d.running, "starts in gear without touching the clutch")
+	d.anti_stall = true # As the RV sets it when the brakes are off.
+	_run(d, 2.0, 0.0, 0.0, 3.5) # Creeping along at ~1.4 m/s.
+	_check(d.running and d.clutch_pedal > 0.9, "the clutch stays in after the start, the engine idling (pedal %.2f)" % d.clutch_pedal)
+	_run(d, 3.0, 0.3, 0.0, 3.5)
+	_check(d.running and d.clutch_pedal < 0.1, "and comes out when the throttle asks for it (pedal %.2f), still running" % d.clutch_pedal)
+	d.anti_stall = false
+	# Pressing the clutch takes the pedal back from the starter too.
+	d.running = false
+	d.rpm = 0.0
+	d.crank()
+	while d.is_cranking():
+		d.step(DT, 0.0, 0.0, 0.0)
+	d.anti_stall = true
+	_run(d, 0.2, 0.0, 1.0, 3.5)
+	_run(d, 2.0, 0.0, 0.0, 3.5)
+	_check(d.running and d.clutch_pedal < 0.1, "the driver's own clutch takes over after a start")
+	d.anti_stall = false
+	d.running = false
+	d.rpm = 0.0
+	d.gear = 5 # A tall gear from a standstill: idles quietly, doesn't stall itself.
+	d.crank()
+	while d.is_cranking():
+		d.step(DT, 0.0, 0.0, 0.0)
+	_run(d, 4.0, 0.0, 0.0, 0.0)
+	_check(d.running, "starting in 5th at rest holds the engine idling (no stall)")
+	d.gear = 1
+	# ... and again with the RV rolling in gear: the wheels don't stop it starting.
+	d.running = false
+	d.rpm = 300.0
+	d.crank()
+	for i: int in 120:
+		d.step(DT, 0.0, 0.0, 6.0)
+	_check(d.running, "starts while rolling in gear")
+	d.running = false
+	d.rpm = 0.0
 	d.crank()
 	_run(d, 1.0, 0.0, 1.0, 0.0)
 	_check(d.running, "starts with the clutch down")

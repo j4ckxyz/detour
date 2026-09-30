@@ -59,6 +59,8 @@ var grinding := 0.0
 var anti_stall := false
 
 var _crank_timer := -1.0
+## Manual: the clutch stays in after a start until the driver asks for it back.
+var _hold_clutch := false
 var _auto_shift_timer := 0.0
 var _since_auto_shift := 10.0
 
@@ -114,6 +116,11 @@ func shift_to_neutral() -> void:
 		gear_changed.emit(gear)
 
 
+## Starts the engine. Manual: the starter holds the clutch in while it cranks (like the
+## interlock on a modern car), so the engine starts in gear, or with the RV rolling, without
+## you having to hold the pedal; and it stays held in afterwards, the engine idling and the RV
+## going nowhere, until you touch the throttle or the clutch (so a start in a tall gear doesn't
+## stall again the moment the pedal comes up).
 func crank() -> void:
 	if running or _crank_timer >= 0.0:
 		return
@@ -138,7 +145,10 @@ func step(dt: float, throttle: float, clutch_input: float, wheel_omega: float) -
 	if automatic:
 		_auto_gearbox(dt, throttle, wheel_omega)
 	else:
-		var target := clampf(clutch_input, 0.0, 1.0)
+		if _hold_clutch and (throttle > 0.05 or clutch_input > 0.5 or not running):
+			_hold_clutch = false
+		# While the starter cranks, and after it, the clutch stays in.
+		var target := 1.0 if _crank_timer >= 0.0 or _hold_clutch else clampf(clutch_input, 0.0, 1.0)
 		var releasing := target < clutch_pedal
 		var rate := 1.0 / (PEDAL_RELEASE_TIME if releasing else PEDAL_PRESS_TIME)
 		if releasing and anti_stall and running and gear != 0:
@@ -184,6 +194,7 @@ func step(dt: float, throttle: float, clutch_input: float, wheel_omega: float) -
 		if e < 0.3 and not no_start:
 			running = true
 			rpm = maxf(rpm, IDLE_RPM)
+			_hold_clutch = gear != 0 and not automatic and clutch_input < 0.5
 			started.emit()
 	elif running and rpm < STALL_RPM:
 		running = false

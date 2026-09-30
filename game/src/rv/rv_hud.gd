@@ -7,6 +7,8 @@ const TEXT := Color(0.96, 0.93, 0.86)
 const DIM := Color(0.96, 0.93, 0.86, 0.45)
 const WARN := Color(1.0, 0.62, 0.35)
 const REDLINE := Color(0.92, 0.36, 0.25)
+## Running below this in gear with the clutch out is lugging: shift down or it will stall.
+const LUG_RPM := 700.0
 
 var rv: RV
 
@@ -14,6 +16,8 @@ var _gauges := Label.new()
 var _status := Label.new()
 var _help := Label.new()
 var _gate := GateView.new()
+## Big and centred while the engine's off or starting: it must be obvious.
+var _engine_state := Label.new()
 
 
 class GateView:
@@ -77,6 +81,16 @@ func _ready() -> void:
 	help_panel.add_child(_help)
 	add_child(help_panel)
 
+	_engine_state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_engine_state.add_theme_font_size_override("font_size", 34)
+	_engine_state.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	_engine_state.add_theme_constant_override("outline_size", 8)
+	_engine_state.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_engine_state.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_engine_state.offset_top = 96.0
+	_engine_state.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_engine_state)
+
 
 ## The F1 help, with whatever keys are bound now.
 static func help_text() -> String:
@@ -117,9 +131,10 @@ func _process(_delta: float) -> void:
 	var kmh := absf(rv.forward_speed()) * 3.6
 	var gear := "R" if d.gear == -1 else ("N" if d.gear == 0 else str(d.gear))
 	_gauges.text = "%3d km/h   %s   %4d rpm" % [roundi(kmh), gear, roundi(d.rpm)]
-	_gauges.add_theme_color_override("font_color", REDLINE if d.rpm > RVDrivetrain.REDLINE_RPM - 150.0 else TEXT)
+	_gauges.add_theme_color_override("font_color", REDLINE if d.rpm > RVDrivetrain.REDLINE_RPM - 150.0 else (TEXT if d.running else DIM))
 
 	var bits: PackedStringArray = []
+	bits.append("ENGINE ON" if d.running else "ENGINE OFF")
 	bits.append("AUTO" if d.automatic else "MANUAL")
 	if not d.automatic:
 		bits.append("clutch %d%%" % roundi(d.clutch_pedal * 100.0))
@@ -128,10 +143,10 @@ func _process(_delta: float) -> void:
 	if rv.headlights:
 		bits.append("lights")
 	var warn := false
-	if d.is_cranking():
-		bits.append("cranking…")
-	elif not d.running:
-		bits.append("STALLED (I to start)")
+	if not d.running:
+		warn = true
+	elif not d.automatic and d.gear > 0 and d.clutch_pedal < 0.2 and d.rpm < LUG_RPM and absf(rv.forward_speed()) > 0.3:
+		bits.append("LUGGING: shift down (%s)" % Controls.prompt(&"rv_shift_down"))
 		warn = true
 	if d.grinding > 0.0:
 		bits.append("GRIND")
@@ -147,9 +162,6 @@ func _process(_delta: float) -> void:
 	if dmg.oil < 0.15:
 		bits.append("OIL LOW")
 		warn = true
-	if d.no_start and not d.running:
-		bits.append("won't start: " + ("no fuel" if dmg.fuel <= 0.0 else "engine seized"))
-		warn = true
 	var loose := 0
 	for i: int in 4:
 		if not dmg.wheel_on[i] or dmg.bolts[i] < RVDamage.BOLTS or dmg.tires[i] <= 0.0:
@@ -164,8 +176,26 @@ func _process(_delta: float) -> void:
 		warn = true
 	_status.text = "   ".join(bits)
 	_status.add_theme_color_override("font_color", WARN if warn else DIM)
+	_show_engine_state(d)
 
 	_gate.visible = not d.automatic and (Input.is_action_pressed(&"rv_clutch") or d.clutch_pedal > 0.5)
 	_gate.stick = rv.gear_stick.position
 	_gate.gear = d.gear
 	_gate.queue_redraw()
+
+
+## The engine's state, big: off (and how to start it), cranking, or nothing while it runs.
+func _show_engine_state(d: RVDrivetrain) -> void:
+	if d.running:
+		_engine_state.visible = false
+		return
+	_engine_state.visible = true
+	if d.is_cranking():
+		_engine_state.text = "STARTING…"
+		_engine_state.add_theme_color_override("font_color", TEXT)
+		return
+	var why := ""
+	if not rv.damage.can_start():
+		why = "\nIt won't start: " + ("out of fuel" if rv.damage.fuel <= 0.0 else "the engine's seized")
+	_engine_state.text = "ENGINE OFF\nPress %s to start%s" % [Controls.prompt(&"rv_ignition"), why]
+	_engine_state.add_theme_color_override("font_color", WARN)

@@ -1,5 +1,10 @@
 # Detour vs. RV There Yet? — full feature and gameplay gap analysis
 
+> **Update, 30 September 2026:** sections 2–15 below describe the build as it was on 28 September
+> (before milestones M1–M11). The status table in [§16](#16-feature-status-summary) is the
+> current picture: each ✅ row says which milestone did it, and `CURRENT_GAME.md` lists exactly
+> what the game does now.
+
 **Comparison date:** 28 September 2026  
 **Your build baseline:** `CURRENT_GAME.md`, snapshot updated 28 September 2026  
 **Reference game:** *RV There Yet?* by Nuggets Entertainment, including the current three-map version available as of 28 September 2026.
@@ -2152,7 +2157,10 @@ Legend:
 | Sound effects | MISSING |
 | Main menu | ✅ DONE (M6) |
 | Settings | ✅ DONE (M11: display, interface scale, graphics quality and resolution scale, FOV, look sensitivity, volumes) |
-| Key rebinding | MISSING |
+| Key rebinding | ✅ DONE (M12: keyboard, mouse and controller; three slots per action, conflicts move the key, saved; a bindings screen in Settings; prompts and help follow it) |
+| Horn | ✅ DONE (M12: the driver's horn, shared with co-op players; sound to follow) |
+| Manual-gearbox usability | ✅ DONE (M12: gears now really raise the top speed; the starter holds the clutch so a stalled engine always restarts; big ENGINE OFF / STARTING banner; lugging warning) |
+| Walking through the RV door | ✅ DONE (M12: a smooth stride up the step and over the sill, in and out; no snap) |
 | Achievements | MISSING |
 
 ---

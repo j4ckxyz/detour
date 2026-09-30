@@ -100,7 +100,7 @@ func _process(_delta: float) -> void:
 	if player.swimming:
 		bits.append("Swimming")
 	if player.venom > 0.0:
-		bits.append("Poisoned") # (Health is in the status panel.)
+		bits.append("Poisoned (on hold while you're in the RV)" if player.inside else "Poisoned") # (Health is in the status panel.)
 	var danger := _danger()
 	if danger != "":
 		bits.append(danger)

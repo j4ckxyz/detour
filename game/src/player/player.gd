@@ -52,9 +52,12 @@ const VENOM_TIME := 90.0
 ## ~8 m costs a quarter of your health, ~15 m nearly all of it).
 const FALL_SAFE_SPEED := 10.0
 const FALL_DAMAGE := 9.0
-## The RV moving into you faster than this (m/s) knocks you over, by RV_HIT_DAMAGE per m/s over.
-const RV_HIT_SPEED := 3.5
-const RV_HIT_DAMAGE := 9.0
+## The RV moving into you faster than this (m/s) shoves you out of its way (it never hurts).
+const RV_SHOVE_SPEED := 3.5
+## Walking in through the door (up the step and over the sill) or out takes about this long
+## (s); the pace is `DOOR_PACE` m/s along the way.
+const DOOR_PACE := 2.4
+const DOOR_TIME := Vector2(0.7, 1.0)
 
 ## Online: whose player this is, and whether it's someone else's (a puppet following their
 ## snapshots; things done to it are sent to them through `remote`).
@@ -114,6 +117,14 @@ var pushing := false
 
 var _yaw := 0.0
 var _pitch := 0.0
+## Walking in (1) or out (-1) through the door: the body glides from where it was to where it
+## ends up (RV space) instead of appearing there. 0 when not.
+var _transit := 0
+var _transit_t := 0.0
+var _transit_time := 0.6
+var _transit_from := Vector3.ZERO
+var _transit_to := Vector3.ZERO
+var _transit_carry := Vector3.ZERO
 var _crouch := 0.0
 var _proxy := CharacterBody3D.new()
 var _prev_rv_velocity := Vector3.ZERO
@@ -279,6 +290,9 @@ func _physics_process(dt: float) -> void:
 	if seat != &"":
 		_follow_rv(_proxy.position)
 		return
+	if _transit != 0:
+		_step_transit(dt)
+		return
 	var wish := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back") if input_enabled else Vector2.ZERO
 	var crouching := input_enabled and Input.is_action_pressed(&"crouch")
 	_crouch = move_toward(_crouch, 1.0 if crouching or downed else 0.0, dt * 6.0)
@@ -335,7 +349,7 @@ func _move_outside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
 		var local := rv.to_local(global_position)
 		var toward_rv := (rv.global_basis.inverse() * velocity).x < -0.2
 		if rv.interior.in_doorway(local, 0.9) and local.y < rv.interior.floor_y + 0.6 and toward_rv:
-			board(local)
+			board(local, true)
 
 
 func _move_inside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
@@ -354,7 +368,7 @@ func _move_inside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
 		_step_up(_proxy, Vector3(v.x, 0.0, v.z) * dt)
 	var p := _proxy.position
 	if p.x > rv.interior.door_x_outer + 0.1 and rv.interior.in_doorway(p, 1.0):
-		leave_rv()
+		leave_rv(true)
 	elif p.y < -2.0:
 		leave_rv() # Fell out somehow: put them back in the world.
 	else:
@@ -362,7 +376,8 @@ func _move_inside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
 
 
 ## The RV doesn't collide with people (it would stop dead against them): instead, standing in
-## its way while it moves hurts and knocks you aside.
+## its way while it moves shoves you aside. It never hurts you; only the RV moving into you
+## counts, not you walking into it.
 func _check_run_over(dt: float) -> void:
 	_rv_hit_cooldown = maxf(0.0, _rv_hit_cooldown - dt)
 	if rv == null or _rv_hit_cooldown > 0.0:
@@ -378,12 +393,10 @@ func _check_run_over(dt: float) -> void:
 	var rv_v := rv.point_velocity(global_position)
 	var away := Vector3(global_position.x - rv.global_position.x, 0.0, global_position.z - rv.global_position.z)
 	var side := rv.global_basis.x * signf(local.x) if absf(local.x) / half.x > absf(local.z) / half.z else rv.global_basis.z * signf(local.z)
-	var closing := (rv_v - velocity).dot(side)
-	if closing < RV_HIT_SPEED or away.length() < 0.01:
+	if rv_v.dot(side) < RV_SHOVE_SPEED or away.length() < 0.01:
 		return
 	_rv_hit_cooldown = 1.0
 	velocity = rv_v + side * 2.5 + Vector3.UP * 3.0
-	hurt((closing - RV_HIT_SPEED) * RV_HIT_DAMAGE + 5.0, "hit by the RV")
 
 
 ## Takes `amount` of health (`cause` for the HUD). At zero you go down.
@@ -409,6 +422,8 @@ func poison() -> void:
 	if puppet:
 		_tell(&"poison", [])
 		return
+	if inside:
+		return # Nothing bites you in the RV.
 	venom = VENOM_TIME
 
 
@@ -546,7 +561,9 @@ func _pose_avatar() -> void:
 
 func _tick_health(dt: float) -> void:
 	hurt_flash = maxf(0.0, hurt_flash - dt * 1.5)
-	if venom > 0.0:
+	# The venom only works on you out in the open: inside the RV it waits (no damage, and the
+	# clock stops too, so sitting in there doesn't cure it).
+	if venom > 0.0 and not inside:
 		venom = maxf(0.0, venom - dt)
 		if not downed:
 			health -= VENOM_DPS * dt
@@ -665,8 +682,10 @@ func _follow_rv(local: Vector3) -> void:
 	global_transform = rv.global_transform * Transform3D(Basis.IDENTITY, local)
 
 
-## Steps into the RV through the door (`local`: where we are in RV space).
-func board(local: Vector3) -> void:
+## Gets into the RV through the door (`local`: where we are in RV space). `walk`: the body
+## glides in from where it is, up the step and over the sill, at a walking pace; otherwise
+## (a save, a test) it just appears just inside the door.
+func board(local: Vector3, walk: bool = false) -> void:
 	inside = true
 	collision_layer = 0
 	collision_mask = 0
@@ -680,25 +699,89 @@ func board(local: Vector3) -> void:
 		if _proxy.get_parent():
 			_proxy.get_parent().remove_child(_proxy)
 		rv.interior.add_child(_proxy)
+	_prev_rv_velocity = rv.linear_velocity
+	if walk:
+		var rel := rv.global_basis.inverse() * (velocity - rv.point_velocity(global_position))
+		_begin_transit(1, local, start, Vector3(rel.x, 0.0, rel.z))
+		return
 	_proxy.position = start
 	_proxy.velocity = Vector3.ZERO
-	_prev_rv_velocity = rv.linear_velocity
 	_follow_rv(start)
 	reset_physics_interpolation()
 
 
-## Steps out of the RV door into the world.
-func leave_rv() -> void:
+## Gets out through the door into the world. `walk`: down the step and onto the ground at a
+## walking pace (else dropped just outside).
+func leave_rv(walk: bool = false) -> void:
 	var p := _proxy.position
-	var out := Vector3(rv.interior.door_x_outer + 0.55, rv.interior.floor_y - 0.2, clampf(p.z, rv.interior.door_z.x, rv.interior.door_z.y))
+	var door := rv.interior
+	var out := Vector3(door.door_x_outer + 0.55, door.floor_y - 0.2, clampf(p.z, door.door_z.x, door.door_z.y))
 	var world_dir := rv.global_basis * (Basis(Vector3.UP, _yaw) * Vector3.FORWARD)
 	_yaw = atan2(-world_dir.x, -world_dir.z)
+	if walk:
+		# Onto the ground under the step, if there is any.
+		var far := Vector3(door.door_x_outer + 0.85, door.floor_y, clampf(p.z, door.door_z.x + 0.1, door.door_z.y - 0.1))
+		var query := PhysicsRayQueryParameters3D.create(rv.to_global(far + Vector3.UP * 0.4), rv.to_global(far + Vector3.DOWN * 2.5), TerrainStreamer.WORLD_LAYER)
+		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		if hit:
+			far = rv.to_local(hit["position"] as Vector3 + Vector3.UP * 0.02)
+			var rel := _proxy.velocity
+			_begin_transit(-1, p, far, Vector3(rel.x, 0.0, rel.z))
+			return
 	inside = false
 	global_transform = Transform3D(Basis.IDENTITY, rv.to_global(out))
 	velocity = rv.point_velocity(global_position)
 	collision_layer = LAYER
 	collision_mask = TerrainStreamer.WORLD_LAYER | RV.VEHICLE_LAYER
 	reset_physics_interpolation()
+
+
+## Whether the body's walking through the door right now (see `_begin_transit`).
+func is_in_transit() -> bool:
+	return _transit != 0
+
+
+## Starts gliding from `from` to `to` (RV space); `carried` is the walking velocity to carry on with.
+func _begin_transit(kind: int, from: Vector3, to: Vector3, carried: Vector3) -> void:
+	_transit = kind
+	_transit_t = 0.0
+	_transit_from = from
+	_transit_to = to
+	var flat := Vector2(to.x - from.x, to.z - from.z).length()
+	_transit_time = clampf(flat / DOOR_PACE + 0.15, DOOR_TIME.x, DOOR_TIME.y)
+	_transit_carry = carried
+	_proxy.position = from
+	_proxy.velocity = Vector3.ZERO
+	_follow_rv(from)
+
+
+## One physics step of walking through the door: level ground to the step, a stride up (or
+## down) each riser, and on.
+func _step_transit(dt: float) -> void:
+	_transit_t = minf(_transit_t + dt / _transit_time, 1.0)
+	var t := _transit_t
+	# Two risers (the door step, then the sill), each spread over half the stride so the view
+	# never lurches; going out is the same in reverse.
+	var stairs := 0.5 * smoothstep(0.0, 0.55, t) + 0.5 * smoothstep(0.4, 1.0, t)
+	if _transit < 0:
+		stairs = 1.0 - (0.5 * smoothstep(0.0, 0.55, 1.0 - t) + 0.5 * smoothstep(0.4, 1.0, 1.0 - t))
+	var flat := _transit_from.lerp(_transit_to, t)
+	var at := Vector3(flat.x, lerpf(_transit_from.y, _transit_to.y, stairs), flat.z)
+	_proxy.position = at
+	_follow_rv(at)
+	if _transit_t < 1.0:
+		return
+	var kind := _transit
+	_transit = 0
+	var carry := _transit_carry.limit_length(WALK_SPEED)
+	if kind > 0:
+		_proxy.velocity = carry
+		_prev_rv_velocity = rv.linear_velocity
+		return
+	inside = false
+	velocity = rv.point_velocity(global_position) + rv.global_basis * carry
+	collision_layer = LAYER
+	collision_mask = TerrainStreamer.WORLD_LAYER | RV.VEHICLE_LAYER
 
 
 ## Sits in one of the RV's seats (must already be inside).

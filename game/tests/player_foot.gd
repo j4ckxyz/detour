@@ -47,8 +47,13 @@ func _run() -> void:
 	_check(_player.target_prompt == "Open door", "looking at the door offers to open it (got '%s')" % _player.target_prompt)
 	await _press(&"interact")
 	_check(_rv.door_open, "Interact opened the door")
+	_tracing = true
+	_trace.clear()
 	await _walk_to_world(_door_outside(-0.6), 3.0)
+	_tracing = false
 	_check(_player.inside, "walked in through the open door")
+	_smooth(_trace, "walking in through the door")
+	_check(not _player.is_in_transit(), "... and the walk in is over")
 
 	# To the driver's seat and sit.
 	var stand: Vector3 = _rv.seats[&"driver"]["stand"]
@@ -78,8 +83,12 @@ func _run() -> void:
 	_check(_player.global_position.distance_to(_rv.to_global(_player.local_position())) < 0.25, "drawn where the RV is")
 
 	# Walk out.
+	_tracing = true
+	_trace.clear()
 	await _walk_to_local(Vector3(_rv.interior.door_x_outer + 1.5, _rv.interior.floor_y, _door_z()), 4.0)
+	_tracing = false
 	_check(not _player.inside, "walked out of the door")
+	_smooth(_trace, "walking out through the door")
 	await _hold(1.0)
 	_check(_player.is_on_ground(), "landed outside")
 
@@ -144,6 +153,31 @@ func _walk_to_door() -> void:
 		await _walk_to_world(_rv.to_global(Vector3(4.0, 0.0, end_z)), 6.0, 0.6)
 	await _walk_to_world(_door_outside(1.3), 6.0)
 	await _walk_to_world(_door_outside(-0.6), 3.0)
+
+
+## Where the view was each physics frame while `_tracing`.
+var _trace: Array[Vector3] = []
+var _tracing := false
+
+
+func _physics_process(_dt: float) -> void:
+	if _tracing and _player:
+		_trace.append(_player.camera.global_position)
+
+
+## The path has no jumps: the view never moved further than a brisk walk in one frame (the old
+## teleport through the door was over a metre), and rises and drops at a walking pace too.
+func _smooth(path: Array[Vector3], what: String) -> void:
+	var worst := 0.0
+	var worst_up := 0.0
+	var total := 0.0
+	for i: int in range(1, path.size()):
+		var step := path[i].distance_to(path[i - 1])
+		worst = maxf(worst, step)
+		worst_up = maxf(worst_up, absf(path[i].y - path[i - 1].y))
+		total += step
+	_check(path.size() > 20 and worst < 0.12, "%s: no jump in the view (largest step %.3f m a frame, %d frames, %.1f m)" % [what, worst, path.size(), total])
+	_check(worst_up < 0.05, "%s: rises and drops smoothly (largest %.3f m a frame)" % [what, worst_up])
 
 
 func _door_z() -> float:

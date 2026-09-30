@@ -32,7 +32,8 @@ walk around, winch, push and repair. Play solo or together on a LAN, by IP or th
 | **F** | Get up from a seat |
 | **Esc** | Pause menu |
 
-Walk through the open side door to get in or out; small ledges and rocks are stepped over.
+Walk through the open side door to get in or out (you stride up the door step and over the sill
+in about half a second, no jump or snap); small ledges and rocks are stepped over.
 
 ### Driving (keyboard and mouse)
 
@@ -108,7 +109,9 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   pour", "LMB lay") only while you're aiming at somewhere it would work. Working out where the
   fuel cap is, what the hammer needs, or where the planks went is up to you.
 - **The RV's side door** opens and closes (animated). Walk through it to get in; walk out to
-  leave. The shut door blocks the way.
+  leave. The shut door blocks the way. Getting in or out is a walked stride, not a teleport:
+  you climb the step and the sill (or step back down onto the ground) at a walking pace with
+  the view moving smoothly, and carry on walking when you're through.
 - **Inside the RV** you walk around its real interior while it drives: the interior is its own
   physics space in the RV's frame, so it's rock-steady however the RV bounces. You feel it
   lean (gravity pulls you to the low side) and brake (you stumble forward a little).
@@ -148,10 +151,13 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
 
 ## Health and survival
 - **Health** (100). Hurts: **falls** (a ~5 m drop is safe, ~8 m costs a quarter, ~15 m nearly
-  everything), **the RV** running into you (it doesn't stop for people: get out of the way),
-  **bears**, **snakes** and **eagles**. A red flash shows each hit.
-- **Snake venom**: a bite poisons you (the screen tints green): −1.2 health a second for 90 s
-  unless you use an **antidote**.
+  everything), **bears**, **snakes** and **eagles**. A red flash shows each hit. The RV never
+  hurts you: it doesn't stop for people, so if it rolls into you it just shoves you out of the
+  way (and walking or sprinting into a parked one does nothing).
+- **Snake venom**: only a rattlesnake's bite poisons you (the screen tints green): −1.2 health
+  a second for 90 s unless you use an **antidote**. It only works on you out in the open:
+  nothing can bite or poison you inside the RV, and if you climb in while poisoned the venom
+  waits (no damage, and its clock stops too, so hiding in there doesn't cure it).
 - **Downed**: at 0 health you drop to the ground and can only crawl (0.8 m/s). You bleed out in
   **60 s**. Left click uses an **EpiPen** from your hotbar to get back up with 40 health; a
   teammate can revive you with theirs (E on you). **E** gives up. Bleeding out or giving up
@@ -452,7 +458,12 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   - Rev limiter at 3800 rpm.
   - Engine braking when you lift off.
 - **Stalling**: dump the clutch at low revs, or let the revs fall below ~380 rpm in gear, and
-  the engine dies. Press **I** with the clutch down (or in neutral) to crank it for 0.7 s.
+  the engine dies. The screen then says **ENGINE OFF** in big letters (and how to start it);
+  the status line always says ENGINE ON or ENGINE OFF, and lugging in a too-tall gear warns you
+  to shift down before it stalls. Press **I** to crank it for 0.7 s ("STARTING…"): the starter
+  holds the clutch in for you, so it starts in gear (or with the RV rolling) without you holding
+  the pedal, and afterwards the clutch stays in, the engine idling, until you touch the throttle
+  or the clutch (so starting in a tall gear can't stall it again the moment you let go).
 - **Clutch**: an analog pedal. It presses in 0.12 s and lets out in 0.55 s, biting mid-travel.
   Slip it with some throttle to pull away smoothly. A key is all-or-nothing, so letting **Q**
   go (when you're not braking) feathers it for you: the pedal waits at the bite point while
@@ -469,6 +480,11 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   | 4 | ~100 km/h |
   | 5 | ~125 km/h in theory; drag limits it lower |
   | R | ~27 km/h |
+
+  Each gear really does get the RV faster (on the flat, full throttle, the tests measure
+  ~21, 42, 61, 87 and 115 km/h reaching the end of 1st to 5th). The RV used to stop
+  accelerating around 45 km/h in any gear because the physics engine's default damping was added
+  on top of its own air and tyre drag; that's gone, so it coasts properly too.
 
 - **H-pattern gate** (1-3-5 on top, 2-4-R on the bottom). The stick only slides sideways in
   the neutral lane and only enters a gear when lined up with it. It won't go into gear
@@ -532,7 +548,9 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
 - **Driving HUD** (bottom left):
   - Speed, gear and rpm (red near the limiter).
   - Manual/auto, clutch %, handbrake and lights indicators.
-  - Warnings for stalled, cranking and grinding.
+  - A big **ENGINE OFF / STARTING…** message in the middle of the screen while the engine isn't
+    running, plus ENGINE ON / ENGINE OFF in the status line and warnings for lugging and
+    grinding.
 - **H-pattern diagram** (bottom right) appears while the clutch is down, with a dot where the
   stick is.
 - **Controls help** (top, F1) and a **performance overlay** (F3: fps, frame times, streaming

@@ -1,5 +1,5 @@
 extends Node
-## Headless survival test: falls and the RV hurt; burgers, soda, first aid and cooked patties
+## Headless survival test: falls hurt (the RV shoves you aside but never hurts); burgers, soda, first aid and cooked patties
 ## heal (a patty cooks on the RV's stove); a snake bite poisons until the antidote; running
 ## out of health downs you, an EpiPen gets you up, bleeding out (solo) takes you back to the
 ## last stop; a bear charges and swipes, bear spray sends it off, and it gives up on someone
@@ -40,6 +40,7 @@ func _run() -> void:
 	await _falls_and_the_rv()
 	await _food()
 	await _snake()
+	await _venom_and_the_rv()
 	await _downed()
 	await _bear()
 	await _eagle()
@@ -88,17 +89,29 @@ func _falls_and_the_rv() -> void:
 	_player.global_position = front
 	_player.velocity = Vector3.ZERO
 	_player.reset_physics_interpolation()
-	var hit := false
+	var shoved := false
 	for i: int in HZ:
 		_rv.linear_velocity = -_rv.global_basis.z * 8.0
 		await get_tree().physics_frame
-		if _player.health < Player.MAX_HEALTH:
-			hit = true
+		if _player.global_position.distance_to(front) > 1.0:
+			shoved = true
 			break
 	_rv.linear_velocity = Vector3.ZERO
 	_rv.parking_brake = true
-	_check(hit, "the RV running into you hurts (%.0f, %s)" % [_player.health, _player.hurt_cause])
+	_check(shoved, "the RV running into you shoves you out of its way")
 	await _w.hold(1.5)
+	_check(_player.health == Player.MAX_HEALTH and not _player.downed, "... without hurting you (%.0f)" % _player.health)
+
+	# Running into a parked RV (or the closed door) doesn't hurt either.
+	_rv.door_open = false
+	var beside := _rv.to_global(Vector3(_rv.interior.door_x_outer + 6.0, 0.0, -0.4))
+	_put(beside)
+	await _w.hold(0.5)
+	_w.face(_rv.to_global(Vector3(0.0, 1.0, -0.4)))
+	Input.action_press(&"sprint")
+	await _w.hold_action(&"move_forward", 2.0)
+	Input.action_release(&"sprint")
+	_check(_player.health == Player.MAX_HEALTH, "sprinting into the parked RV doesn't hurt (%.0f)" % _player.health)
 	_player.health = Player.MAX_HEALTH
 
 
@@ -157,6 +170,45 @@ func _snake() -> void:
 	await _w.press(&"use_item")
 	_check(snake.state == Snake.State.FLEE, "bear spray sends the snake off")
 	snake.queue_free()
+	_player.health = Player.MAX_HEALTH
+
+
+## Venom only comes from a bite, and only works on you outside: in the RV nothing bites, it
+## doesn't hurt, and the clock stops (waiting in there doesn't cure it).
+func _venom_and_the_rv() -> void:
+	_player.health = Player.MAX_HEALTH
+	_player.venom = 0.0
+	_rv.door_open = true
+	# Nothing's bitten us: no venom, however long we wait.
+	_put(_open_ground(40.0))
+	await _w.hold(3.0)
+	_check(_player.venom == 0.0 and _player.health == Player.MAX_HEALTH, "no venom without a bite")
+	# A snake right by the door: bites nobody inside the RV.
+	var door := _rv.to_global(Vector3(_rv.interior.door_x_outer + 0.9, 0.0, (_rv.interior.door_z.x + _rv.interior.door_z.y) * 0.5))
+	var snake := _spawn(Snake.new(), door) as Snake
+	_player.board(_rv.to_local(_player.global_position))
+	await _w.hold(4.0)
+	_check(_player.inside and _player.venom == 0.0 and _player.health == Player.MAX_HEALTH, "a snake by the door doesn't bite someone in the RV")
+	_check(not snake.is_rattling(), "... and doesn't even notice them")
+	_player.poison()
+	_check(_player.venom == 0.0, "nothing can poison you in the RV")
+	# Bitten outside, then in: it stops hurting; out again: it carries on.
+	snake.queue_free()
+	_player.leave_rv()
+	_put(_open_ground(40.0))
+	_player.poison()
+	await _w.hold(2.0)
+	_check(_player.venom > 0.0 and _player.health < Player.MAX_HEALTH, "bitten outside: it hurts")
+	_player.board(_rv.to_local(_player.global_position))
+	var health := _player.health
+	var clock := _player.venom
+	await _w.hold(3.0)
+	_check(is_equal_approx(_player.health, health) and is_equal_approx(_player.venom, clock), "in the RV the venom doesn't hurt and its clock is stopped (%.1f → %.1f)" % [health, _player.health])
+	_player.leave_rv()
+	_put(_open_ground(40.0))
+	await _w.hold(2.0)
+	_check(_player.health < health - 1.0 and _player.venom < clock - 1.0, "back outside it carries on (%.1f → %.1f)" % [health, _player.health])
+	_player.venom = 0.0
 	_player.health = Player.MAX_HEALTH
 
 

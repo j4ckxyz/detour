@@ -141,6 +141,11 @@ func _ready() -> void:
 	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
 	center_of_mass = _local("CenterOfMass")
 	angular_damp = 0.4
+	# Air and tyre losses are modelled on purpose (DRAG, RVWheel.ROLLING). Without this the
+	# project's default damping (0.1 a second, added to ours) quietly ate 550 N per m/s: more
+	# than the engine has above ~45 km/h, so no gear got the RV any faster.
+	linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	linear_damp = 0.0
 	can_sleep = false
 	continuous_cd = true
 	contact_monitor = true # For impact damage (see _integrate_forces).

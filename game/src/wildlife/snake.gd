@@ -57,7 +57,7 @@ func think(dt: float) -> void:
 			if state == State.COILED:
 				set_state(State.RATTLE)
 			turn_towards(target.global_position, dt, 3.0)
-			if flat_distance(target.global_position) < BITE_RANGE and _cooldown <= 0.0:
+			if flat_distance(target.global_position) < BITE_RANGE and _cooldown <= 0.0 and Animal.is_exposed(target):
 				set_state(State.STRIKE)
 				target.hurt(BITE_DAMAGE, "bitten by a rattlesnake")
 				target.poison()
