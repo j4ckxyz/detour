@@ -8,6 +8,8 @@ extends Node
 
 signal part_lost(part: StringName)
 signal wheel_lost(index: int)
+## A collision hurt the RV: how much harder than the harmless limit it was (N·s), for sound.
+signal hit_taken(impulse_over_threshold: float)
 
 const FULL := 100.0
 ## Contact impulse (N·s in one physics step) below which a knock does no harm. Parking, and
@@ -110,6 +112,7 @@ func hit(local: Vector3, impulse: float, dir: Vector3) -> void:
 	var excess := impulse - IMPACT_THRESHOLD
 	if excess <= 0.0:
 		return
+	hit_taken.emit(excess)
 	var dmg := minf(excess * HP_PER_IMPULSE, MAX_HIT)
 	frame = maxf(0.0, frame - dmg * 0.06)
 	if local.z < -2.2:

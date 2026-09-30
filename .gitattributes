@@ -5,3 +5,7 @@
 *.blend filter=lfs diff=lfs merge=lfs -text
 *.wav filter=lfs diff=lfs merge=lfs -text
 *.ogg filter=lfs diff=lfs merge=lfs -text
+
+# The game's sounds are small (a few MB) and must be real files in every checkout (CI, source
+# zips, forks), so they are not in LFS.
+game/assets/audio/**/*.ogg -filter -diff -merge binary
