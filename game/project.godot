@@ -16,6 +16,7 @@ run/flush_stdout_on_print=true
 
 [autoload]
 
+Settings="*res://src/autoload/settings.gd"
 Graphics="*res://src/autoload/graphics.gd"
 Controls="*res://src/autoload/controls.gd"
 Updater="*res://src/autoload/updater.gd"
@@ -30,6 +31,9 @@ gdscript/warnings/untyped_declaration=2
 window/size/viewport_width=1600
 window/size/viewport_height=900
 window/dpi/allow_hidpi=true
+; The interface is laid out for 1600x900 and scales with the window (Settings.ui_scale on top).
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [physics]
 

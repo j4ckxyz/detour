@@ -2151,7 +2151,7 @@ Legend:
 | Music | MISSING |
 | Sound effects | MISSING |
 | Main menu | ✅ DONE (M6) |
-| Settings | MISSING |
+| Settings | ✅ DONE (M11: display, interface scale, graphics quality and resolution scale, FOV, look sensitivity, volumes) |
 | Key rebinding | MISSING |
 | Achievements | MISSING |
 

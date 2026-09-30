@@ -72,7 +72,6 @@ var rv: RV
 ## Where dropped and thrown items go in the world.
 var world_items: Node
 var input_enabled := true
-var sensitivity := 0.0025
 ## The hotbar: small things pocket into the other slots, the selected one is in your hand.
 ## Big things (two-handed) need an empty hand and can't be pocketed.
 const SLOTS := 4
@@ -172,7 +171,8 @@ func _ready() -> void:
 		collision_mask = 0
 	_build_avatar()
 	camera.name = "Eyes"
-	camera.fov = 75.0
+	camera.fov = Settings.fov
+	Settings.changed.connect(_on_settings_changed)
 	camera.near = 0.05
 	camera.top_level = true
 	camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
@@ -202,6 +202,10 @@ func _ready() -> void:
 	add_child(_ghost)
 
 
+func _on_settings_changed() -> void:
+	camera.fov = Settings.fov
+
+
 ## Looks towards `yaw` (radians, in the current frame).
 func look(yaw: float, pitch: float) -> void:
 	_yaw = wrapf(yaw, -PI, PI)
@@ -217,7 +221,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var motion := event as InputEventMouseMotion
 	if motion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not is_driving():
-		look(_yaw - motion.relative.x * sensitivity, _pitch - motion.relative.y * sensitivity)
+		var speed := Settings.look_speed()
+		look(_yaw - motion.relative.x * speed, _pitch - motion.relative.y * speed * Settings.look_y())
 		return
 	if event.is_echo():
 		return

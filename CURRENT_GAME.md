@@ -537,9 +537,20 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   stick is.
 - **Controls help** (top, F1) and a **performance overlay** (F3: fps, frame times, streaming
   stats).
+- **Settings** (main menu and pause menu; saved in `user://options.cfg`, applied at once):
+  - **Display**: window (windowed, fullscreen, exclusive fullscreen), window size (the sizes
+    that fit the screen), vertical sync, frame-rate limit (30–240 or unlimited) and
+    **interface scale** (75–200 %).
+  - **Graphics**: quality (Auto picks one for the machine, or Potato/Low/Medium/High),
+    resolution scale (the quality's own, or 50–100 %), field of view (60–100°).
+  - **Controls**: look sensitivity (0.25–3×, mouse and right stick) and inverted look.
+  - **Sound**: master, effects and ambience volumes.
+  - The interface is laid out for 1600×900 and **stretches with the window**, so menus and
+    the HUD are the same size on screen at any resolution or pixel density (a 5K display
+    included); the interface scale makes them bigger or smaller on top.
 - **Pause menu** (Esc / Start):
   - Pauses the game and shows the version.
-  - Buttons: **Resume**, **Update now** (becomes **Restart to update**), **Update
+  - Buttons: **Resume**, **Settings**, **Update now** (becomes **Restart to update**), **Update
     automatically** (on by default, remembered) and **Quit to desktop**.
   - A progress bar and status line appear while an update downloads.
   - **Tow to the last checkpoint** (the RV and you go back to the last station; +15 min) and
@@ -623,5 +634,4 @@ Planned (see PLAN.md), roughly in the order they're coming:
   trees and caves are placeholder shapes), more weather effects (puddles, snow cover building up).
 - **Co-op**: proximity voice chat; saving each player's inventory with the trip.
 - **Sound**: engine, horn, tires, ambience, music. The game is currently **silent**.
-- **Menus and options**: settings (key rebinding, graphics, audio), cosmetics, and the
-  diegetic dashboard gauges.
+- **Menus and options**: key rebinding, cosmetics, and the diegetic dashboard gauges.

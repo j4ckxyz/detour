@@ -84,6 +84,7 @@ var _discard_save := false
 var _loaded := false
 var _load_waited := 0.0
 var _fallen_for := 0.0
+var _applied_render_scale := 0.0
 
 
 func _ready() -> void:
@@ -177,7 +178,7 @@ func _setup() -> void:
 	add_child(driver)
 	camera.rv = rv
 	camera.driver_input = driver
-	camera.fov = 72.0
+	camera.fov = Settings.fov
 	add_child(camera)
 
 	streamer.focus = rv
@@ -223,7 +224,8 @@ func _setup() -> void:
 	Session.ended.connect(func(_message: String) -> void: get_tree().change_scene_to_file(MAIN_MENU))
 
 	_spawn_box.size = RV_HALF_EXTENTS * 2.0
-	_apply_preset(StringName(_args.get("preset", String(Graphics.detect_default()))))
+	_apply_preset(StringName(_args.get("preset", String(Settings.preset()))))
+	Settings.changed.connect(_on_settings_changed)
 
 
 func _exit_tree() -> void:
@@ -270,6 +272,15 @@ func _parse_args() -> void:
 func _apply_preset(preset: StringName) -> void:
 	lighting.apply_preset(preset, get_viewport(), streamer, camera)
 	player.camera.far = camera.far
+	_applied_render_scale = Settings.render_scale
+
+
+## The settings changed (SettingsMenu): a new quality preset or resolution scale, or field
+## of view.
+func _on_settings_changed() -> void:
+	camera.fov = Settings.fov
+	if not _args.has("preset") and (Settings.preset() != Graphics.current or Settings.render_scale != _applied_render_scale):
+		_apply_preset(Settings.preset())
 
 
 func _overlay_lines() -> String:

@@ -8,7 +8,6 @@ enum Mode { CHASE, COCKPIT }
 
 @export var chase_distance := 12.5
 @export var chase_height := 3.2
-@export var sensitivity := 0.0025
 @export var pad_look_speed := 2.5
 
 var rv: RV
@@ -32,7 +31,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	var motion := event as InputEventMouseMotion
 	if motion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \
 			and not (driver_input and driver_input.holding_stick()):
-		_look(-motion.relative.x * sensitivity, -motion.relative.y * sensitivity)
+		var speed := Settings.look_speed()
+		_look(-motion.relative.x * speed, -motion.relative.y * speed * Settings.look_y())
 
 
 func _look(yaw: float, pitch: float) -> void:
@@ -49,7 +49,8 @@ func _process(delta: float) -> void:
 		return
 	var pad := Input.get_vector(&"camera_look_left", &"camera_look_right", &"camera_look_up", &"camera_look_down")
 	if pad != Vector2.ZERO:
-		_look(-pad.x * pad_look_speed * delta, -pad.y * pad_look_speed * delta)
+		var speed := pad_look_speed * Settings.look_sensitivity * delta
+		_look(-pad.x * speed, -pad.y * speed * Settings.look_y())
 	var body := rv.get_global_transform_interpolated()
 	if mode == Mode.COCKPIT:
 		var eye := body * rv.driver_eye

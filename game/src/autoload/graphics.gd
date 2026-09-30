@@ -68,7 +68,7 @@ func apply(preset: StringName, viewport: Viewport, env: Environment, sun: Direct
 	current = preset
 	var s: Dictionary = PRESETS[preset]
 
-	var scale: float = s["render_scale"]
+	var scale: float = Settings.render_scale if Settings.render_scale > 0.0 else s["render_scale"]
 	viewport.scaling_3d_scale = scale
 	viewport.scaling_3d_mode = _scaling_mode(s["upscaler"], scale)
 

@@ -41,7 +41,7 @@ func _process(delta: float) -> void:
 		return
 	_timer = 0.25
 	var vp := get_viewport()
-	var size := vp.get_visible_rect().size
+	var size := Vector2(vp.size) # Pixels (the visible rect is in UI units).
 	var lines: PackedStringArray = [
 		"%d fps   cpu %.2f ms   gpu %s" % [
 			Engine.get_frames_per_second(),

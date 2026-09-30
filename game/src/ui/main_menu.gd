@@ -155,10 +155,17 @@ func _build() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.add_theme_color_override("font_color", ACCENT)
 	box.add_child(_status)
+	var end := HBoxContainer.new()
+	end.add_theme_constant_override("separation", 8)
+	var settings := Button.new()
+	settings.text = "Settings"
+	settings.pressed.connect(func() -> void: add_child(SettingsMenu.new()))
+	end.add_child(_button(settings))
 	var quit := Button.new()
 	quit.text = "Quit"
 	quit.pressed.connect(func() -> void: get_tree().quit())
-	box.add_child(_button(quit))
+	end.add_child(_button(quit))
+	box.add_child(end)
 	_refresh_lan()
 
 

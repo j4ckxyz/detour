@@ -1,6 +1,7 @@
 class_name PauseMenu
 extends CanvasLayer
-## Esc (or Start) menu: resume, update, auto-update toggle, quit. Pauses the game while open.
+## Esc (or Start) menu: resume, settings, update, auto-update toggle, quit. Pauses the game
+## while open.
 ## Also shows a short notice when an automatic update has been installed.
 
 const TEXT := Color(0.96, 0.93, 0.86)
@@ -10,6 +11,7 @@ const NOTICE_SECONDS := 10.0
 var _backdrop := ColorRect.new()
 var _panel := PanelContainer.new()
 var _resume := Button.new()
+var _settings := Button.new()
 var _update := Button.new()
 var _auto := CheckBox.new()
 var _quit := Button.new()
@@ -65,12 +67,15 @@ func _build() -> void:
 	version.add_theme_color_override("font_color", DIM)
 	box.add_child(version)
 
-	for b: Button in [_resume, _update, _quit]:
+	for b: Button in [_resume, _settings, _update, _quit]:
 		b.custom_minimum_size = Vector2(0, 40)
 		b.add_theme_font_size_override("font_size", 17)
 	_resume.text = "Resume"
 	_resume.pressed.connect(close)
 	box.add_child(_resume)
+	_settings.text = "Settings"
+	_settings.pressed.connect(open_settings)
+	box.add_child(_settings)
 	_update.pressed.connect(Updater.press)
 	box.add_child(_update)
 	_bar.min_value = 0.0
@@ -120,6 +125,15 @@ static func _style(margin: int) -> StyleBoxFlat:
 	style.set_corner_radius_all(8)
 	style.set_content_margin_all(margin)
 	return style
+
+
+## The settings screen, over this menu; back to it after.
+func open_settings() -> void:
+	var settings := SettingsMenu.new()
+	settings.closed.connect(func() -> void:
+		if is_open():
+			_settings.grab_focus())
+	add_child(settings)
 
 
 func is_open() -> bool:
