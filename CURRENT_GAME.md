@@ -182,10 +182,12 @@ sequentially with **RB** / **LB**.
   (32 s), changing colour; pick them off with E.
 - **Wildlife** (placeholder low-poly shapes for now), placed the same way for the same seed,
   more and meaner further along the road; nothing notices you while you're inside the RV:
-  - **Rattlesnakes** by the road near obstacles, where you have to get out. They **rattle**
-    when you come within 6 m (3.6 m crouching): go round. Closer than 1.6 m they **bite** (8
-    and venom).
-  - **Bears** in the woods beside obstacles (never near the camp or home). A bear sees you
+  - **Rattlesnakes** by the road a little way from obstacles (never within 12 m of the way
+    you'll be working: the stretch of road an obstacle takes up, the way in, the planks and the
+    winch anchors). They **rattle** when you come within 6 m (3.6 m crouching): go round.
+    Closer than 1.6 m they **bite** (8 and venom).
+  - **Bears** in the woods, at least 70 m from anywhere you have to work on foot (so nobody
+    fetches planks or winches with a bear at their back), and never near the camp or home. A bear sees you
     within 24 m (12 m crouching), **rears up** as a warning, then **charges** at 6.3 m/s
     (you sprint at 7) and **swipes** for 30. It gives up if you get in the RV, go down, get
     45 m away or lead it 80 m from home.
@@ -195,14 +197,14 @@ sequentially with **RB** / **LB**.
   - **Bear spray** (6 puffs): left click sprays a 7 m cone that sends bears and snakes off
     (and makes an eagle drop what it's carrying). The RV driving at an animal scares it off
     too.
-  - The HUD shows what you'd hear: "*rattle rattle*", "*ROAR*", "*SCREECH*" (until
-    sounds land). `-- --peaceful` turns wildlife off.
+  - The HUD captions what you'd hear ("*rattle rattle*", "*ROAR*", "*SCREECH*"; see Settings →
+    Accessibility). `-- --peaceful` turns wildlife off.
 
 ## The trip
 
 Every seed makes a trip (a **Short** trip is ~4–5.5 km: camp → 2 gas stations → home, each
 stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed is
-`DT5-00000-000ZG`.
+`DT6-00000-000ZT`.
 
 - **Biomes**: the four biomes come in a seeded order (any can come first; short trips see
   three of them). The biome changes near each gas station, blending over ~180 m, and the top
@@ -241,16 +243,17 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
     lay planks, or winch.
   - **Steep climbs** (5–9 m humps, ~25–30 % at their steepest): low gear and momentum, or
     winch.
-  - **Washed-out bridges** (from the start): a 3.8–4.4 m gap between two concrete abutments over
+  - **Washed-out bridges** (from the start): a 3.6–4.2 m gap between two concrete abutments over
     a 2–2.6 m deep trench, on a level straight. The RV can't cross (it noses in, even at
-    speed). What's left of the bridge, 2–3 planks, lies in a heap off in the trees 7–14 m from
-    the road, 12–40 m before it (on the side that's easiest to walk to): find them, and lay two
-    across, one under each wheel track.
+    speed). What's left of the bridge, 3 planks (6 m long: at least 0.8 m to spare each side),
+    lies in a heap just off the road 5.5–8.5 m from its middle, 4–14 m before it (on level
+    ground on whichever side is easier to walk to; on a road in a slot canyon, at the road's
+    edge): find them, and lay two across, one under each wheel track.
   - **Old timber bridges** (from ~12 % in): a 20–28 m trestle bridge with rails, over an
     8–10 m deep ravine, with a 3.4–4.2 m **hole in its deck** and a low kicker board just
     before it. Creep onto it and the front drops in. Take a run at it in third (~40 km/h+) off
-    the kicker and you jump the hole; or find the 3 planks off in the trees and lay two across
-    the hole. (The tests jump it at 42 km/h and cross on planks.)
+    the kicker and you jump the hole; or find the 3 planks just off the road before the bridge
+    and lay two across the hole. (The tests jump it at 42 km/h and cross on planks.)
   - **Two beams** (from ~20 % in): a 9–14 m ravine crossed by two narrow timber beams, 45 cm
     wide, one under each wheel track. Line up dead straight and creep: 0.7 m off-line and the
     wheels drop off.
@@ -270,17 +273,19 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
     stalls and damages the engine. You can swim in it.
   - **Ice** (the pass): the road drops ~1.4–2 m into a frozen pond 14–18 m across, and climbs
     out up a ~15 % ramp that's icy at the bottom. Tires get 15 % grip on ice. A plank laid on
-    ice gives full grip under that wheel; 4 planks lie off in the trees before each pond and a
+    ice gives full grip under that wheel; 3 planks lie just off the road before each pond and a
     boulder to winch from waits beyond it.
   - Nothing warns you: there are no signs before obstacles.
-- **The generator guarantees solvability**: every gap and bridge has planks near it and fits
-  a plank; every jump has a straight, level run-up and is makeable at ~45 km/h (and not at a
+- **The generator guarantees solvability**: every gap, bridge and icy pond has a pile of 3
+  planks within 20 m before it, on level, dry ground beside the road on the valley floor, clear
+  of other obstacles and stops; every gap and hole is at least 1.6 m narrower than a plank;
+  every jump has a straight, level run-up and is makeable at ~45 km/h (and not at a
   crawl); bridges and beams sit on level straights; every ledge has an anchor within winch
-  reach, every hill one halfway and one at the top; every icy pond has planks and an anchor;
+  reach, every hill one halfway and one at the top; every icy pond has an anchor;
   fords are never deeper than 0.8 m and are level through; the valley pinches in at every
   obstacle; lakes, caves and places never touch the road; obstacles are ≥ 80 m apart; the
   road never comes back near itself; the grade outside obstacles stays in limits. Checked for
-  160 seeds in the Rust tests; `tests/crossings.tscn` drives the RV over the default trip's
+  160 seeds (300 for the planks) in the Rust tests; `tests/crossings.tscn` drives the RV over the default trip's
   bridge (creeping, jumping, on planks), its beams (lined up and off-line), its hill, and a
   jump.
 - **Lakes**: ponds 12–30 m across beside the road in the bayou (with a dark bed; swim in them)
@@ -367,16 +372,32 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   0.5 m/s, slowing as the load rises; the rope only pulls when taut, sags when slack (drawn
   as a cable), and snaps if yanked far past its limit (e.g. driving away at full power).
   The HUD shows rope out and tension.
-- **Planks**: while holding one, a green ghost shows where it would go; **left click** lays it
-  along your view, resting on the ground at both ends (or continuing from the end of a plank
-  you're looking at). A laid plank is solid ground: the RV's wheels and players ride on it.
-  **E** picks it back up.
+- **Planks** (6 m long, 0.5 m wide): while holding one, a ghost shows where it would go;
+  **left click** lays it. It lies along your view, level, resting on the ground at both ends
+  (or continuing from the end of a plank you're looking at):
+  - **Over a gap** in front of you (look down into it, or across) it's centred on the gap and lies
+    across it at the road's level, not down in the trench where you're looking, from wherever you
+    stand within reach (a plank can start 5.5 m ahead of you) and however crooked you aim (up to
+    ~30°).
+  - **Near the RV** it lines up with a wheel track (parallel to the RV, 0.92 m either side of its
+    middle), and the second one takes the other track, so two planks make a road for its wheels
+    without measuring by eye.
+  - The ghost is **green** where it will stay and **amber** where only 0.3–0.6 m of it rests on
+    each side: laid there, the plank is left to physics and may hold or slip into the gap; if it
+    comes to rest flat, it becomes solid ground. With less than 0.3 m to rest on there's no
+    ghost.
+  - A laid plank is solid ground: the RV's wheels and players ride on it. **E** picks it back
+    up.
 - **Pushing**: walk into the RV to push it (3 kN per person, fading out by a brisk walk).
+- **Climbing out**: jump at a wall or ledge whose top is 1–2.9 m above your feet (the trench of
+  a washed-out bridge you've fallen into, a boulder, a bank) and you haul yourself up onto it.
+  Deeper pits (a ravine or gully) can't be climbed: after 6 s in one you're told to press Esc,
+  then **Stuck? Back to the RV** (in the pause menu, on foot, free) puts you beside its door.
 
 ## The world
 
 ### Generation
-- **Seed codes** like `DT5-00000-000ZG`: generator version, trip length and a 40-bit seed in
+- **Seed codes** like `DT6-00000-000ZT`: generator version, trip length and a 40-bit seed in
   Crockford base32, with a typo check. The default seed is fixed; `-- --seed=CODE` picks another.
 - **Any text is a seed**, like Minecraft: type a word or phrase (up to 20 characters) and it's
   turned into a seed code (a whole number is used as the seed itself; a typed seed code is
@@ -587,6 +608,8 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   - Buttons: **Resume**, **Settings**, **Update now** (becomes **Restart to update**), **Update
     automatically** (on by default, remembered) and **Quit to desktop**.
   - A progress bar and status line appear while an update downloads.
+  - **Stuck? Back to the RV** (on foot: puts you beside its door, from a ravine or a pit you
+    can't climb out of; free).
   - **Tow to the last checkpoint** (the RV and you go back to the last station; +15 min) and
     **Restart this trip** (host / solo only), and **Main menu** / **Leave to the main menu**.
 

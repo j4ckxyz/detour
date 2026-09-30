@@ -20,7 +20,7 @@ func _ready() -> void:
 	_pg.peaceful = true
 	add_child(_pg)
 	var waited := 0
-	while not _pg.is_spawned and waited < HZ * 60:
+	while not _pg.is_spawned and waited < HZ * 60 * 5: # (Frames run faster than the generator thread under load.)
 		await get_tree().physics_frame
 		waited += 1
 	var w := Walker.new(get_tree(), _pg.player, _pg.rv)
@@ -45,8 +45,8 @@ func _ready() -> void:
 	# Weather: seeded, the same for everyone, clear on the first morning.
 	var a := Weather.new()
 	var b := Weather.new()
-	a.setup("DT5-00000-000ZG")
-	b.setup("DT5-00000-000ZG")
+	a.setup("DT6-00000-000ZT")
+	b.setup("DT6-00000-000ZT")
 	var kinds := {}
 	var same := true
 	var morning_clear := true

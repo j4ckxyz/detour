@@ -243,8 +243,8 @@ impl WorldGen {
     /// - `points`: PackedVector3Array of the road centreline (x, road height, z) every 8 m;
     /// - `pads`: [{kind: 0 camp | 1 station | 2 home, s, pos: Vector3, dir: Vector3, side}];
     /// - `obstacles`: [{kind: 0 gap | 1 ledge | 2 mud | 3 climb, s, pos, dir, length, size,
-    ///   difficulty}];
-    /// - `supplies`: [{kind: 0 planks | 1 anchor, pos, dir, count}];
+    ///   difficulty, start, end (the arc lengths of the stretch of road it takes up)}];
+    /// - `supplies`: [{kind: 0 planks | 1 anchor, pos, dir, count, s (arc length nearest it)}];
     /// - `lakes`: [{pos: Vector3 (centre, water level), radius, frozen}];
     /// - `caves`: [{pos, dir, biome}];
     /// - `biomes`: PackedInt32Array, the biomes in the order the road meets them
@@ -298,6 +298,9 @@ impl WorldGen {
             e.set("difficulty", o.difficulty);
             e.set("hole", o.hole);
             e.set("hole_at", o.hole_at);
+            let (start, end) = o.extent();
+            e.set("start", start);
+            e.set("end", end);
             obstacles.push(&e.to_variant());
         }
         let mut supplies = VarArray::new();
@@ -307,6 +310,7 @@ impl WorldGen {
             e.set("pos", v3(s.pos));
             e.set("dir", dir3(s.yaw_dir));
             e.set("count", s.count as i32);
+            e.set("s", s.s);
             supplies.push(&e.to_variant());
         }
         let mut lakes = VarArray::new();

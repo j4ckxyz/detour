@@ -309,7 +309,7 @@ func _build_interior() -> void:
 
 ## Where things are kept (RV space): [name prefix, accepts, label, positions, turn].
 const STORAGE: Array[Array] = [
-	["PlankRack", [&"plank"], "plank rack", [Vector3(-1.36, 1.95, 1.15), Vector3(-1.36, 2.05, 1.15), Vector3(-1.36, 2.15, 1.15)], Vector3(0.0, PI / 2.0, 0.0)],
+	["PlankRack", [&"plank"], "plank rack", [Vector3(-1.36, 1.95, 0.55), Vector3(-1.36, 2.05, 0.55), Vector3(-1.36, 2.15, 0.55)], Vector3(0.0, PI / 2.0, 0.0)],
 	["SpareMount", [&"tire"], "spare-tire mount", [Vector3(-0.6, 1.7, 3.61)], Vector3(PI / 2.0, 0.0, 0.0)],
 	["CanHolder", [&"can"], "jerry-can holder", [Vector3(-0.05, 0.72, 3.69), Vector3(0.3, 0.72, 3.69)], Vector3.ZERO],
 	["ToolWall", [&"tool"], "tool wall", [Vector3(-0.5, 1.65, 1.2), Vector3(-0.5, 1.65, 1.5), Vector3(-0.5, 1.65, 1.8)], Vector3(0.0, PI / 2.0, 0.0)],

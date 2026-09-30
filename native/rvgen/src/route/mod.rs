@@ -51,7 +51,18 @@ pub const MAX_GRADE: f32 = 0.09;
 /// Where every trip starts (world x, z).
 pub const START: [f32; 2] = [64.0, 64.0];
 /// Length of a plank (the game's plank model must match), metres.
-pub const PLANK_LENGTH: f32 = 5.0;
+pub const PLANK_LENGTH: f32 = 6.0;
+/// What a plank must be able to rest on either side of the gap it spans, metres: a gap or a
+/// hole is at most `PLANK_LENGTH - 2 * PLANK_BEARING`, so a plank laid a little off-centre or a
+/// little crooked still holds.
+pub const PLANK_BEARING: f32 = 0.8;
+/// Planks lie in a pile this far before the start of what needs them (nearest, farthest;
+/// metres along the road: close enough to fetch from where the RV has to stop) and this far
+/// off the road's centre line (nearest, farthest).
+pub const PILE_BEFORE: [f32; 2] = [4.0, 14.0];
+pub const PILE_OFF: [f32; 2] = [5.5, 8.5];
+/// Planks in a pile: two for the wheels and a spare, in case one is dropped down the gap.
+pub const PILE_PLANKS: u8 = 3;
 /// The road's level from the start to here (the camp's at 30 m).
 const CAMP_LEVEL: f32 = 180.0;
 /// Segment lengths (camp → station → ... → home), metres.
@@ -194,6 +205,8 @@ pub struct Supply {
     pub pos: [f32; 3],
     pub yaw_dir: [f32; 2],
     pub count: u8,
+    /// Arc length along the road of the point nearest it.
+    pub s: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -420,7 +433,6 @@ impl Route {
             }
         }
         route.stamp_obstacles();
-        route.place_supplies(&mut rng, terrain);
         route.build_grid();
         progress(0.85, "Shaping the valley");
         route.place_spurs(terrain);
@@ -430,6 +442,8 @@ impl Route {
         route.place_caves(world_seed, terrain);
         route.place_pois(world_seed, terrain);
         route.bays = route.collect_bays();
+        // Last, so what's put down sits on the finished ground.
+        route.place_supplies(&mut rng, terrain);
         progress(1.0, "Checking every crossing can be made");
         route
     }
@@ -602,7 +616,7 @@ impl Route {
     fn sized(&self, kind: ObstacleKind, s: f32, t: f32, a: f32, b: f32) -> Obstacle {
         use ObstacleKind::*;
         let (length, size) = match kind {
-            Gap => (3.8 + 0.6 * t, 1.9 + 0.7 * a),
+            Gap => (3.6 + 0.6 * t, 1.9 + 0.7 * a),
             Ledge => (1.0, 1.1 + 0.5 * t + 0.1 * a),
             Mud => (16.0 + 14.0 * t + 8.0 * a, 0.25),
             Climb => (70.0, 5.0 + 3.0 * t + 1.0 * b),
@@ -629,7 +643,7 @@ impl Route {
     ) -> Obstacle {
         let i = self.index_at(s);
         let (hole, hole_at) = if kind == ObstacleKind::Bridge {
-            let hole = 3.4 + 0.8 * a.max(t);
+            let hole = 3.3 + 0.8 * a.max(t);
             (hole, (b - 0.5) * (length - 14.0).max(0.0))
         } else {
             (0.0, 0.0)
@@ -809,31 +823,30 @@ impl Route {
         }
     }
 
-    /// What must lie near an obstacle for it to be solvable: planks (2-3, off in the trees)
-    /// and boulders to winch from.
+    /// What must lie near an obstacle for it to be solvable: a pile of planks just before
+    /// whatever needs them (see `PILE_BEFORE`), and boulders to winch from.
     fn place_supplies(&mut self, rng: &mut Pcg32, terrain: &TerrainGen) {
         for o in self.obstacles.clone() {
             let (a, b) = (rng.next_f32(), rng.next_f32());
-            match o.kind {
-                ObstacleKind::Gap | ObstacleKind::Bridge | ObstacleKind::Ice => {
-                    let back = match o.kind {
-                        ObstacleKind::Ice => o.length + ICE_RAMP + 8.0 + 10.0 * b,
-                        _ => o.length * 0.5 + 12.0 + 26.0 * b,
-                    };
-                    let count = if o.kind == ObstacleKind::Gap && a < 0.5 {
-                        2
-                    } else {
-                        3
-                    };
-                    let p = self.stash_spot(terrain, o.s - back, 7.0 + 7.0 * a, a);
-                    self.supplies.push(Supply {
-                        kind: SupplyKind::Planks,
-                        pos: p,
-                        yaw_dir: self.dir(self.index_at((o.s - back).max(0.0))),
-                        count,
-                    });
-                }
-                _ => {}
+            if matches!(
+                o.kind,
+                ObstacleKind::Gap | ObstacleKind::Bridge | ObstacleKind::Ice
+            ) {
+                // A bridge's hole is up to a deck's length in; keep its planks nearer.
+                let before = match o.kind {
+                    ObstacleKind::Bridge => [PILE_BEFORE[0] - 1.0, PILE_BEFORE[1] - 5.0],
+                    _ => PILE_BEFORE,
+                };
+                let s = o.extent().0 - (before[0] + (before[1] - before[0]) * b);
+                let off = PILE_OFF[0] + (PILE_OFF[1] - PILE_OFF[0]) * a;
+                let (p, dir) = self.pile_spot(terrain, s, off, a);
+                self.supplies.push(Supply {
+                    kind: SupplyKind::Planks,
+                    pos: p,
+                    yaw_dir: dir,
+                    count: PILE_PLANKS,
+                    s,
+                });
             }
             let anchors: &[(f32, f32)] = match o.kind {
                 // (arc length from the obstacle's s, side)
@@ -857,35 +870,59 @@ impl Route {
                     ],
                     yaw_dir: d,
                     count: 1,
+                    s: o.s + ds,
                 });
             }
         }
     }
 
-    /// Somewhere off the road at arc length `s`, `off` metres to the side, for supplies to lie
-    /// (a coin flip `roll` picks the side). Takes the side nearer the road's height, so it can
-    /// be walked to; if both are far above or below, it falls back to the verge.
-    fn stash_spot(&self, terrain: &TerrainGen, s: f32, off: f32, roll: f32) -> [f32; 3] {
-        let j = self.index_at(s.max(0.0));
-        let (p, d) = (self.xz[j], self.dir(j));
+    /// Somewhere just off the road at arc length `s`, about `off` metres from its centre line,
+    /// for a pile of planks to lie (a coin flip `roll` picks the side), and the road's
+    /// direction there. Takes level ground, measured on the finished terrain (a road can hug
+    /// a cliff): the wanted spot first, then nearby ones, then the verge, then (in a slot canyon)
+    /// the edge of the road itself, which the road's levelling always reaches.
+    fn pile_spot(&self, terrain: &TerrainGen, s: f32, off: f32, roll: f32) -> ([f32; 3], [f32; 2]) {
         let first = if roll < 0.5 { 1.0 } else { -1.0 };
-        let mut best: Option<(f32, [f32; 3])> = None;
-        for side in [first, -first] {
-            let n = [-d[1] * side, d[0] * side];
-            let q = [p[0] + n[0] * off, p[1] + n[1] * off];
-            let rise = (terrain.height_m(q[0], q[1]) - self.h[j]).abs();
-            if best.is_none_or(|(b, _)| rise < b - 0.5) {
-                best = Some((rise, [q[0], self.h[j], q[1]]));
+        let ground = |x: f32, z: f32| self.shape(x, z, terrain.height_m(x, z));
+        let mut best: Option<(f32, [f32; 3], [f32; 2])> = None;
+        let verge = ROAD_HALF_WIDTH + 0.9;
+        for (ds, v) in [
+            (0.0, off),
+            (-3.0, off),
+            (3.0, off),
+            (0.0, off - 1.0),
+            (0.0, off + 1.5),
+            (-3.0, off + 1.5),
+            (3.0, off + 1.5),
+            (0.0, verge + 0.6),
+            (0.0, verge),
+            // A road in a slot canyon has nowhere else: the edge of the road itself (the RV's
+            // wheels are well clear of it).
+            (0.0, ROAD_HALF_WIDTH - 0.2),
+        ] {
+            for side in [first, -first] {
+                let j = self.index_at((s + ds).max(0.0));
+                let (p, d) = (self.xz[j], self.dir(j));
+                let v = v.max(ROAD_HALF_WIDTH - 0.2);
+                let n = [-d[1] * side, d[0] * side];
+                let q = [p[0] + n[0] * v, p[1] + n[1] * v];
+                // Level with the road, and flat under a pile lying along it (3 m either way,
+                // a metre across).
+                let mut worst = (ground(q[0], q[1]) - self.h[j]).abs();
+                for (a, c) in [(-3.0, 0.0), (3.0, 0.0), (0.0, -1.0), (0.0, 1.0)] {
+                    let (x, z) = (q[0] + d[0] * a + n[0] * c, q[1] + d[1] * a + n[1] * c);
+                    worst = worst.max((ground(x, z) - self.h[j]).abs());
+                }
+                if best.is_none_or(|(b, _, _)| worst < b - 0.25) {
+                    best = Some((worst, [q[0], self.h[j], q[1]], d));
+                }
+            }
+            if best.is_some_and(|(b, _, _)| b < 0.5) {
+                break;
             }
         }
-        match best {
-            Some((rise, q)) if rise < 2.5 => q,
-            _ => {
-                let n = [-d[1] * first, d[0] * first];
-                let o = ROAD_HALF_WIDTH + 1.5;
-                [p[0] + n[0] * o, self.h[j], p[1] + n[1] * o]
-            }
-        }
+        let (_, q, d) = best.expect("some spot was tried");
+        (q, d)
     }
 
     /// At the foot of each hill, a track heads off downhill: the easy way, to nowhere.
@@ -1636,10 +1673,49 @@ impl Route {
                 break;
             }
         }
-        let planks_near = |p: [f32; 3], r: f32, need: u8| {
-            self.supplies
+        // What needs planks has a pile of them just before it (an obstacle's approach side,
+        // near the road, on the valley's floor, clear of other obstacles and the stops), and a
+        // spare. Otherwise it's a long walk with a bear about, or a crossing that can't be made.
+        let planks_for = |o: &Obstacle| -> Option<String> {
+            let (start, _) = o.extent();
+            let far = PILE_BEFORE[1] + 4.0;
+            let Some(pile) = self
+                .supplies
                 .iter()
-                .any(|s| s.kind == SupplyKind::Planks && s.count >= need && dist2(s.pos, p) < r * r)
+                .find(|p| p.kind == SupplyKind::Planks && p.s <= start && p.s >= start - far)
+            else {
+                return Some(format!(
+                    "{:?} at {:.0} m has no planks within {far:.0} m before it",
+                    o.kind, o.s
+                ));
+            };
+            let j = self.index_at(pile.s.max(0.0));
+            let off = dist2(pile.pos, [self.xz[j][0], 0.0, self.xz[j][1]]).sqrt();
+            let clear_of_others = self.obstacles.iter().all(|q| {
+                let (a, b) = q.extent();
+                std::ptr::eq(q, o) || pile.s < a - 2.0 || pile.s > b + 2.0
+            });
+            if pile.count < PILE_PLANKS {
+                Some(format!(
+                    "{:?} at {:.0} m has only {} planks",
+                    o.kind, o.s, pile.count
+                ))
+            } else if !(ROAD_HALF_WIDTH - 0.5..=PILE_OFF[1] + 3.5).contains(&off) {
+                Some(format!(
+                    "the planks for {:?} at {:.0} m lie {off:.1} m off the road",
+                    o.kind, o.s
+                ))
+            } else if self.outside_valley(pile.pos[0], pile.pos[2]) > -4.0
+                || self.on_pad(pile.pos[0], pile.pos[2], 3.0)
+                || !clear_of_others
+            {
+                Some(format!(
+                    "the planks for {:?} at {:.0} m are up a wall or in something else's way",
+                    o.kind, o.s
+                ))
+            } else {
+                None
+            }
         };
         let anchor_near = |p: [f32; 3], r: f32| {
             self.supplies
@@ -1649,10 +1725,8 @@ impl Route {
         for o in &self.obstacles {
             match o.kind {
                 ObstacleKind::Gap => {
-                    if !planks_near(o.pos, 60.0, 2) {
-                        problems.push(format!("gap at {:.0} m has no planks near it", o.s));
-                    }
-                    if o.length > PLANK_LENGTH - 0.6 || o.length < 3.5 {
+                    problems.extend(planks_for(o));
+                    if o.length > PLANK_LENGTH - 2.0 * PLANK_BEARING || o.length < 3.5 {
                         problems.push(format!(
                             "gap at {:.0} m is wider than a plank can span",
                             o.s
@@ -1660,10 +1734,8 @@ impl Route {
                     }
                 }
                 ObstacleKind::Bridge => {
-                    if !planks_near(o.pos, o.length * 0.5 + 50.0, 2) {
-                        problems.push(format!("bridge at {:.0} m has no planks near it", o.s));
-                    }
-                    if o.hole > PLANK_LENGTH - 0.6 || o.hole < 3.0 {
+                    problems.extend(planks_for(o));
+                    if o.hole > PLANK_LENGTH - 2.0 * PLANK_BEARING || o.hole < 3.0 {
                         problems.push(format!(
                             "bridge at {:.0} m has a hole planks can't span",
                             o.s
@@ -1713,8 +1785,9 @@ impl Route {
                 }
                 ObstacleKind::Ice => {
                     let reach = o.length + ICE_RAMP + 30.0;
-                    if !anchor_near(o.pos, reach) || !planks_near(o.pos, reach + 10.0, 2) {
-                        problems.push(format!("ice at {:.0} m has no winch anchor or planks", o.s));
+                    problems.extend(planks_for(o));
+                    if !anchor_near(o.pos, reach) {
+                        problems.push(format!("ice at {:.0} m has no winch anchor", o.s));
                     }
                 }
                 ObstacleKind::Hill => {

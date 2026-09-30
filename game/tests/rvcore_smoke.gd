@@ -3,8 +3,8 @@ extends SceneTree
 ##   godot --headless --path game --script res://tests/rvcore_smoke.gd
 
 ## Must match native/rvgen/tests/golden.rs.
-const GOLDEN_CODE := "DT5-00000-0000Y"
-const GOLDEN_HASH_0_0 := "381b4b3c62390169"
+const GOLDEN_CODE := "DT6-00000-0000M"
+const GOLDEN_HASH_0_0 := "d12d9c3612f09f86"
 
 var _failures: PackedStringArray = []
 
@@ -15,7 +15,7 @@ func _initialize() -> void:
 	_check(gen.load(GOLDEN_CODE), "load golden code")
 	_check(gen.get_code() == GOLDEN_CODE, "code round-trips")
 	_check(gen.chunk_hash(0, 0) == GOLDEN_HASH_0_0, "golden hash via GDExtension: %s" % gen.chunk_hash(0, 0))
-	_check(WorldGen.code_error("DT5-00000-0000M") != "", "typo detected")
+	_check(WorldGen.code_error("DT6-00000-0000N") != "", "typo detected")
 	_check(WorldGen.code_error(WorldGen.random_code(1)) == "", "random code valid")
 	_check(gen.chunk_heights(0, 0).size() == 129 * 129, "heights size")
 	var arrays := gen.chunk_mesh(0, 0, 4)
@@ -67,7 +67,7 @@ func _initialize() -> void:
 	_check(WorldGen.code_from_text("  hello world ", 0)["code"] == hello["code"], "text seeds ignore spaces at the ends")
 	_check(WorldGen.code_from_text(GOLDEN_CODE, 2)["code"] == GOLDEN_CODE, "a code is itself")
 	_check(WorldGen.code_from_text("", 0)["code"] == "", "blank is a new trip")
-	_check(WorldGen.code_from_text("DT5-00000-0000M", 0)["error"] != "", "a code with a typo is an error")
+	_check(WorldGen.code_from_text("DT6-00000-0000N", 0)["error"] != "", "a code with a typo is an error")
 	_check(WorldGen.text_seed_max() == 20, "text seeds up to 20 characters")
 
 	# Loading in the background, with progress; the world is shared once built.
@@ -89,7 +89,7 @@ func _initialize() -> void:
 	var p0: Vector3 = (trip["points"] as PackedVector3Array)[10]
 	_check(bg.outside_valley(p0.x, p0.z) < 0.0 and bg.outside_valley(p0.x, p0.z + 600.0) > 0.0, "the road's on the valley floor, far off it isn't")
 	var bad := WorldGen.new()
-	bad.begin_load("DT5-00000-0000M")
+	bad.begin_load("DT6-00000-0000N")
 	_check(bad.poll_load() == -1 and bad.load_error() != "", "a bad code fails to load: %s" % bad.load_error())
 
 	if _failures.is_empty():

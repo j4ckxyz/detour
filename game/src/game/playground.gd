@@ -20,7 +20,7 @@ signal spawned
 ## The RV and everyone went back to the last stop (a wreck, a tow, everyone down).
 signal sent_back(reason: String)
 
-const DEFAULT_SEED := "DT5-00000-000ZG" # A short trip: woods, mud, gaps and a bridge with a hole; canyon: a climb, a ledge, a ford; the pass: ice, beams and a hill.
+const DEFAULT_SEED := "DT6-00000-000ZT" # A short trip: woods, mud, gaps and a bridge with a hole; canyon: a climb, a ledge, a ford; the pass: ice, beams and a hill.
 const START := Vector3(64.0, 0.0, 64.0)
 const RV_SCENE := preload("res://src/rv/rv.tscn")
 const MAIN_MENU := "res://src/ui/main_menu.tscn"
@@ -232,6 +232,8 @@ func _setup() -> void:
 	if Session.is_host():
 		menu.add_action("Tow to the last checkpoint", tow_to_checkpoint)
 		menu.add_action("Restart this trip", restart_trip)
+	player.road_height_query = _road_height_at
+	menu.add_action("Stuck? Back to the RV", rescue_player)
 	menu.add_action("Leave to the main menu" if Session.is_online() else "Main menu", leave_to_menu)
 	overlay.streamer = streamer
 	overlay.extra_lines = _overlay_lines
@@ -431,6 +433,26 @@ func leave_to_menu() -> void:
 
 
 ## Where someone stands outside the RV's door (world space, on the ground).
+## The road's height beside a point (within its reach), NAN if the road isn't near.
+func _road_height_at(x: float, z: float) -> float:
+	var s := world.road_progress(x, z)
+	if s < 0.0:
+		return NAN
+	var points: PackedVector3Array = trip.data["points"]
+	return points[clampi(roundi(s / 8.0), 0, points.size() - 1)].y # (The road's level, not the ground's: a trench cuts across it.)
+
+
+## Puts you back beside the RV's door, from wherever you're stuck (a pit you can't climb out
+## of, a ravine): on foot only, and it costs nothing.
+func rescue_player() -> void:
+	if not is_spawned or player.inside or player.seat != &"":
+		return
+	player.global_position = by_the_door()
+	player.velocity = Vector3.ZERO
+	player.pit_time = 0.0
+	player.say("Back at the RV.")
+
+
 func by_the_door() -> Vector3:
 	var door := Vector3(rv.interior.door_x_outer + 1.6, 0.0, (rv.interior.door_z.x + rv.interior.door_z.y) * 0.5)
 	var at := rv.to_global(door)
@@ -570,7 +592,7 @@ func _spawn_player() -> void:
 ## A few things to find: planks and fuel by the RV; tools, food and medicine put away inside.
 func _spawn_starter_items() -> void:
 	var outside: Array[Array] = [
-		[&"plank", Vector3(3.0, 0.0, 1.0)], [&"plank", Vector3(3.0, 0.0, 1.4)],
+		[&"plank", Vector3(3.2, 0.0, 0.9)], [&"plank", Vector3(3.2, 0.0, 1.7)],
 		[&"jerrycan", Vector3(2.6, 0.0, -2.2)], [&"scrap_metal", Vector3(3.2, 0.0, -1.6)],
 		[&"spare_tire", Vector3(-2.8, 0.0, 0.5)], [&"motor_oil", Vector3(2.4, 0.0, 2.4)],
 	]
@@ -580,6 +602,8 @@ func _spawn_starter_items() -> void:
 		at.y = world.height_at(at.x, at.z) + 0.3
 		items.add_child(item)
 		item.global_position = at
+		if spec[0] == &"plank":
+			item.global_rotation.y = rv.global_rotation.y + PI / 2.0 # Along the RV.
 	var remote := ItemLibrary.create(&"winch_remote")
 	rv.stash.add_child(remote)
 	remote.stow(rv, Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.34, -2.35))) # On the dashboard.

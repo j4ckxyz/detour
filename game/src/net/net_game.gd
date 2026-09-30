@@ -26,7 +26,7 @@ const TRIP_INTERVAL := 1.0
 ## First ids are fixed: the winch hooks (made by every machine's RV).
 const HOOK_IDS: Array[int] = [1, 2]
 const PLAYER_CALLS: Array[StringName] = [&"hurt", &"poison", &"knock", &"revive", &"say"]
-const META_KEYS: Array[StringName] = [&"fuel", &"puffs", &"cook", &"tire", &"part", &"wheel", &"slot", &"tape"]
+const META_KEYS: Array[StringName] = [&"fuel", &"puffs", &"cook", &"tire", &"part", &"wheel", &"slot", &"tape", &"settling"]
 
 var active := false
 var pg: Playground

@@ -130,6 +130,108 @@ fn fords_are_wet_and_ice_is_icy() {
     assert!(fords > 5 && ice > 5, "{fords} fords, {ice} ice");
 }
 
+/// Whatever needs planks has a pile of them a short walk before it, on level dry ground beside
+/// the road: not a trek through the trees, and not somewhere a wall, a lake or the next
+/// obstacle gets in the way.
+#[test]
+fn planks_are_close_at_hand() {
+    let (mut piles, mut worst_edge, mut worst_centre) = (0, 0.0f32, 0.0f32);
+    for seed in 0..300 {
+        let trip = if seed % 5 == 0 {
+            TripLength::Medium
+        } else {
+            TripLength::Short
+        };
+        let w = world(seed, trip);
+        let r = w.route();
+        for o in r.obstacles.iter().filter(|o| {
+            matches!(
+                o.kind,
+                ObstacleKind::Gap | ObstacleKind::Bridge | ObstacleKind::Ice
+            )
+        }) {
+            let (start, _) = o.extent();
+            let j = r.index_at(start);
+            let edge = [r.xz[j][0], 0.0, r.xz[j][1]];
+            let pile = r
+                .supplies
+                .iter()
+                .find(|p| p.kind == SupplyKind::Planks && p.s <= start && p.s >= start - 20.0)
+                .unwrap_or_else(|| panic!("seed {seed}: {:?} at {:.0} m has no pile", o.kind, o.s));
+            piles += 1;
+            assert!(pile.count >= 3, "seed {seed}: {} planks", pile.count);
+            let to_edge = dist2(pile.pos, edge).sqrt();
+            let to_centre = dist2(pile.pos, o.pos).sqrt();
+            worst_edge = worst_edge.max(to_edge);
+            worst_centre = worst_centre.max(to_centre);
+            assert!(
+                to_edge < 22.0,
+                "seed {seed}: {:?} at {:.0} m: planks {to_edge:.0} m from where it starts",
+                o.kind,
+                o.s
+            );
+            // Level, dry and not up a wall.
+            let ground = w.height_at(pile.pos[0], pile.pos[2]);
+            let road = r.h[r.index_at(pile.s.max(0.0))];
+            assert!(
+                (ground - road).abs() < 1.6,
+                "seed {seed}: {:?} at {:.0} m: planks on ground {:.1} m off the road's level",
+                o.kind,
+                o.s,
+                ground - road
+            );
+            assert!(
+                r.water_at(pile.pos[0], pile.pos[2])
+                    .is_none_or(|level| level < ground - 0.5),
+                "seed {seed}: planks in the water"
+            );
+            assert!(
+                r.outside_valley(pile.pos[0], pile.pos[2]) < -4.0,
+                "seed {seed}: planks up a wall"
+            );
+            // Not where scatter would bury them: nothing may grow on the pile.
+            assert!(
+                r.blocked(pile.pos[0], pile.pos[2], 0.0),
+                "seed {seed}: pile not kept clear"
+            );
+        }
+    }
+    println!(
+        "{piles} piles; furthest {worst_edge:.1} m from where its obstacle starts, {worst_centre:.1} m from its centre"
+    );
+    assert!(piles > 200, "{piles} piles");
+}
+
+/// Every plank spans what it's for with room to spare: a gap or a hole is narrower than a plank
+/// by twice `PLANK_BEARING`, so it can be laid a little off-centre and a little crooked.
+#[test]
+fn planks_span_every_gap_with_room_to_spare() {
+    let mut widest = 0.0f32;
+    for seed in 0..300 {
+        let r = route(seed, TripLength::Short);
+        for o in &r.obstacles {
+            let span = match o.kind {
+                ObstacleKind::Gap => o.length,
+                ObstacleKind::Bridge => o.hole,
+                _ => continue,
+            };
+            widest = widest.max(span);
+            assert!(
+                span <= PLANK_LENGTH - 2.0 * PLANK_BEARING + 1e-4,
+                "seed {seed}: {:?} at {:.0} m is {span:.2} m across",
+                o.kind,
+                o.s
+            );
+        }
+    }
+    println!("widest span {widest:.2} m for a {PLANK_LENGTH} m plank");
+    // Crooked by 25 degrees, a plank still bears 0.4 m or more at each end of the widest span.
+    assert!(
+        widest / 25f32.to_radians().cos() < PLANK_LENGTH - 0.8,
+        "{widest}"
+    );
+}
+
 #[test]
 fn crossings_are_trenches_with_a_straight_level_approach() {
     let mut seen = 0;

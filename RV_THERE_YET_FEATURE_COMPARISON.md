@@ -2110,7 +2110,7 @@ Legend:
 | RV storage | ✅ DONE (M7: 31 physical slots: plank rack, spare mount, can holders, tool wall, fridge, shelf, bed, cup holders; saved) |
 | Winch | ✅ DONE (M2) |
 | Winch controller | ✅ DONE (M2) |
-| Planks | ✅ DONE (M2) |
+| Planks | ✅ DONE (M2; M12: 6 m planks, a preview that lies across a gap at the road's level and lines up with the RV's wheel tracks, loose laying when it's only barely on, piles 4–14 m before what needs them, wildlife kept out of the way) |
 | Push RV | ✅ DONE (M2) |
 | Finite route | ✅ DONE (M3; M10: the road runs along a walled valley, closed behind the camp and past home: no driving off into nowhere; M11: 4–5.5 km short trips on a surveyed, winding road through a wide valley that pinches at obstacles, telephone poles along it) |
 | Bridges and jump puzzles | ✅ DONE (M11: timber bridges with a hole to jump off a kicker or plank over, two-beam crossings to line up on, gully jumps, steep hills with a tempting side track; generator-checked and driven in tests) |

@@ -23,6 +23,24 @@ signal did(what: StringName)
 
 ## Physics layer of players.
 const LAYER := 8
+## Climbing out (or up): jumping at a wall or ledge whose top is between `CLIMB_MIN` and
+## `CLIMB_MAX` metres above your feet (a trench you fell into, a boulder, a bank) hauls you up
+## onto it: a short climb. Higher walls can't be climbed.
+const CLIMB_MIN := 1.0
+const CLIMB_MAX := 2.9
+const CLIMB_REACH := 1.0
+## Seconds a climb takes: a low ledge, a high one.
+const CLIMB_TIME := Vector2(0.55, 1.1)
+## Standing on the floor of a pit: the ground all round is at least this far above your feet.
+const PIT_DEPTH := 2.5
+const PIT_RADIUS := 3.5
+## Or this far (m) below the road, near it (a ravine or gully the road crosses).
+const PIT_BELOW_ROAD := 3.0
+## After this long in a pit you're told how to get out (s).
+const PIT_HINT_AFTER := 6.0
+## The plank preview: green where it will stay, amber where it's barely on.
+const GHOST_SURE := Color(0.6, 1.0, 0.6, 0.35)
+const GHOST_RISKY := Color(1.0, 0.75, 0.25, 0.4)
 const WALK_SPEED := 4.2
 const SPRINT_SPEED := 7.0
 const CROUCH_SPEED := 2.0
@@ -139,7 +157,19 @@ var _transit_carry := Vector3.ZERO
 var _crouch := 0.0
 var _proxy := CharacterBody3D.new()
 var _prev_rv_velocity := Vector3.ZERO
+## Climbing: how far along (0..1, or -1 when not), where from and to, and how long it takes.
+var _climb_t := -1.0
+var _climb_from := Vector3.ZERO
+var _climb_to := Vector3.ZERO
+var _climb_time := 1.0
+## How long you've been in a pit (see `PIT_DEPTH`), and whether you've been told the way out.
+var pit_time := 0.0
+## `func(x, z) -> float`: the road's height near a point, NAN if the road isn't near (set by the game).
+var road_height_query: Callable
+var _pit_told := false
+var _pit_check := 0.0
 var _ghost := MeshInstance3D.new()
+var _ghost_material := StandardMaterial3D.new()
 var _tool_timer := 0.0
 var _rv_hit_cooldown := 0.0
 var _winch_sent: Array[int] = [0, 0]
@@ -211,13 +241,12 @@ func _ready() -> void:
 	flashlight.light_color = Color(1.0, 0.95, 0.85)
 	flashlight.visible = false
 	camera.add_child(flashlight)
-	var ghost_material := StandardMaterial3D.new()
-	ghost_material.albedo_color = Color(0.6, 1.0, 0.6, 0.35)
-	ghost_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	ghost_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_ghost_material.albedo_color = GHOST_SURE
+	_ghost_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ghost_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	var ghost_mesh := BoxMesh.new()
-	ghost_mesh.size = Vector3(ItemLibrary.PLANK_LENGTH, 0.06, 0.3)
-	ghost_mesh.material = ghost_material
+	ghost_mesh.size = Vector3(ItemLibrary.PLANK_LENGTH, 0.06, ItemLibrary.PLANK_WIDTH)
+	ghost_mesh.material = _ghost_material
 	_ghost.mesh = ghost_mesh
 	_ghost.top_level = true
 	_ghost.visible = false
@@ -306,6 +335,9 @@ func _physics_process(dt: float) -> void:
 	if _transit != 0:
 		_step_transit(dt)
 		return
+	if _climb_t >= 0.0:
+		_step_climb(dt)
+		return
 	var wish := Input.get_vector(&"move_left", &"move_right", &"move_forward", &"move_back") if input_enabled else Vector2.ZERO
 	var crouching := input_enabled and Input.is_action_pressed(&"crouch")
 	_crouch = move_toward(_crouch, 1.0 if crouching or downed else 0.0, dt * 6.0)
@@ -316,7 +348,10 @@ func _physics_process(dt: float) -> void:
 	if inside:
 		_move_inside(dt, wish, speed, jump)
 	else:
+		if jump and is_on_floor() and not swimming and _try_climb():
+			return
 		_move_outside(dt, wish, speed, jump)
+		_watch_for_pit(dt)
 
 
 func _process(dt: float) -> void:
@@ -386,10 +421,12 @@ func step_surface() -> StringName:
 
 ## Shows where a held plank would go.
 func _update_ghost() -> void:
-	var xf: Variant = ItemLibrary.plank_placement(self) if held and held.kind == &"plank" and seat == &"" else null
-	_ghost.visible = xf != null
-	if xf != null:
-		_ghost.global_transform = xf
+	var plan := ItemLibrary.plank_plan(self) if held and held.kind == &"plank" and seat == &"" else {}
+	_ghost.visible = not plan.is_empty()
+	if not plan.is_empty():
+		_ghost.global_transform = plan["xf"]
+		# Green where it will stay; amber where it's barely on and may slip off.
+		_ghost_material.albedo_color = GHOST_SURE if plan["secure"] else GHOST_RISKY
 
 
 func _move_outside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
@@ -418,6 +455,107 @@ func _move_outside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:
 		var toward_rv := (rv.global_basis.inverse() * velocity).x < -0.2
 		if rv.interior.in_doorway(local, 0.9) and local.y < rv.interior.floor_y + 0.6 and toward_rv:
 			board(local, true)
+
+
+## Jumping at a wall or ledge that's between `CLIMB_MIN` and `CLIMB_MAX` high and has flat
+## ground on top with room to stand: starts climbing onto it. False if there's nothing to climb.
+func _try_climb() -> bool:
+	var forward := -camera.global_basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.01:
+		return false
+	forward = forward.normalized()
+	var space := get_world_3d().direct_space_state
+	var feet := global_position
+	# A wall in front, about waist high...
+	var wall := space.intersect_ray(PhysicsRayQueryParameters3D.create(feet + Vector3.UP * 0.9, feet + Vector3.UP * 0.9 + forward * CLIMB_REACH, TerrainStreamer.WORLD_LAYER))
+	if wall.is_empty() or (wall["normal"] as Vector3).y > 0.55:
+		return false
+	# ...and the first flat ground beyond it, if that's within reach of a climb.
+	var base: Vector3 = wall["position"]
+	var top := Vector3.INF
+	for k: int in 8:
+		var at := base + forward * (0.2 + 0.3 * k)
+		var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(at + Vector3.UP * (CLIMB_MAX + 0.8), at + Vector3.DOWN * 0.3, TerrainStreamer.WORLD_LAYER))
+		if not down.is_empty() and (down["normal"] as Vector3).y > 0.7:
+			top = down["position"]
+			break
+	if top == Vector3.INF or top.y - feet.y < CLIMB_MIN or top.y - feet.y > CLIMB_MAX:
+		return false
+	# Room to stand there.
+	var stand := CapsuleShape3D.new()
+	stand.radius = RADIUS
+	stand.height = HEIGHT - 0.1
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = stand
+	query.transform = Transform3D(Basis.IDENTITY, top + Vector3.UP * (HEIGHT * 0.5 + 0.1))
+	query.collision_mask = TerrainStreamer.WORLD_LAYER
+	if not space.intersect_shape(query, 1).is_empty():
+		return false
+	_climb_from = feet
+	_climb_to = top + Vector3.UP * 0.05
+	_climb_time = lerpf(CLIMB_TIME.x, CLIMB_TIME.y, (top.y - feet.y - CLIMB_MIN) / (CLIMB_MAX - CLIMB_MIN))
+	_climb_t = 0.0
+	velocity = Vector3.ZERO
+	Sfx.cue(self, Sfx.pick("steps/step_rock", 4), global_position, -2.0, 4.0, 30.0)
+	return true
+
+
+## One step of the climb: up the wall, then over the top.
+func _step_climb(dt: float) -> void:
+	_climb_t = minf(_climb_t + dt / _climb_time, 1.0)
+	var t := _climb_t
+	var up := smoothstep(0.0, 0.7, t)
+	var over := smoothstep(0.55, 1.0, t)
+	var flat := _climb_from.lerp(_climb_to, over)
+	global_position = Vector3(flat.x, lerpf(_climb_from.y, _climb_to.y, up), flat.z)
+	velocity = Vector3.ZERO
+	if _climb_t >= 1.0:
+		_climb_t = -1.0
+		var forward := (_climb_to - _climb_from)
+		forward.y = 0.0
+		velocity = forward.normalized() * 1.5
+		Sfx.cue(self, Sfx.pick("steps/step_rock", 4), global_position, -4.0, 4.0, 30.0)
+
+
+func is_climbing() -> bool:
+	return _climb_t >= 0.0
+
+
+## Whether you're standing on the floor of a pit: the ground all round is `PIT_DEPTH` or more
+## above your feet in most directions, or you're well below the road beside you (a trench
+## you've fallen into, a ravine or gully the road crosses).
+func in_pit() -> bool:
+	if inside or not is_on_floor() or swimming:
+		return false
+	if road_height_query.is_valid():
+		var road: float = road_height_query.call(global_position.x, global_position.z)
+		if not is_nan(road) and global_position.y < road - PIT_BELOW_ROAD:
+			return true
+	var space := get_world_3d().direct_space_state
+	var high := 0
+	for i: int in 8:
+		var at := global_position + Vector3(cos(TAU * i / 8.0), 0.0, sin(TAU * i / 8.0)) * PIT_RADIUS
+		var down := space.intersect_ray(PhysicsRayQueryParameters3D.create(at + Vector3.UP * 14.0, at + Vector3.DOWN * 1.0, TerrainStreamer.WORLD_LAYER))
+		if not down.is_empty() and (down["position"] as Vector3).y - global_position.y >= PIT_DEPTH:
+			high += 1
+	return high >= 6
+
+
+## Keeps count of how long you've been in a pit, and tells you the way out once.
+func _watch_for_pit(dt: float) -> void:
+	_pit_check -= dt
+	if _pit_check > 0.0:
+		return
+	_pit_check = 0.5
+	if in_pit():
+		pit_time += 0.5
+		if pit_time >= PIT_HINT_AFTER and not _pit_told:
+			_pit_told = true
+			say("Stuck? Esc, then “Back to the RV”.")
+	else:
+		pit_time = 0.0
+		_pit_told = false
 
 
 func _move_inside(dt: float, wish: Vector2, speed: float, jump: bool) -> void:

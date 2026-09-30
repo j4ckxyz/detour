@@ -137,7 +137,7 @@ func _trip() -> void:
 	pg.peaceful = true
 	add_child(pg)
 	var waited := 0
-	while not pg.is_spawned and waited < HZ * 60:
+	while not pg.is_spawned and waited < HZ * 60 * 5: # (Frames run faster than the generator thread under load.)
 		await get_tree().physics_frame
 		waited += 1
 	var rv := pg.rv

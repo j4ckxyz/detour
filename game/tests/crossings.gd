@@ -10,7 +10,7 @@ extends Node
 const PLAYGROUND := preload("res://src/game/playground.tscn")
 const HZ := 60
 ## A short trip with a jump (6.6 m) in it.
-const JUMP_SEED := "DT5-00000-0009X"
+const JUMP_SEED := "DT6-00000-0009Q"
 
 var _pg: Playground
 var _failures: PackedStringArray = []
@@ -67,8 +67,8 @@ func _bridge(o: Dictionary) -> void:
 		var plank := ItemLibrary.create(&"plank")
 		_pg.items.add_child(plank)
 		var c := xf * Vector3(x, 0.0, -float(o["hole_at"]))
-		var a := _ground(c - dir * 2.35)
-		var b := _ground(c + dir * 2.35)
+		var a := _ground(c - dir * (ItemLibrary.PLANK_LENGTH * 0.5 - 0.15))
+		var b := _ground(c + dir * (ItemLibrary.PLANK_LENGTH * 0.5 - 0.15))
 		var ax := (b - a).normalized()
 		var up := ax.cross(Vector3.UP).cross(ax).normalized()
 		if up.y < 0.0:
@@ -137,7 +137,7 @@ func _start(code: String) -> void:
 	_pg.peaceful = true
 	add_child(_pg)
 	var waited := 0
-	while not _pg.is_spawned and waited < HZ * 60:
+	while not _pg.is_spawned and waited < HZ * 60 * 5: # (Frames run faster than the generator thread under load.)
 		await get_tree().physics_frame
 		waited += 1
 	_check(_pg.is_spawned, "%s spawned" % code)

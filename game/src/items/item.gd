@@ -18,6 +18,9 @@ var net_id := 0
 ## How fast it was going last physics tick, and how long until another landing may sound.
 var _last_speed := 0.0
 var _land_wait := 0.0
+## A plank laid loose (see `lay_loose`): how long it has been still, and how long it has had.
+var _still := 0.0
+var _settling_for := 0.0
 
 ## Online, set by `NetGame`: told about every item that appears and every one freed.
 static var on_ready: Callable
@@ -46,6 +49,8 @@ func _physics_process(dt: float) -> void:
 	_land_wait = maxf(0.0, _land_wait - dt)
 	if not freeze:
 		_last_speed = linear_velocity.length()
+		if get_meta(&"settling", false):
+			_settle(dt)
 
 
 ## A loose item hit something: a thud, louder the harder it came down.
@@ -129,6 +134,28 @@ func release(world_parent: Node, xf: Transform3D, velocity: Vector3) -> void:
 	angular_velocity = Vector3.ZERO
 	if winch_of():
 		winch_of().on_hook_released()
+
+
+## Lays a plank down loose at `xf` (where it would barely rest): it's left to settle under
+## physics, so it may hold or slip off the edge. If it comes to rest lying flat, it becomes solid
+## ground like a placed one.
+func lay_loose(parent: Node, xf: Transform3D) -> void:
+	release(parent, xf.translated(Vector3.UP * 0.1), Vector3.ZERO)
+	set_meta(&"settling", true)
+	_still = 0.0
+	_settling_for = 0.0
+
+
+## Watches a loose plank settle; once it's been still for a moment it's solid ground if it's
+## lying flat (one that's fallen into a gap stays a loose plank, to fetch).
+func _settle(dt: float) -> void:
+	_settling_for += dt
+	_still = _still + dt if linear_velocity.length() < 0.06 and angular_velocity.length() < 0.1 else 0.0
+	if _still < 0.6 and _settling_for < 20.0:
+		return
+	remove_meta(&"settling")
+	if global_basis.y.y > 0.92:
+		place(get_parent(), global_transform)
 
 
 ## Sets the item down as solid ground (a plank bridge or ramp): static, on the world layer

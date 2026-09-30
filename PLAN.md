@@ -820,6 +820,12 @@ Status (2026-09-28):
   - **Phase 8 audio, mostly landed:** sound effects for the RV, footsteps on every surface,
     items, tools, winch, wildlife, weather and the UI, plus a horn and a Music bus (the
     `sound` branch was merged first). Checked by `tools/audio/check_sounds.py` and `check_mix.py`.
+  - **Doability of the plank crossings (GEN_VERSION 6):** planks are 6 m long and 0.5 m wide (every
+    gap is ≥ 1.6 m narrower), piled 4–14 m before what needs them on level ground beside the road
+    (validated on 300 seeds), and bears and snakes are kept out of every place you work on foot;
+    the plank preview lies across a gap at the road's level and lines up with the RV's wheel
+    tracks; you can climb out of a trench you fall into, and the pause menu can put you back at
+    the RV from a ravine.
   - **Pulled forward from Phases 7 and 9:** key rebinding (keyboard, mouse and controller),
     cosmetics (hats and glasses, some earned), achievements, and cassette tapes with subtitled
     narrative. Still to do from those phases: proximity voice, localisation, dedicated host mode.

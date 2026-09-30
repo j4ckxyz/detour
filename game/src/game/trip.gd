@@ -349,20 +349,33 @@ func _rv_near(node: Node3D, radius: float) -> bool:
 	return rv.global_position.distance_to(node.global_position) < radius
 
 
-## What's left of a washed-out bridge: its planks, dumped in a heap off in the trees (where
-## the generator put them), the same for the same seed. Nothing points to them.
+## What's left of a washed-out bridge: its planks, dumped in a heap just off the road before
+## whatever needs them (where the generator put them), the same for the same seed. Nothing
+## points to them. They lie side by side along the road, each on the ground (tilted to it).
 func _spawn_planks(index: int, supply: Dictionary) -> void:
 	var pos: Vector3 = supply["pos"]
+	var dir: Vector3 = supply["dir"]
+	var side := Vector3(-dir.z, 0.0, dir.x)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("%s:planks%d" % [world.get_code(), index])
-	for k: int in int(supply["count"]):
+	var count := int(supply["count"])
+	for k: int in count:
 		var plank := ItemLibrary.create(&"plank")
 		items.add_child(plank)
-		var yaw := rng.randf() * TAU
-		var at := pos + Vector3(rng.randf_range(-1.6, 1.6), 0.0, rng.randf_range(-1.6, 1.6))
-		at.y = world.height_at(at.x, at.z) + 0.12 + 0.07 * k
-		var tilt := Basis(Vector3.RIGHT, rng.randf_range(-0.12, 0.12))
-		plank.global_transform = Transform3D(Basis(Vector3.UP, yaw) * tilt, at)
+		# Side by side, each a plank's width and a bit apart, a little askew.
+		var centre := pos + side * (k - (count - 1) * 0.5) * (ItemLibrary.PLANK_WIDTH + 0.25) + dir * rng.randf_range(-0.6, 0.6)
+		var axis := dir.rotated(Vector3.UP, rng.randf_range(-0.08, 0.08))
+		var e0 := centre - axis * (ItemLibrary.PLANK_LENGTH * 0.5)
+		var e1 := centre + axis * (ItemLibrary.PLANK_LENGTH * 0.5)
+		e0.y = world.height_at(e0.x, e0.z)
+		e1.y = world.height_at(e1.x, e1.z)
+		var lie := (e1 - e0).normalized()
+		var up := lie.cross(Vector3.UP).cross(lie).normalized()
+		if up.y < 0.0:
+			up = -up
+		var mid := (e0 + e1) * 0.5
+		mid.y = maxf(mid.y, world.height_at(centre.x, centre.z)) # (Not sunk into a bump in the middle.)
+		plank.global_transform = Transform3D(Basis(lie, up, lie.cross(up)), mid + up * (plank.base_offset + 0.02))
 		plank.freeze = true # Lying there until someone picks one up.
 		plank.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 

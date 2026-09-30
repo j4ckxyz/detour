@@ -9,8 +9,10 @@ const SMALL_HOLD := Transform3D(Basis.IDENTITY, Vector3(0.24, -0.22, -0.45))
 ## kind → {name, model, mass, hold (camera-space transform), two_handed, stow (which RV
 ## storage slots take it: see RV.STORAGE)}
 static var DEFS: Dictionary[StringName, Dictionary] = {
+	# (The model is 5 m by 0.3 m; it's stretched to the plank's real size.)
 	&"plank": {"stow": &"plank", "name": "Plank", "model": "plank", "mass": 15.0, "two_handed": true, "reach": 4.5,
-		"hold": Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(0.28, -0.42, -2.5))},
+		"stretch": Vector3(PLANK_LENGTH / 5.0, 1.0, PLANK_WIDTH / 0.3),
+		"hold": Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(0.36, -0.48, -PLANK_LENGTH * 0.5))},
 	&"jerrycan": {"stow": &"can", "name": "Jerry can", "model": "jerrycan", "mass": 20.0, "two_handed": true,
 		"hold": Transform3D(Basis.IDENTITY, Vector3(0.3, -0.62, -0.5))},
 	&"spare_tire": {"stow": &"tire", "name": "Spare tire", "model": "sparetire", "mass": 25.0, "two_handed": true,
@@ -42,10 +44,33 @@ static var DEFS: Dictionary[StringName, Dictionary] = {
 }
 ## A full jerry can, litres.
 const JERRY_CAN_LITRES := 20.0
-## How far ahead a plank can be placed, metres.
+## Must match rvgen::route::PLANK_LENGTH: a gap is narrower than a plank by at least 1.6 m.
+const PLANK_LENGTH := 6.0
+const PLANK_WIDTH := 0.5
+## How far ahead of you a plank's near end can be laid, metres.
 const PLANK_REACH := 5.5
-## Must match rvgen::route::PLANK_LENGTH and the plank model.
-const PLANK_LENGTH := 5.0
+## Laying a plank: the ground under its line is sampled every `PLANK_STEP` metres, from
+## `PLANK_FROM` (a little behind you) to the far end of the furthest plank. Ends rest
+## `PLANK_STEP` in from the tips. A plank needs `PLANK_HOLD` metres of ground under each end to be
+## laid at all and `PLANK_SECURE` to be sure to stay (between the two, it's laid loose and may
+## slip off); a gap is what it's laid over if there's `PLANK_VOID` metres under it; it won't
+## climb more than `PLANK_MAX_RISE` end to end across a gap, or lie on ground steeper than
+## `PLANK_MAX_SLOPE`, or ride up over a bump higher than `PLANK_MAX_LIFT`.
+const PLANK_STEP := 0.25
+const PLANK_FROM := -1.0
+const PLANK_HOLD := 0.3
+const PLANK_SECURE := 0.6
+const PLANK_VOID := 0.6
+const PLANK_MAX_RISE := 1.6
+const PLANK_MAX_SLOPE := 0.6
+const PLANK_MAX_LIFT := 0.6
+## Near the RV a plank lines up with its wheels: within this far (m) of it, less than this far
+## off its heading (radians) and this far (m) from a wheel track.
+const PLANK_SNAP_RANGE := 30.0
+const PLANK_SNAP_ANGLE := deg_to_rad(28.0)
+const PLANK_SNAP_ACROSS := 1.3
+## Nothing under a sample: the ray found no ground.
+const NO_GROUND := -1.0e6
 ## Bear spray: puffs per can, and the cone it reaches (metres, cos of the half angle).
 const SPRAY_PUFFS := 6
 const SPRAY_RANGE := 7.0
@@ -92,18 +117,19 @@ static func create(kind: StringName) -> Item:
 	item.def = def
 	item.name = String(kind)
 	item.mass = def["mass"]
-	_dress(item, _mesh(def["model"]), def.get("scale", 1.0))
+	_dress(item, _mesh(def["model"]), def.get("scale", 1.0), def.get("stretch", Vector3.ONE))
 	return item
 
 
 ## Gives an item its look and a box collider fitted to the mesh.
-static func _dress(item: Item, mesh: Mesh, scale: float = 1.0) -> void:
+static func _dress(item: Item, mesh: Mesh, scale: float = 1.0, stretch: Vector3 = Vector3.ONE) -> void:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
-	mi.scale = Vector3.ONE * scale
+	var size := Vector3.ONE * scale * stretch
+	mi.scale = size
 	item.add_child(mi)
 	var aabb := mesh.get_aabb()
-	aabb = AABB(aabb.position * scale, aabb.size * scale)
+	aabb = AABB(aabb.position * size, aabb.size * size)
 	item.base_offset = -aabb.position.y
 	var box := BoxShape3D.new()
 	box.size = aabb.size.max(Vector3.ONE * 0.03)
@@ -256,13 +282,17 @@ static func use_action(kind: StringName) -> Callable:
 				return poured > 0.0
 		&"plank":
 			return func(item: Item, player: Player) -> bool:
-				var xf: Variant = plank_placement(player)
-				if xf == null:
+				var plan := plank_plan(player)
+				if plan.is_empty():
 					return false
+				var xf: Transform3D = plan["xf"]
 				player.held = null
-				item.place(player.world_items, xf)
+				if plan["secure"]:
+					item.place(player.world_items, xf)
+				else:
+					item.lay_loose(player.world_items, xf) # Barely on: it may hold, or slip off.
 				player.did.emit(&"plank")
-				Sfx.cue(player, "tools/plank_lay", (xf as Transform3D).origin, -6.0, 5.0, 40.0)
+				Sfx.cue(player, "tools/plank_lay", xf.origin, -6.0, 5.0, 40.0)
 				return true
 	return Callable()
 
@@ -412,57 +442,207 @@ static func find_anchor(player: Player) -> Variant:
 	return {"position": hit["position"], "what": "rock or tree"}
 
 
-## Where a held plank would go: along the view, resting on the ground (or on another plank)
-## at both ends. Returns a Transform3D, or null if it wouldn't rest on anything.
+## Where a held plank would go, or null: see `plank_plan`.
 static func plank_placement(player: Player) -> Variant:
+	var plan := plank_plan(player)
+	return plan["xf"] if not plan.is_empty() else null
+
+
+## Where a held plank would go and how: {"xf": its transform, "secure": it's sure to stay,
+## "bridging": it spans a gap} (or {} if there's nowhere). It lies along your view, level, its
+## ends on the ground: over a gap in front of you it's centred on the gap and lies across it
+## (not down into it, where you're looking), on the ground otherwise, and carries on from
+## another plank's end if you're looking at one. Near the RV it lines up with a wheel track
+## (see `PLANK_SNAP_RANGE`), so two planks make a road for its wheels.
+static func plank_plan(player: Player) -> Dictionary:
 	if player.inside:
-		return null
+		return {}
 	var space := player.get_world_3d().direct_space_state
 	var cam := player.camera.global_transform
-	var query := PhysicsRayQueryParameters3D.create(cam.origin, cam.origin - cam.basis.z * PLANK_REACH, TerrainStreamer.WORLD_LAYER)
-	query.exclude = [player.held.get_rid()] if player.held else []
-	var hit := space.intersect_ray(query)
-	if hit.is_empty():
-		return null
-	var forward := -cam.basis.z
-	forward.y = 0.0
-	forward = forward.normalized()
-	var center: Vector3 = hit["position"]
-	var other := hit["collider"] as Item
+	var view := -cam.basis.z
+	if view.y > 0.35:
+		return {} # Looking at the sky.
+	var ray := PhysicsRayQueryParameters3D.create(cam.origin, cam.origin + view * (PLANK_REACH + 3.0), TerrainStreamer.WORLD_LAYER)
+	var hit := space.intersect_ray(ray)
+	var other := hit.get("collider") as Item if not hit.is_empty() else null
 	if other and other.is_placed() and other.kind == &"plank":
-		# Carry on from the end of the plank we're looking at, in its direction.
-		var axis := other.global_basis.x.normalized()
-		if axis.dot(forward) < 0.0:
-			axis = -axis
-		var end := other.global_position + axis * (PLANK_LENGTH * 0.5)
-		forward = Vector3(axis.x, 0.0, axis.z).normalized()
-		center = end + forward * (PLANK_LENGTH * 0.5 - 0.05)
+		return _plank_continued(space, other, view)
+	var dir := Vector3(view.x, 0.0, view.z)
+	if dir.length_squared() < 0.01:
+		dir = Vector3(-cam.basis.y.x, 0.0, -cam.basis.y.z) # Looking straight down: the way your head points.
+	dir = dir.normalized()
+	var origin := player.global_position
+	var aim := (hit["position"] as Vector3) if not hit.is_empty() else origin + dir * 3.0
+	var plan := _plank_along(space, origin, dir, aim)
+	if plan.is_empty():
+		return plan
+	var snapped := _plank_lined_up(player, space, plan, origin, aim)
+	return plan if snapped.is_empty() else snapped
+
+
+## A plank laid from the end of the placed plank `other`, in its direction.
+static func _plank_continued(space: PhysicsDirectSpaceState3D, other: Item, view: Vector3) -> Dictionary:
+	var axis := other.global_basis.x.normalized()
+	if axis.dot(view) < 0.0:
+		axis = -axis
+	var forward := Vector3(axis.x, 0.0, axis.z).normalized()
+	var end := other.global_position + axis * (PLANK_LENGTH * 0.5)
+	var center := end + forward * (PLANK_LENGTH * 0.5 - 0.05)
 	var half := forward * (PLANK_LENGTH * 0.5 - 0.1)
 	var ends: Array[Vector3] = []
 	for e: Vector3 in [center - half, center + half]:
 		var down := PhysicsRayQueryParameters3D.create(e + Vector3.UP * 1.2, e + Vector3.DOWN * 2.5, TerrainStreamer.WORLD_LAYER)
-		down.exclude = query.exclude
 		var h := space.intersect_ray(down)
 		if h.is_empty():
-			return null # That end would hang in the air.
+			return {} # That end would hang in the air.
 		ends.append(h["position"])
 	# A board rests on the highest points under it: lift it over any bump between the ends.
 	var lift := 0.0
 	for k: int in range(1, 6):
-		var t := k / 6.0
-		var along := ends[0].lerp(ends[1], t)
+		var along := ends[0].lerp(ends[1], k / 6.0)
 		var probe := PhysicsRayQueryParameters3D.create(along + Vector3.UP * 1.5, along + Vector3.DOWN * 1.0, TerrainStreamer.WORLD_LAYER)
-		probe.exclude = query.exclude
 		var h := space.intersect_ray(probe)
 		if not h.is_empty():
 			lift = maxf(lift, (h["position"] as Vector3).y - along.y)
-	var axis_x := (ends[1] - ends[0]).normalized()
+	return {"xf": _plank_transform(ends[0], ends[1], lift), "secure": true, "bridging": false}
+
+
+## The best way to lay a plank along the line from `origin` towards `dir` (horizontal), with
+## `aim` where you're pointing: over the gap if there is one in reach, else on the ground there.
+static func _plank_along(space: PhysicsDirectSpaceState3D, origin: Vector3, dir: Vector3, aim: Vector3) -> Dictionary:
+	# The ground under the line, nearest the top: a ravine deeper than 8 m reads as no ground.
+	var steps := int(ceil((PLANK_REACH + PLANK_LENGTH - PLANK_FROM) / PLANK_STEP)) + 1
+	var ground := PackedFloat32Array()
+	ground.resize(steps)
+	for i: int in steps:
+		var at := origin + dir * (PLANK_FROM + i * PLANK_STEP)
+		var query := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 3.0, at + Vector3.DOWN * 8.0, TerrainStreamer.WORLD_LAYER)
+		var h := space.intersect_ray(query)
+		ground[i] = (h["position"] as Vector3).y if not h.is_empty() else NO_GROUND
+	var span := int(roundf(PLANK_LENGTH / PLANK_STEP))
+	var aimed := clampf((aim - origin).dot(dir), 1.0, PLANK_REACH + PLANK_LENGTH * 0.5)
+	var bridge := {}
+	var lie := {}
+	for j: int in range(0, mini(int((PLANK_REACH - PLANK_FROM) / PLANK_STEP), steps - span - 2) + 1):
+		var a := j + 1 # Where each end rests: a step in from the tips.
+		var b := j + span - 1
+		if ground[a] <= NO_GROUND or ground[b] <= NO_GROUND:
+			continue
+		var y0 := ground[a]
+		var y1 := ground[b]
+		if absf(y1 - y0) > PLANK_MAX_SLOPE * (b - a) * PLANK_STEP:
+			continue # Too steep even to lie on.
+		var lift := 0.0
+		for k: int in range(a, b + 1):
+			if ground[k] > NO_GROUND:
+				lift = maxf(lift, ground[k] - lerpf(y0, y1, float(k - a) / float(b - a)))
+		if lift > PLANK_MAX_LIFT:
+			continue # A boulder in the way.
+		# How far under the plank the ground falls, and how much of it each end rests on.
+		var void_depth := 0.0
+		var bearing: Array[float] = [0.0, 0.0]
+		for k: int in range(a, b + 1):
+			var line := lerpf(y0, y1, float(k - a) / float(b - a)) + lift
+			void_depth = maxf(void_depth, line - ground[k] if ground[k] > NO_GROUND else 8.0)
+		for end: int in 2:
+			var run := 0
+			for n: int in range(b - a + 1):
+				var k := a + n if end == 0 else b - n
+				var line := lerpf(y0, y1, float(k - a) / float(b - a)) + lift
+				if ground[k] > NO_GROUND and ground[k] >= line - 0.3:
+					run += 1
+				else:
+					break
+			bearing[end] = PLANK_STEP * (run + 0.5) if run > 0 else 0.0
+		var center := PLANK_FROM + (j + span * 0.5) * PLANK_STEP
+		var q := minf(bearing[0], bearing[1])
+		if void_depth >= PLANK_VOID and absf(y1 - y0) > PLANK_MAX_RISE:
+			continue # Spanning a gap it won't climb, just lying on the ground it will.
+		var cand := {"a": a, "b": b, "y0": y0, "y1": y1, "lift": lift, "q": q, "center": center}
+		if void_depth >= PLANK_VOID:
+			if q >= PLANK_HOLD and (bridge.is_empty() or q > float(bridge["q"]) + 0.01
+					or (absf(q - float(bridge["q"])) <= 0.01 and absf(center - aimed) < absf(float(bridge["center"]) - aimed))):
+				bridge = cand
+		elif lie.is_empty() or absf(center - aimed) < absf(float(lie["center"]) - aimed):
+			lie = cand
+	# Across a gap if you're pointing down into it (or a secure crossing is near where you're
+	# pointing), else on the ground where you point.
+	var pick := lie
+	var bridging := false
+	if not bridge.is_empty() and (lie.is_empty() or aim.y < origin.y - 0.6
+			or (float(bridge["q"]) >= PLANK_SECURE and absf(float(bridge["center"]) - aimed) <= 4.0)):
+		pick = bridge
+		bridging = true
+	if pick.is_empty():
+		return {}
+	var e0 := origin + dir * (PLANK_FROM + int(pick["a"]) * PLANK_STEP)
+	var e1 := origin + dir * (PLANK_FROM + int(pick["b"]) * PLANK_STEP)
+	e0.y = pick["y0"]
+	e1.y = pick["y1"]
+	return {"xf": _plank_transform(e0, e1, float(pick["lift"])), "bridging": bridging,
+		"secure": not bridging or float(pick["q"]) >= PLANK_SECURE}
+
+
+## A plank resting on `e0` and `e1` (its ends' support points), lifted `lift` over a bump.
+static func _plank_transform(e0: Vector3, e1: Vector3, lift: float) -> Transform3D:
+	var axis_x := (e1 - e0).normalized()
 	var up := axis_x.cross(Vector3.UP).cross(axis_x).normalized()
 	if up.y < 0.0:
 		up = -up
 	var z := axis_x.cross(up)
-	var mid := (ends[0] + ends[1]) * 0.5 + Vector3.UP * lift + up * 0.04
-	return Transform3D(Basis(axis_x, up, z), mid)
+	return Transform3D(Basis(axis_x, up, z), (e0 + e1) * 0.5 + Vector3.UP * lift + up * 0.04)
+
+
+## The same plank lined up with a wheel track of the RV if it's near enough and roughly
+## pointing the way it does (or {}): so two planks laid one after the other are a road for its
+## wheels, without measuring by eye. Only when it still lies as well as the plank as aimed.
+static func _plank_lined_up(player: Player, space: PhysicsDirectSpaceState3D, plan: Dictionary, origin: Vector3, aim: Vector3) -> Dictionary:
+	var rv := player.rv
+	if rv == null:
+		return {}
+	var xf: Transform3D = plan["xf"]
+	var center := xf.origin
+	if center.distance_to(rv.global_position) > PLANK_SNAP_RANGE:
+		return {}
+	var heading := -rv.global_basis.z
+	heading.y = 0.0
+	if heading.length_squared() < 0.01:
+		return {}
+	heading = heading.normalized()
+	var axis := Vector3(xf.basis.x.x, 0.0, xf.basis.x.z).normalized()
+	if axis.dot(heading) < 0.0:
+		heading = -heading
+	if axis.dot(heading) < cos(PLANK_SNAP_ANGLE):
+		return {}
+	var right := heading.cross(Vector3.UP)
+	var across := (center - rv.global_position).dot(right)
+	var tracks: Array[float] = [RV.TRACK * 0.5, -RV.TRACK * 0.5]
+	tracks.sort_custom(func(x: float, y: float) -> bool: return absf(across - x) < absf(across - y))
+	for track: float in tracks:
+		if absf(across - track) > PLANK_SNAP_ACROSS:
+			break # (Sorted: the other one is further off.)
+		var base := Vector3(rv.global_position.x, origin.y, rv.global_position.z) + right * track
+		if _plank_laid_along(player.get_tree(), base, heading, right, center):
+			continue # That track's taken: the other one, then.
+		var start := base + heading * (origin - base).dot(heading)
+		start.y = origin.y
+		var lined := _plank_along(space, start, heading, aim)
+		if not lined.is_empty() and lined["bridging"] == plan["bridging"]:
+			return lined
+	return {}
+
+
+## Whether a placed plank already lies along the line through `base` in direction `heading`,
+## near `near`.
+static func _plank_laid_along(tree: SceneTree, base: Vector3, heading: Vector3, right: Vector3, near: Vector3) -> bool:
+	for n: Node in tree.get_nodes_in_group(&"items"):
+		var item := n as Item
+		if item == null or item.kind != &"plank" or not item.is_placed():
+			continue
+		var from := item.global_position - base
+		if absf(from.dot(right)) < PLANK_WIDTH and absf((item.global_position - near).dot(heading)) < PLANK_LENGTH:
+			return true
+	return false
 
 
 static func _mesh(model: String) -> Mesh:
