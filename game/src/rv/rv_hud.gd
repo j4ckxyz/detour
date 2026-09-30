@@ -125,9 +125,7 @@ func _process(_delta: float) -> void:
 		bits.append("GRIND")
 		warn = true
 	var dmg := rv.damage
-	bits.append("fuel %d L" % roundi(dmg.fuel))
-	bits.append("oil %d%%" % roundi(dmg.oil * 100.0))
-	bits.append("frame %d%%" % roundi(dmg.frame))
+	bits.append("fuel %d L" % roundi(dmg.fuel)) # (The rest of the RV's condition is in the status panel.)
 	if dmg.temperature > 0.8:
 		bits.append("ENGINE OVERHEATING")
 		warn = true

@@ -34,6 +34,11 @@ const CAVE_LOOT: Array[Array] = [
 ## How close (m) the RV must get to a pad's centre to arrive (stations sit beside the road:
 ## their centre is ~14 m from it).
 const ARRIVE_RADIUS := 20.0
+## How near a pump the RV must be for the hose to reach its tank (the lane between the pumps,
+## or pulled up on the road outside), metres.
+const PUMP_REACH := 16.0
+## Once this far from the last stop the RV has set off (its state is the checkpoint's).
+const LEAVE_RADIUS := 45.0
 const START_HOUR := 8.0
 const HOURS_PER_SECOND := 1.0 / 60.0
 ## Items a station restocks (kind, count).
@@ -68,6 +73,11 @@ var loaded_extra: Dictionary = {}
 var resumed := false
 ## Seconds the "Saved" mark shows for (the HUD fades it).
 var saved_flash := 0.0
+## The RV as it left the last stop (`RV.slow_snapshot()`: damage, fuel, oil...): what it's put
+## back to if it's wrecked or everyone's down (`Playground.back_to_checkpoint`).
+var checkpoint_rv: Array = []
+## The RV has driven away from the last stop since reaching it.
+var _left_stop := false
 
 var _last_rv_pos := Vector3.INF
 var _biome := -1
@@ -288,7 +298,7 @@ func _wire_station_services() -> void:
 		pump.prompt_for = func(player: Player) -> String:
 			if player.held and player.held.kind == &"jerrycan":
 				return "Fill"
-			if _rv_near(pump, 14.0):
+			if _rv_near(pump, PUMP_REACH):
 				return "Fill up (%d / %d L)" % [roundi(rv.damage.fuel), roundi(RVDamage.TANK)]
 			return "Pump"
 		pump.used.connect(func(player: Player) -> void:
@@ -296,7 +306,7 @@ func _wire_station_services() -> void:
 				player.held.set_meta(&"fuel", ItemLibrary.JERRY_CAN_LITRES)
 				player.held.def["name"] = "Jerry can (20 L)"
 				player.say("Jerry can filled.")
-			elif _rv_near(pump, 14.0):
+			elif _rv_near(pump, PUMP_REACH):
 				rv.op(&"add_fuel", [RVDamage.TANK])
 				player.say("Tank full.")
 			else:
@@ -356,6 +366,11 @@ func _physics_process(dt: float) -> void:
 		_biome = b
 	if not is_authority:
 		return
+	if not _left_stop:
+		var here: Vector3 = pad(checkpoint)["pos"]
+		if Vector2(rv.global_position.x - here.x, rv.global_position.z - here.z).length() > LEAVE_RADIUS:
+			_left_stop = true
+			checkpoint_rv = rv.slow_snapshot() # As it set off: after the stop's repairs.
 	var next := checkpoint + 1
 	if next >= pads().size():
 		return
@@ -375,6 +390,8 @@ func _arrive(i: int) -> void:
 ## Marks stop `i` reached (the host's arrival, copied on clients).
 func reach(i: int) -> void:
 	checkpoint = i
+	checkpoint_rv = rv.slow_snapshot()
+	_left_stop = false
 	var kind := int(pad(i)["kind"])
 	if kind == PAD_HOME:
 		is_finished = true
@@ -397,6 +414,16 @@ func restock(i: int) -> void:
 			at.y = world.height_at(at.x, at.z) + 0.4
 			item.global_position = at
 			k += 1
+
+
+## A stop's name: "the camp", "gas station 2", "home".
+func stop_name(i: int) -> String:
+	match int(pad(i)["kind"]):
+		PAD_CAMP:
+			return "the camp"
+		PAD_HOME:
+			return "home"
+	return "gas station %d" % i
 
 
 ## Distance (m) to the next stop along the road, and its name.
@@ -466,6 +493,7 @@ func save() -> void:
 		d["completed"] = previous["completed"]
 	if not is_finished:
 		d["extra"] = JSON.from_native(extra_save.call() if extra_save.is_valid() else {})
+		d["checkpoint_rv"] = JSON.from_native(checkpoint_rv)
 	if Saves.write(world.get_code(), d):
 		saved_flash = 2.5
 
@@ -482,6 +510,9 @@ func load_save() -> bool:
 	hours = float(d.get("hours", START_HOUR))
 	var extra: Variant = JSON.to_native(d.get("extra", {}))
 	loaded_extra = extra if extra is Dictionary else {}
+	var at_stop: Variant = JSON.to_native(d.get("checkpoint_rv", []))
+	checkpoint_rv = at_stop if at_stop is Array else []
+	_left_stop = true # Wherever it was left, it keeps the stop's state it had.
 	resumed = true
 	return true
 

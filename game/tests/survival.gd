@@ -1,10 +1,10 @@
 extends Node
 ## Headless survival test: falls and the RV hurt; burgers, soda, first aid and cooked patties
 ## heal (a patty cooks on the RV's stove); a snake bite poisons until the antidote; running
-## out of health downs you, an EpiPen gets you up, bleeding out wakes you by the RV; a bear
-## charges and swipes, bear spray sends it off, and it gives up on someone inside the RV; an
-## eagle steals a burger and drops it far away; the trip's wildlife is placed the same way
-## for the same seed.
+## out of health downs you, an EpiPen gets you up, bleeding out (solo) takes you back to the
+## last stop; a bear charges and swipes, bear spray sends it off, and it gives up on someone
+## inside the RV; an eagle steals a burger and drops it far away; the trip's wildlife is
+## placed the same way for the same seed.
 ##
 ##   godot --headless --path game --fixed-fps 60 res://tests/survival.tscn
 
@@ -183,8 +183,9 @@ func _downed() -> void:
 	await _w.hold(0.3)
 	await _w.press(&"interact") # Give up.
 	await _w.hold(0.5)
-	_check(not _player.downed and _player.health == 50.0, "passing out wakes you up again")
+	_check(not _player.downed and _player.health == 60.0, "passing out (solo) wakes you up again")
 	_check(_player.global_position.distance_to(_pg.by_the_door()) < 3.0, "... by the RV")
+	_check(_pg.trip.notice.contains("Back to the camp"), "... back at the last stop: %s" % _pg.trip.notice)
 	_player.health = Player.MAX_HEALTH
 
 

@@ -15,6 +15,8 @@ signal seat_changed(seat: StringName)
 signal downed_changed(is_downed: bool)
 ## Bled out while down: the playground wakes them up again by the RV.
 signal passed_out
+## Each blow of a hammer swing (`swing`), where it landed: for the clank and the sparks.
+signal struck(at: Vector3)
 
 ## Physics layer of players.
 const LAYER := 8
@@ -100,6 +102,9 @@ var target_prompt := ""
 
 var camera := Camera3D.new()
 var hand := Node3D.new()
+var _swing: Tween
+## A little knock to the view (a hammer blow), fading.
+var _shake := 0.0
 var flashlight := SpotLight3D.new()
 ## Which winch the remote works (index into rv.winches).
 var winch_choice := 0
@@ -823,6 +828,64 @@ func say(text: String) -> void:
 	message_time = 4.0
 
 
+## Swings what's in hand at `at` (world) `blows` times, a wind-up and a smack each, with a
+## shower of sparks where it lands; `done` runs after the last blow (the repair).
+func swing(at: Vector3, blows: int, done: Callable = Callable()) -> void:
+	if is_swinging():
+		return
+	hand.rotation = Vector3.ZERO
+	hand.position = Vector3.ZERO
+	_swing = create_tween()
+	for k: int in blows:
+		_swing.tween_property(hand, "rotation", Vector3(0.95, 0.15, -0.1), 0.17).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		_swing.parallel().tween_property(hand, "position", Vector3(0.04, 0.06, 0.08), 0.17)
+		_swing.tween_property(hand, "rotation", Vector3(-0.55, -0.05, 0.05), 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		_swing.parallel().tween_property(hand, "position", Vector3(0.0, -0.05, -0.14), 0.08)
+		_swing.tween_callback(_blow.bind(at))
+		_swing.tween_interval(0.06)
+	if done.is_valid():
+		_swing.tween_callback(done)
+	_swing.tween_property(hand, "rotation", Vector3.ZERO, 0.22).set_trans(Tween.TRANS_SINE)
+	_swing.parallel().tween_property(hand, "position", Vector3.ZERO, 0.22)
+
+
+func is_swinging() -> bool:
+	return _swing != null and _swing.is_running()
+
+
+func _blow(at: Vector3) -> void:
+	struck.emit(at)
+	_shake = 0.035
+	var sparks := CPUParticles3D.new()
+	sparks.one_shot = true
+	sparks.local_coords = true # (World-space particles get culled away from the origin.)
+	sparks.amount = 28
+	sparks.lifetime = 0.5
+	sparks.explosiveness = 1.0
+	sparks.direction = Vector3.UP
+	sparks.spread = 70.0
+	sparks.initial_velocity_min = 1.8
+	sparks.initial_velocity_max = 4.2
+	sparks.gravity = Vector3(0.0, -9.8, 0.0)
+	sparks.scale_amount_min = 0.8
+	sparks.scale_amount_max = 1.6
+	var dot := SphereMesh.new()
+	dot.radius = 0.016
+	dot.height = 0.032
+	dot.radial_segments = 4
+	dot.rings = 2
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = Color(1.0, 0.72, 0.3)
+	dot.material = glow
+	sparks.mesh = dot
+	var scene := get_tree().current_scene
+	scene.add_child(sparks)
+	sparks.global_position = at
+	sparks.emitting = true
+	sparks.finished.connect(sparks.queue_free)
+
+
 ## What of the RV the crosshair is on (see RVDamage.aim), within arm's reach.
 func aim_rv() -> Dictionary:
 	if rv == null or inside:
@@ -840,6 +903,9 @@ func _place_camera() -> void:
 	var body := get_global_transform_interpolated()
 	var frame := rv.get_global_transform_interpolated().basis if inside and rv else Basis.IDENTITY
 	var eye_pos := body.origin + frame * Vector3(0.0, eye_height, 0.0)
+	if _shake > 0.0:
+		eye_pos += Vector3(randf_range(-_shake, _shake), randf_range(-_shake, _shake), 0.0)
+		_shake = maxf(0.0, _shake - get_process_delta_time() * 0.25)
 	camera.global_transform = Transform3D(frame * Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), eye_pos)
 
 

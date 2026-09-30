@@ -8,6 +8,9 @@ const KENNEY := "res://assets/models/kenney/%s.glb"
 const SIGN_TEXT := Color(0.12, 0.1, 0.08)
 ## Along-the-road thickness of a bridge abutment, metres.
 const ABUTMENT_DEPTH := 1.4
+## The pumps stand either side of the forecourt's lane, this far from its middle (station
+## space; the lane runs from the road, at -Z, towards the shop).
+const PUMP_X := 3.4
 
 static var _cache: Dictionary[String, PackedScene] = {}
 
@@ -119,12 +122,14 @@ static func _station(index: int, stations: int) -> Node3D:
 	var name := _label("GAS  ·  DINER\nStation %d of %d" % [index, stations], 96, Color(0.98, 0.95, 0.85))
 	name.position = Vector3(0.0, 4.4, 4.7)
 	st.add_child(name)
+	# The forecourt: a canopy over two pump islands with a lane between them wide enough to
+	# pull the RV in nose first from the road (its posts stand on the islands, not the lane).
 	_place(st, _block(Vector3(11.0, 0.35, 7.0), Color(0.9, 0.9, 0.88), false), Vector3(0.0, 4.6, -1.5)) # Canopy.
-	for x: float in [-4.8, 4.8]:
-		for z: float in [-4.3, 1.3]:
+	for x: float in [-PUMP_X, PUMP_X]:
+		_place(st, _block(Vector3(0.9, 0.2, 3.4), Color(0.6, 0.6, 0.58)), Vector3(x, 0.0, -1.5)) # Island.
+		for z: float in [-2.9, -0.1]:
 			_place(st, _block(Vector3(0.3, 4.6, 0.3), Color(0.85, 0.85, 0.82)), Vector3(x, 0.0, z))
-	for x: float in [-1.8, 1.8]:
-		_place(st, _block(Vector3(0.7, 0.2, 1.4), Color(0.6, 0.6, 0.58)), Vector3(x, 0.0, -1.5)) # Island.
+	for x: float in [-PUMP_X, PUMP_X]:
 		_place(st, _block(Vector3(0.55, 1.6, 0.4), Color(0.8, 0.18, 0.12)), Vector3(x, 0.2, -1.5)) # Pump.
 		_place(st, _block(Vector3(0.45, 0.35, 0.42), Color(0.95, 0.95, 0.9), false), Vector3(x, 1.8, -1.5))
 		var pump := Interactable.new()

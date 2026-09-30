@@ -13,19 +13,23 @@ var _saved := Label.new()
 
 func _ready() -> void:
 	layer = 45
+	# The trip line, and a notice under it (stacked, so they never overlap).
+	var column := VBoxContainer.new()
+	column.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	column.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	column.offset_top = 10.0
+	column.add_theme_constant_override("separation", 8)
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(column)
 	for label: Label in [_line, _notice]:
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.add_theme_color_override("font_color", Color(0.98, 0.95, 0.86))
 		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 		label.add_theme_constant_override("outline_size", 7)
-		label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-		label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 		label.autowrap_mode = TextServer.AUTOWRAP_OFF
-		add_child(label)
+		column.add_child(label)
 	_line.add_theme_font_size_override("font_size", 16)
-	_line.offset_top = 10.0
 	_notice.add_theme_font_size_override("font_size", 24)
-	_notice.offset_top = 40.0
 	_saved.text = "Saved"
 	_saved.add_theme_font_size_override("font_size", 14)
 	_saved.add_theme_color_override("font_color", Color(0.98, 0.95, 0.86))

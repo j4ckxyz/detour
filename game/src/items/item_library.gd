@@ -164,11 +164,14 @@ static func use_action(kind: StringName) -> Callable:
 				return true
 		&"hammer":
 			return func(_item: Item, player: Player) -> bool:
+				if player.is_swinging():
+					return false
 				var aim := player.aim_rv()
 				if aim.get("kind") != "part":
 					return false
 				var d := player.rv.damage
-				var part: RVDamage.Part = d.parts[aim["id"]]
+				var id: StringName = aim["id"]
+				var part: RVDamage.Part = d.parts[id]
 				if part.attached and part.hp >= RVDamage.FULL:
 					return false
 				var scrap := player.find_item(&"scrap_metal")
@@ -176,7 +179,8 @@ static func use_action(kind: StringName) -> Callable:
 					player.say("Nothing to patch it with.")
 					return false
 				player.consume(scrap)
-				player.rv.op(&"patch_part", [aim["id"]])
+				# A few good whacks, and it's patched.
+				player.swing(struck_at(player, float(aim["distance"])), 3, func() -> void: player.rv.op(&"patch_part", [id]))
 				return true
 		&"rv_part":
 			return func(item: Item, player: Player) -> bool:
@@ -316,6 +320,7 @@ static func spray(player: Player) -> void:
 			animal.call(&"spray_from", player.global_position)
 	var cloud := CPUParticles3D.new()
 	cloud.one_shot = true
+	cloud.local_coords = true # (World-space particles get culled away from the origin.)
 	cloud.explosiveness = 0.8
 	cloud.amount = 40
 	cloud.lifetime = 1.2
@@ -343,6 +348,19 @@ static func spray(player: Player) -> void:
 	cloud.global_transform = Transform3D(player.camera.global_basis, from + forward * 0.6 + Vector3.DOWN * 0.15)
 	cloud.emitting = true
 	cloud.finished.connect(cloud.queue_free)
+
+
+## Where a hammer aimed at a panel `distance` metres off meets it: the RV's skin under the
+## crosshair (so the sparks fly off its surface), or about that far along the view.
+static func struck_at(player: Player, distance: float) -> Vector3:
+	var cam := player.camera.global_transform
+	var query := PhysicsRayQueryParameters3D.create(cam.origin, cam.origin - cam.basis.z * (distance + 0.8))
+	query.exclude = [player.get_rid()]
+	var hit := player.get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty() and hit["collider"] == player.rv:
+		distance = cam.origin.distance_to(hit["position"])
+	# A hand's breadth short: the body's collision boxes sit inside its skin in places.
+	return cam.origin - cam.basis.z * maxf(0.3, distance - 0.15)
 
 
 ## A winch anchor under the crosshair within reach: {position, what}, or null.

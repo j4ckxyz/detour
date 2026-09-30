@@ -36,6 +36,12 @@ const WHEEL_SPOTS: Array[Vector2] = [
 const MAX_SPAWN_PITCH := 0.7
 const MAX_SPAWN_ROLL := 0.12
 const AUTOSAVE_SECONDS := 60.0
+## The RV's wrecked (back to the last stop) once it's lain this far below the road for this
+## long: down a ravine or a gully it can't get out of.
+const FALLEN_DEPTH := 3.5
+const FALLEN_SECONDS := 3.0
+## Going back to the last stop costs this much of the day.
+const CHECKPOINT_MINUTES := 30.0
 ## Item kinds a save doesn't keep: the winch hooks belong to the RV.
 const UNSAVED_KINDS: Array[StringName] = [&"winch_hook"]
 
@@ -53,6 +59,7 @@ var player := Player.new()
 var player_hud := PlayerHud.new()
 var trip := Trip.new()
 var trip_hud := TripHud.new()
+var status_panel := StatusPanel.new()
 var wildlife := Wildlife.new()
 var net := NetGame.new()
 var weather := Weather.new()
@@ -76,6 +83,7 @@ var _discard_save := false
 ## The world has finished generating (in the background) and the scene is set up.
 var _loaded := false
 var _load_waited := 0.0
+var _fallen_for := 0.0
 
 
 func _ready() -> void:
@@ -194,6 +202,9 @@ func _setup() -> void:
 	add_child(player_hud)
 	trip_hud.trip = trip
 	trip_hud.weather = weather
+	status_panel.player = player
+	status_panel.rv = rv
+	add_child(status_panel)
 	add_child(trip_hud)
 	weather.name = "Weather"
 	weather.setup(world.get_code())
@@ -303,6 +314,8 @@ func _physics_process(dt: float) -> void:
 		rv.reset_physics_interpolation()
 	if is_spawned and not player.inside:
 		_catch_falling_player()
+	if is_spawned:
+		_check_wreck(dt)
 	if not _settling.is_empty(): # One a frame, round and round.
 		var item: Item = _settling.pop_back()
 		if is_instance_valid(item) and item.holder == null and item.get_parent() == items and item.freeze:
@@ -328,8 +341,11 @@ func _physics_process(dt: float) -> void:
 		trip.show_notice("Joined %s's trip." % Session.name_of(1), 6.0)
 	elif not trip.resumed:
 		_spawn_starter_items()
+		trip.checkpoint_rv = rv.slow_snapshot()
 	else:
 		_restore_extra(trip.loaded_extra)
+		if trip.checkpoint_rv.is_empty():
+			trip.checkpoint_rv = rv.slow_snapshot()
 		if not restoring and trip.checkpoint > 0:
 			trip.restock(trip.checkpoint)
 		trip.show_notice("Welcome back.", 5.0)
@@ -387,9 +403,112 @@ func by_the_door() -> Vector3:
 	return at
 
 
-## Bled out: they come to by the RV (or where they lay, if that was inside it).
+## Whether the RV's done for (host or solo): its frame or engine gone, or lying down a ravine
+## below the road. Then everyone goes back to the last stop.
+func _check_wreck(dt: float) -> void:
+	if not Session.is_host() or trip.is_finished or rv.freeze:
+		_fallen_for = 0.0
+		return
+	var d := rv.damage
+	var reason := ""
+	if d.frame <= 0.0:
+		reason = "The RV's frame gave out."
+	elif d.engine <= 0.0:
+		reason = "The engine's finished."
+	elif rv.global_position.y < road_height_near(rv.global_position) - FALLEN_DEPTH:
+		_fallen_for += dt
+		if _fallen_for > FALLEN_SECONDS:
+			reason = "The RV went over the edge."
+	else:
+		_fallen_for = 0.0
+	if reason != "":
+		back_to_checkpoint(reason)
+
+
+## The road's own height (not the ground's: a ravine under a bridge doesn't count) near a
+## point, or -INF if it's well away from the road.
+func road_height_near(p: Vector3) -> float:
+	var s := world.road_progress(p.x, p.z)
+	if s < 0.0:
+		return -INF
+	var pts: PackedVector3Array = trip.data["points"]
+	var i := clampi(int(s / 8.0), 0, pts.size() - 2)
+	return lerpf(pts[i].y, pts[i + 1].y, clampf(s / 8.0 - i, 0.0, 1.0))
+
+
+## The RV's wrecked or everyone's down: the RV goes back to the last stop as it was when it
+## set off from there, and everyone with it. It costs half an hour. Host or solo.
+func back_to_checkpoint(reason: String) -> void:
+	if not is_spawned:
+		return
+	net.reclaim_rv()
+	_fallen_for = 0.0
+	if not trip.checkpoint_rv.is_empty():
+		_restore_rv(trip.checkpoint_rv)
+	_place_rv(trip.start_transform())
+	trip.elapsed += CHECKPOINT_MINUTES * 60.0
+	trip.hours += CHECKPOINT_MINUTES / 60.0
+	var message := "%s Back to %s (+%d min)." % [reason, trip.stop_name(trip.checkpoint), roundi(CHECKPOINT_MINUTES)]
+	return_to_rv(message)
+	net.back_to_checkpoint(message)
+	autosave()
+
+
+## Puts the RV back in the condition `slow` (`RV.slow_snapshot()`), clearing away the pieces
+## of it lying about that are back on it.
+func _restore_rv(slow: Array) -> void:
+	var d := rv.damage
+	var parts_off: Dictionary = {}
+	for id: StringName in d.parts:
+		parts_off[id] = not d.parts[id].attached
+	var wheels_off: Array[bool] = []
+	for i: int in 4:
+		wheels_off.append(not d.wheel_on[i])
+	var automatic := rv.drivetrain.automatic # The driver's choice, not the RV's condition.
+	rv.apply_slow_snapshot(slow)
+	rv.drivetrain.automatic = automatic
+	rv.drivetrain.shift_to_neutral() # Parked, ready to start.
+	for n: Node in get_tree().get_nodes_in_group(&"items"):
+		var item := n as Item
+		if item == null or item.holder != null:
+			continue
+		if item.kind == &"rv_part":
+			var id := StringName(item.get_meta(&"part", &""))
+			if parts_off.get(id, false) and d.parts.has(id) and d.parts[id].attached:
+				item.queue_free()
+		elif item.kind == &"rv_wheel":
+			var i := int(item.get_meta(&"wheel", -1))
+			if i >= 0 and i < 4 and wheels_off[i] and d.wheel_on[i]:
+				item.queue_free()
+	# Never back to a wreck (it would only be sent back again).
+	d.frame = maxf(d.frame, RVDamage.FULL * 0.25)
+	d.engine = maxf(d.engine, RVDamage.FULL * 0.25)
+	d.temperature = 0.25
+	rv.drivetrain.running = d.can_start()
+
+
+## Brings the local player back to the RV's door (after `back_to_checkpoint`): out of any
+## seat, on their feet, told why.
+func return_to_rv(message: String) -> void:
+	if player.seat != &"":
+		player.stand_up()
+	if player.inside:
+		player.leave_rv()
+	if player.downed or player.health < 30.0:
+		player.wake_up(maxf(player.health, 60.0))
+	player.global_position = by_the_door()
+	player.velocity = Vector3.ZERO
+	player.reset_physics_interpolation()
+	trip.show_notice(message, 8.0)
+
+
+## Bled out: solo (or everyone down), back to the last stop; with others still up, they come
+## to by the RV (or where they lay, if that was inside it).
 func _on_passed_out() -> void:
 	var cause := player.hurt_cause
+	if Session.is_host() and net.everyone_down(player):
+		back_to_checkpoint("You passed out (%s)." % cause if not Session.is_online() else "Everyone's down.")
+		return
 	if not player.inside:
 		player.global_position = by_the_door()
 		player.velocity = Vector3.ZERO

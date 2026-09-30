@@ -154,8 +154,9 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
   unless you use an **antidote**.
 - **Downed**: at 0 health you drop to the ground and can only crawl (0.8 m/s). You bleed out in
   **60 s**. Left click uses an **EpiPen** from your hotbar to get back up with 40 health; a
-  teammate can revive you with theirs (E on you). **E** gives up; bleeding out or giving up
-  wakes you by the RV with 50 health (+5 min on the trip clock).
+  teammate can revive you with theirs (E on you). **E** gives up. Bleeding out or giving up
+  with others still standing wakes you by the RV with 50 health (+5 min on the trip clock);
+  **solo, or once everyone's down**, it's **back to the last stop** (see below).
 - **Food and medicine**: burger +30, soda +10, first-aid kit +60, cooked patty +40 (a raw one
   +5, a burnt one +10; a frozen one can't be eaten).
 - **Cooking**: frozen patties go on a grill (E while holding one): **the RV's stove**, the
@@ -288,6 +289,14 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   health and hotbar, and the clock. **Tow to the last checkpoint** still goes back to the last
   gas station. Start over with `-- --new`, the menu, or **Restart this trip**.
 - **Top of the screen**: the next stop and how far down the road it is, plus checkpoint notices.
+- **Back to the last stop** (like RV There Yet's respawn): if the RV is **wrecked** (its frame
+  or engine at 0), lies **more than 3.5 m below the road for 3 s** (down a ravine, off the
+  beams, into a gully), or everyone's down, the RV goes back to the last stop (the camp, a
+  gas station) **in the condition it set off from there in** (damage, missing parts, fuel,
+  oil; parts that were lying about and are back on it are cleared away), everyone comes to
+  by its door (with at least 60 health), it costs **30 minutes**, and a notice says why
+  ("The RV went over the edge. Back to gas station 1 (+30 min)."). The stop's state is kept
+  in the save.
 
 ## Damage, repairs and supplies
 
@@ -306,17 +315,26 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   **overheat**: less power, then it cooks itself and **seizes**. Out of fuel or seized, it
   won't start.
 - **Repairs** (look at the spot, left click):
-  - **Hammer + scrap metal** (scrap in your pockets): patch a dented part (+50 %) or rebuild a
-    missing one.
+  - **Hammer + scrap metal** (scrap in your pockets): three swings at the dent, sparks
+    flying off the panel with each blow and the view jolting, then it's patched (+50 %) or a
+    missing one rebuilt.
   - **Carry a fallen part back** and use it on its spot to refit it (no scrap needed).
   - **Spare tire** (or the wheel that came off) on an empty hub or a flat; then hold left click
     with the **power drill** to screw its 5 bolts in, one at a time.
   - **Motor oil** into the engine bay (front, under the hood). **Jerry can** (20 L) into the
     fuel cap (left side); refill it at a pump.
-  - At gas stations: the **pump** fills the RV (parked close) or your jerry can; the
-    **welder** restores the frame and looks the engine over.
-- **Dashboard line** (driving HUD): fuel, oil, frame, plus warnings for overheating, low fuel
-  or oil, wheels needing attention and missing parts.
+  - At gas stations: pull into the **forecourt lane between the two pump islands** (nose to
+    the shop; it's 5.9 m wide) and the **pump** fills the RV (within 16 m) or your jerry can;
+    the **welder** restores the frame and looks the engine over.
+- **Status panel** (top left, always shown): a heart and your **health** bar (green while
+  poisoned, flashing when downed), and the RV's **condition** as one bar made of six coloured
+  segments, one per system: **body** panels (blue), **frame** (lilac), **engine** (orange),
+  **wheels** and tires (grey), **oil** (amber) and **fuel** (green), each a sixth of the bar
+  that shrinks as it wears, with the overall % beside it. Under the bar each system has its
+  own icon (a riveted panel, a girder, a cog, a tire, a drop, a jerry can) and a small gauge;
+  an icon blinks red below 25 %.
+- **Dashboard line** (driving HUD): fuel, plus warnings for overheating, low fuel or oil,
+  wheels needing attention and missing parts.
 - **Hotbar**: 4 slots; small items pocket, big ones (planks, tires, jerry cans, RV parts) need
   an empty hand. The RV starts with a hammer, drill and 2 scrap inside.
 

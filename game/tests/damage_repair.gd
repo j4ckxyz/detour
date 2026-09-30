@@ -122,7 +122,12 @@ func _rebuild_and_refit() -> void:
 	_player.select_slot(_player.slots.find(hammer))
 	await _stand_facing(d.parts[&"BumperRear"].centre, Vector3(0.0, 0.0, 2.2))
 	_check(ItemLibrary.use_hint(hammer, _player).begins_with("LMB rebuild"), "hammer hint: %s" % ItemLibrary.use_hint(hammer, _player))
+	var blows := [0]
+	_player.struck.connect(func(_at: Vector3) -> void: blows[0] += 1)
 	await _w.press(&"use_item")
+	_check(_player.is_swinging() and not d.parts[&"BumperRear"].attached, "the hammer swings (not fixed on the first touch)")
+	await _w.hold(1.4)
+	_check(blows[0] == 3 and not _player.is_swinging(), "three blows, sparks flying (%d)" % blows[0])
 	_check(d.parts[&"BumperRear"].attached and not is_instance_valid(scrap), "hammer + scrap rebuilt the rear bumper")
 
 	# Carry the grille back and fit it.

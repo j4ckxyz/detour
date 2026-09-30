@@ -300,6 +300,30 @@ func _set_rv_owner(peer: int) -> void:
 	_set_simulated(peer == local_id())
 
 
+## Host: everyone back to the last stop (`Playground.back_to_checkpoint`): the RV's where and
+## how it is now, and each player comes back to it.
+func back_to_checkpoint(message: String) -> void:
+	if active and is_host():
+		_to_all(&"_back_to_checkpoint", [message, rv.global_transform, rv.slow_snapshot()])
+
+
+@rpc("authority", "reliable")
+func _back_to_checkpoint(message: String, xf: Transform3D, slow: Array) -> void:
+	rv.global_transform = xf
+	rv.apply_slow_snapshot(slow)
+	pg.return_to_rv(message)
+
+
+## Whether everyone is down (`me` included), solo or online.
+func everyone_down(me: Player) -> bool:
+	if not me.downed:
+		return false
+	for p: Player in puppets.values():
+		if is_instance_valid(p) and not p.downed:
+			return false
+	return true
+
+
 ## Host: takes the RV back (a tow, a restart).
 func reclaim_rv() -> void:
 	if active and is_host() and rv_owner != local_id():

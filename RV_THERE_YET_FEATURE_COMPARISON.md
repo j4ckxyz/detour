@@ -2112,14 +2112,16 @@ Legend:
 | Places to explore | ✅ DONE (M11: cabins, fire lookout towers, wrecks, lookout hills off the road, with supplies) |
 | Objective | ✅ DONE (M3: reach home) |
 | Checkpoints | ✅ DONE (M3) |
-| Gas stations | ✅ DONE (M3: checkpoint, save, restock; refuel/welder come with fuel & damage) |
+| Gas stations | ✅ DONE (M3: checkpoint, save, restock; M4: pump and welder; M11: a forecourt lane between the pump islands to pull the RV into) |
+| Respawn at the last checkpoint | ✅ DONE (M11: a wrecked RV, one lying down a ravine, or everyone down goes back to the last stop in the condition it left in, +30 min) |
 | Saving/checkpoint progress | ✅ DONE (M3; M10: autosave every minute and on quit, resuming mid-road with the whole world state; saved trips listed on the main menu) |
 | Discovery over hand-holding | ✅ DONE (M10: no warning signs, bridge planks hidden in the trees, terse prompts that never explain the solution) |
 | RV body damage | ✅ DONE (M4: 16 detachable parts) |
 | Tire damage | ✅ DONE (M4) |
 | Engine damage | ✅ DONE (M4: oil, heat, seizing) |
 | Frame damage | ✅ DONE (M4) |
-| Repairs | ✅ DONE (M4: hammer+scrap, refit, drill, oil, welder) |
+| Repairs | ✅ DONE (M4: hammer+scrap, refit, drill, oil, welder; M11: the hammer swings three times, sparks off the panel) |
+| Health / RV condition HUD | ✅ DONE (M11: a status panel with your health and the RV's condition as one bar of coloured systems, each with an icon) |
 | Spare tires | ✅ DONE (M4) |
 | Fuel | ✅ DONE (M4) |
 | Jerry cans | ✅ DONE (M4) |

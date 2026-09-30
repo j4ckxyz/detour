@@ -1,6 +1,7 @@
 class_name PlayerHud
 extends CanvasLayer
-## On-foot HUD: a crosshair, what you can interact with, what you're holding, and health.
+## On-foot HUD: a crosshair, what you can interact with, what you're holding, and whether
+## you're poisoned (health itself is on the StatusPanel).
 ## It names things and says what a button does right now; it doesn't explain how to solve
 ## anything (see ItemLibrary.use_hint).
 
@@ -98,10 +99,8 @@ func _process(_delta: float) -> void:
 		bits.append("Pushing!")
 	if player.swimming:
 		bits.append("Swimming")
-	var health := "Health %d" % roundi(player.health)
 	if player.venom > 0.0:
-		health += "  Poisoned"
-	bits.append(health)
+		bits.append("Poisoned") # (Health is in the status panel.)
 	var danger := _danger()
 	if danger != "":
 		bits.append(danger)
