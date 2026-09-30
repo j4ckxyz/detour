@@ -29,3 +29,6 @@ game/build_info.cfg
 # Secrets (API keys for asset generation)
 .env
 .env.*
+
+# Agent worktrees
+.claude/worktrees/
