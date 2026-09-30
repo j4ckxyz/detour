@@ -91,7 +91,11 @@ Left stick walk, right stick look, **A** jump, **L3** sprint, **R3** crouch, **X
 | **Menu / Start** | Pause menu |
 | **R3** (right stick click) | Back on the wheels |
 
-The H-pattern stick is mouse-only for now; on a controller you shift sequentially.
+**H-pattern on a controller:** hold the clutch (**X**) and the right stick works the gear
+stick instead of the camera: flick **up / down** to go between the neutral lane and the gears
+(down from 1st is neutral, down again is 2nd), and **left / right** to move along the row you're
+in (1 → 3 → 5 along the top, 2 → 4 → R along the bottom). A held stick is one flick. Or shift
+sequentially with **RB** / **LB**.
 
 ### Debug scenes (developers)
 
@@ -570,6 +574,9 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   - **Graphics**: quality (Auto picks one for the machine, or Potato/Low/Medium/High),
     resolution scale (the quality's own, or 50–100 %), field of view (60–100°).
   - **Controls**: look sensitivity (0.25–3×, mouse and right stick) and inverted look.
+  - **Accessibility**: **captions** (words on screen for a nearby rattlesnake, bear or eagle,
+    and the lines on the cassettes; on by default) and **reduce motion and flashes** (no camera
+    shake, no lightning flashes, a gentler red flash when you're hurt).
   - **Sound**: master, effects, ambience and music volumes.
   - **Change key bindings…**: the rebinding screen (see Controls).
   - The interface is laid out for 1600×900 and **stretches with the window**, so menus and

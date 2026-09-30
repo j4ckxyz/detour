@@ -48,7 +48,7 @@ func _process(delta: float) -> void:
 	if rv == null:
 		return
 	var pad := Input.get_vector(&"camera_look_left", &"camera_look_right", &"camera_look_up", &"camera_look_down")
-	if pad != Vector2.ZERO:
+	if pad != Vector2.ZERO and not (driver_input and driver_input.pad_on_gate()):
 		var speed := pad_look_speed * Settings.look_sensitivity * delta
 		_look(-pad.x * speed, -pad.y * speed * Settings.look_y())
 	var body := rv.get_global_transform_interpolated()

@@ -37,6 +37,10 @@ var fov := 75.0
 ## Multiplies mouse (and right-stick) look speed.
 var look_sensitivity := 1.0
 var invert_y := false
+## Words for sounds that matter (a rattle, a bear, a tape's lines), on screen.
+var captions := true
+## No camera shake, no lightning flashes, a gentler flash when you're hurt.
+var reduce_motion := false
 ## 0..1 per bus: "Master", "Effects", "Ambience", "Music".
 var volumes: Dictionary[String, float] = {"Master": 0.8, "Effects": 1.0, "Ambience": 1.0, "Music": 1.0}
 
@@ -100,6 +104,8 @@ func reset() -> void:
 	fov = 75.0
 	look_sensitivity = 1.0
 	invert_y = false
+	captions = true
+	reduce_motion = false
 	volumes = {"Master": 0.8, "Effects": 1.0, "Ambience": 1.0, "Music": 1.0}
 	apply()
 	save()
@@ -152,6 +158,8 @@ func _load() -> void:
 	fov = clampf(float(cfg.get_value("graphics", "fov", fov)), FOV_RANGE.x, FOV_RANGE.y)
 	look_sensitivity = clampf(float(cfg.get_value("controls", "look_sensitivity", look_sensitivity)), SENSITIVITY_RANGE.x, SENSITIVITY_RANGE.y)
 	invert_y = bool(cfg.get_value("controls", "invert_y", invert_y))
+	captions = bool(cfg.get_value("accessibility", "captions", captions))
+	reduce_motion = bool(cfg.get_value("accessibility", "reduce_motion", reduce_motion))
 	for bus: String in volumes:
 		volumes[bus] = clampf(float(cfg.get_value("sound", bus.to_lower(), volumes[bus])), 0.0, 1.0)
 
@@ -168,6 +176,8 @@ func save() -> void:
 	cfg.set_value("graphics", "fov", fov)
 	cfg.set_value("controls", "look_sensitivity", look_sensitivity)
 	cfg.set_value("controls", "invert_y", invert_y)
+	cfg.set_value("accessibility", "captions", captions)
+	cfg.set_value("accessibility", "reduce_motion", reduce_motion)
 	for bus: String in volumes:
 		cfg.set_value("sound", bus.to_lower(), volumes[bus])
 	cfg.save(PATH)

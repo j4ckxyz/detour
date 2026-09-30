@@ -118,12 +118,14 @@ func _process(_delta: float) -> void:
 		var keys := "%s  EpiPen   ·   " % Controls.prompt(&"use_item") if player.find_item(&"epipen") else ""
 		_downed.text = "You're down (%s)!  %d s\n%s%s  give up" % [player.hurt_cause, ceili(player.bleed_out), keys, Controls.prompt(&"interact")]
 	var alpha := 0.35 if player.downed else player.hurt_flash * 0.3 + (0.08 if player.venom > 0.0 else 0.0)
+	if Settings.reduce_motion:
+		alpha = minf(alpha, 0.12)
 	_flash.color = Color(0.45, 0.6, 0.0, alpha) if player.venom > 0.0 and not player.downed and player.hurt_flash < 0.1 else Color(0.7, 0.0, 0.0, alpha)
 
 
-## Warnings about nearby animals (until they have sounds): a rattle, a bear coming.
+## Captions for the sounds of nearby animals: a rattle, a bear coming, an eagle diving.
 func _danger() -> String:
-	if player.inside:
+	if player.inside or not Settings.captions:
 		return ""
 	var warn := ""
 	for n: Node in get_tree().get_nodes_in_group(&"wildlife"):

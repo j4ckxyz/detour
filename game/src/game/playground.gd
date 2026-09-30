@@ -327,7 +327,7 @@ func _process(dt: float) -> void:
 	var cam := get_viewport().get_camera_3d()
 	var at := cam.global_position if cam else rv.global_position
 	weather.update(trip.hours, at, world.biome_at(at.x, at.z), dt)
-	lighting.set_conditions(fposmod(trip.hours, 24.0), weather.cloud, weather.fog, weather.flash)
+	lighting.set_conditions(fposmod(trip.hours, 24.0), weather.cloud, weather.fog, 0.0 if Settings.reduce_motion else weather.flash)
 	rv.wetness = weather.wetness
 	rv.wind = weather.wind
 

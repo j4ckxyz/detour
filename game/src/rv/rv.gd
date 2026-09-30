@@ -409,6 +409,17 @@ func drag_gear_stick(delta: Vector2) -> void:
 		drivetrain.shift_to(g)
 
 
+## Puts the H-pattern stick straight on a column (-1..1) and row (-1 bottom, 0 neutral lane,
+## 1 top): a controller's flick on the gate. Manual, and only with the clutch down.
+func place_gear_stick(column: int, row: int) -> void:
+	if drivetrain.automatic or not drivetrain.can_shift():
+		return
+	gear_stick.position = Vector2(clampi(column, -1, 1), clampi(row, -1, 1))
+	var g := gear_stick.gear()
+	if g != drivetrain.gear:
+		drivetrain.shift_to(g)
+
+
 func start_engine() -> void:
 	drivetrain.crank()
 

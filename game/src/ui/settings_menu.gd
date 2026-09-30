@@ -33,6 +33,8 @@ var _render := OptionButton.new()
 var _fov := HSlider.new()
 var _look := HSlider.new()
 var _invert := CheckButton.new()
+var _captions := CheckButton.new()
+var _reduce := CheckButton.new()
 var _volumes: Dictionary[String, HSlider] = {}
 var _refreshing := false
 
@@ -148,6 +150,14 @@ func _build() -> void:
 	bindings.pressed.connect(open_bindings)
 	_row("Keys and buttons", bindings, "Rebind every action: keyboard, mouse and controller.")
 
+	_section("Accessibility")
+	_captions.text = "On"
+	_captions.toggled.connect(func(on: bool) -> void: _change(&"captions", on))
+	_row("Captions", _captions, "Words on screen for sounds that matter (a rattlesnake, a bear, an eagle) and for what's said on the cassettes.")
+	_reduce.text = "On"
+	_reduce.toggled.connect(func(on: bool) -> void: _change(&"reduce_motion", on))
+	_row("Reduce motion and flashes", _reduce, "No camera shake, no lightning flashes and a gentler red flash when you're hurt.")
+
 	_section("Sound")
 	for bus: String in BUS_NAMES:
 		var slider := HSlider.new()
@@ -239,6 +249,8 @@ func _refresh() -> void:
 	_fov.value = Settings.fov
 	_look.value = Settings.look_sensitivity
 	_invert.button_pressed = Settings.invert_y
+	_captions.button_pressed = Settings.captions
+	_reduce.button_pressed = Settings.reduce_motion
 	for bus: String in _volumes:
 		_volumes[bus].value = Settings.volumes.get(bus, 1.0)
 	_refreshing = false

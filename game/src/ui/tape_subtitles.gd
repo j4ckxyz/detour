@@ -37,5 +37,5 @@ func _process(_dt: float) -> void:
 		return # (The player joins the trip once it's loaded.)
 	var text := deck.subtitle()
 	var near := player.global_position.distance_to(deck.global_position) < HEARING
-	_label.visible = text != "" and near
+	_label.visible = text != "" and near and Settings.captions
 	_label.text = text

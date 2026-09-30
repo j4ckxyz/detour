@@ -2084,7 +2084,7 @@ Legend:
 | Headlights | DONE |
 | Chase camera | DONE |
 | Cab camera | DONE |
-| Controller driving | DONE |
+| Controller driving | DONE (M12: the right stick works the H-pattern gate while the clutch is held) |
 | Procedural terrain | DONE |
 | Deterministic seeds | DONE |
 | Infinite streaming | DONE |

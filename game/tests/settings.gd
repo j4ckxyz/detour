@@ -48,6 +48,14 @@ func _run() -> void:
 	_check(Settings.invert_y and Settings.look_y() < 0.0, "inverted look")
 	menu._look.value = 2.0
 	_check(is_equal_approx(Settings.look_speed(), 0.005), "look sensitivity 2× (%.4f rad/px)" % Settings.look_speed())
+	_check(menu._captions.button_pressed and not menu._reduce.button_pressed, "captions start on, reduce motion off")
+	menu._captions.toggled.emit(false)
+	menu._reduce.toggled.emit(true)
+	_check(not Settings.captions and Settings.reduce_motion, "the accessibility switches change the settings")
+	var saved := ConfigFile.new()
+	_check(saved.load(Settings.PATH) == OK and saved.get_value("accessibility", "captions") == false and saved.get_value("accessibility", "reduce_motion") == true, "and they're saved")
+	Settings.reset()
+	_check(Settings.captions and not Settings.reduce_motion, "reset puts them back")
 	menu.queue_free()
 	await get_tree().process_frame
 
@@ -69,6 +77,13 @@ func _run() -> void:
 	_check(is_equal_approx(get_viewport().scaling_3d_scale, 1.0), "resolution scale 100 % overrides the preset's")
 	Settings.set_value(&"fov", 90.0)
 	_check(is_equal_approx(pg.player.camera.fov, 90.0) and is_equal_approx(pg.camera.fov, 90.0), "field of view 90°")
+	pg.player._blow(pg.player.global_position + Vector3(0.0, 1.0, -2.0))
+	_check(pg.player._shake > 0.0, "a hammer blow shakes the view")
+	pg.player._shake = 0.0
+	Settings.set_value(&"reduce_motion", true)
+	pg.player._blow(pg.player.global_position + Vector3(0.0, 1.0, -2.0))
+	_check(pg.player._shake == 0.0, "reduce motion: it doesn't")
+	Settings.set_value(&"reduce_motion", false)
 
 	# From the pause menu; Esc closes the settings, leaving the pause menu open.
 	pg.menu.open()

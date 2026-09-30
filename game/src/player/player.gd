@@ -1031,7 +1031,7 @@ func is_swinging() -> bool:
 
 func _blow(at: Vector3) -> void:
 	struck.emit(at)
-	_shake = 0.035
+	_shake = 0.0 if Settings.reduce_motion else 0.035
 	var sparks := CPUParticles3D.new()
 	sparks.one_shot = true
 	sparks.local_coords = true # (World-space particles get culled away from the origin.)
