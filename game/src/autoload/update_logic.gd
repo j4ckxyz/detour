@@ -259,14 +259,14 @@ static func finish_in_background(inst: Install, pid: int, relaunch: bool) -> int
 	return OS.create_process(pending.path_join(inst.launch.get_file()), args)
 
 
-## The work of `--finish-update`: waits (up to a minute) for process `wait_pid` to exit, then
-## copies everything in `source` (the pending update, where this copy runs from) over
+## The work of `--finish-update`: waits (up to two minutes) for process `wait_pid` to exit,
+## then copies everything in `source` (the pending update, where this copy runs from) over
 ## `target`, retrying a few times while antivirus scanners let go of files. Returns "" or an
 ## error. `source`'s ready marker is removed once it's done, so it isn't applied twice.
 static func finish(source: String, target: String, wait_pid: int) -> String:
 	var waited := 0
-	while wait_pid > 0 and OS.is_process_running(wait_pid) and waited < 600:
-		OS.delay_msec(100)
+	while wait_pid > 0 and is_running(wait_pid) and waited < 240:
+		OS.delay_msec(500)
 		waited += 1
 	for rel: String in _files(source, ""):
 		if rel == PENDING_READY:
@@ -283,6 +283,16 @@ static func finish(source: String, target: String, wait_pid: int) -> String:
 			return "Couldn't replace %s (is Detour still running?)." % rel
 	DirAccess.remove_absolute(source.path_join(PENDING_READY))
 	return ""
+
+
+## Whether process `pid` is running. (`OS.is_process_running` only knows the caller's own
+## child processes; the game that started this one is its parent.)
+static func is_running(pid: int) -> bool:
+	if OS.get_name() == "Windows":
+		var out: Array = []
+		OS.execute("tasklist", ["/FI", "PID eq %d" % pid, "/NH", "/FO", "CSV"], out)
+		return not out.is_empty() and String(out[0]).contains("\"%d\"" % pid)
+	return OS.execute("kill", ["-0", str(pid)]) == 0
 
 
 static func _unpack_pending(inst: Install, extract: PackedStringArray) -> String:

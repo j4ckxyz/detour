@@ -16,6 +16,7 @@ func _initialize() -> void:
 	_replace_tree()
 	_folder_zip()
 	_windows_portable()
+	_waiting()
 	if OS.get_name() != "Windows":
 		_folder_tar()
 		_appimage()
@@ -120,6 +121,28 @@ func _folder_zip() -> void:
 	_check(_read(target.path_join("Detour.exe")) == "v2" and _read(target.path_join("rvcore.x86_64.dll")) == "v2 lib", "zip contents installed")
 	UpdateLogic.cleanup(inst)
 	_check(not DirAccess.dir_exists_absolute(inst.staging), "zip leftovers cleaned up")
+
+
+## The new copy finishing an update waits for the old game (its parent, which
+## OS.is_process_running can't see) to exit.
+func _waiting() -> void:
+	_check(UpdateLogic.is_running(OS.get_process_id()), "this process is running")
+	var out: Array = []
+	if OS.get_name() == "Windows":
+		OS.execute("powershell", ["-NoProfile", "-Command", "$PID"], out)
+	else:
+		OS.execute("sh", ["-c", "echo $$"], out)
+	var gone := int(String(out[0]).strip_edges()) if not out.is_empty() else 0
+	_check(gone > 0 and not UpdateLogic.is_running(gone), "a process that's exited isn't (%d)" % gone)
+	if OS.get_name() == "Windows": # (On Unix an exited child lingers until it's reaped.)
+		var pid := OS.create_process("ping", ["-n", "4", "127.0.0.1"])
+		var started := Time.get_ticks_msec()
+		var source := _dir("waiting/new")
+		var target := _dir("waiting/old")
+		_write(source.path_join("Detour.exe"), "v2")
+		var err := UpdateLogic.finish(source, target, pid)
+		var took := (Time.get_ticks_msec() - started) / 1000.0
+		_check(err == "" and took > 2.0 and _read(target.path_join("Detour.exe")) == "v2", "finishing waits for the game to exit (%.1f s)" % took)
 
 
 ## Windows portable: the update's unpacked beside the install (nothing in use is touched),

@@ -160,6 +160,38 @@ jobs:
           ls -la export/windows
           test -f export/windows/Detour.exe && test -f export/windows/rvcore.x86_64.dll
           7z a -tzip dist/Detour-windows-x86_64.zip ./export/windows/*
+      # The portable update, for real: a running Detour.exe can't be overwritten, so the new
+      # version (unpacked beside it) waits for the game to exit, then copies itself over it.
+      - name: Portable update end to end
+        shell: pwsh
+        run: |
+          $root = "$env:RUNNER_TEMP\portable"
+          $old = "$root\Detour"
+          # (Not in the install's own .detour-update, which the running game may use itself.)
+          $pending = "$root\new"
+          New-Item -ItemType Directory -Force $old, $pending | Out-Null
+          Copy-Item export\windows\* $old -Recurse
+          Copy-Item export\windows\* $pending -Recurse
+          Set-Content "$pending\update-marker.txt" "new version"
+          Set-Content "$pending\ready.txt" "ready"
+          $game = Start-Process "$old\Detour.exe" -ArgumentList "--headless" -PassThru
+          Start-Sleep -Seconds 8
+          if ($game.HasExited) { throw "the old version didn't stay running" }
+          $locked = $false
+          try { Copy-Item "$pending\Detour.exe" "$old\Detour.exe" -ErrorAction Stop } catch { $locked = $true }
+          if (-not $locked) { throw "a running Detour.exe could be overwritten: this test proves nothing" }
+          Write-Host "ok: the running Detour.exe is locked"
+          $finisher = Start-Process "$pending\Detour.exe" -ArgumentList "--headless", "--", "--finish-update=$old", "--wait-pid=$($game.Id)" -PassThru
+          # Longer than the copy's retries (10 s): it has to be waiting for the game, not retrying.
+          Start-Sleep -Seconds 15
+          if ($finisher.HasExited) { throw "the new version gave up before the game exited" }
+          if (Test-Path "$old\update-marker.txt") { throw "the update was copied in while the game was running" }
+          Write-Host "ok: the new version waits for the game to exit"
+          Stop-Process -Id $game.Id
+          if (-not $finisher.WaitForExit(120000)) { throw "the update didn't finish within 2 minutes" }
+          if (-not (Test-Path "$old\update-marker.txt")) { throw "the update wasn't copied in" }
+          if (Test-Path "$pending\ready.txt") { throw "the ready marker is still there (it would be applied again)" }
+          Write-Host "ok: once the game exited the update replaced it"
       - name: Installer (Inno Setup)
         shell: pwsh
         run: |
