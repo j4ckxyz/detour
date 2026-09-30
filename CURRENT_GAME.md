@@ -585,6 +585,31 @@ Downloaded builds keep themselves current from this repo's GitHub releases:
   - On macOS, an app still in Downloads (App Translocation) asks to be moved to
     Applications first.
 
+## Sound
+
+Quiet and soothing by design; the volume sliders in Settings are **Master**, **Effects** (the
+RV, tools) and **Ambience** (birds, wind, rain). Master has a limiter, so nothing clips.
+
+- **The RV** (`RVAudio`, all from what the network sends, so passengers and remote players
+  hear what the driver does):
+  - **Engine**: four loops of the V8 (750, 1320, 2100, 3400 rpm) crossfaded and re-pitched to
+    the rpm, louder under throttle. Off when the engine's off.
+  - **Starter** crank while cranking, the engine **catching**, the **stall**, a **clunk** into
+    gear (softer into neutral and in an automatic).
+  - **Tires** humming and crunching on gravel with speed (silent in the air), **wind** rushing
+    past at speed.
+  - A **thump** on hard landings, a **crash** on collisions, the **door**.
+  - The **hammer** clanks where it lands.
+- **Outdoors** (`Ambience`): **birdsong** by day (real blackbird and blackcap recordings,
+  from random directions round you; rarer at dawn and dusk; none in heavy rain, storms or
+  snow), **crickets** after dark, a **wind bed** that follows the weather (and storm gusts),
+  **rain** that follows the rain, **thunder** a few seconds after a flash.
+- **Inside the RV** the outdoors is muffled (less with the door open) and rain drums on the roof.
+- Sounds are Ogg Vorbis under `game/assets/audio/`, credited in `game/assets/CREDITS.md`:
+  birdsong is CC0 recordings (`tools/audio/fetch_birds.py`), everything else is synthesized
+  by `tools/audio/make_sounds.py`. `tools/audio/check_sounds.py` measures them (peaks,
+  loudness, loop seams, spectra). `src/debug/audio_tour.tscn` plays through them all.
+
 ## Graphics and performance
 
 - **Presets** (auto-detected, switch with F5–F8):
@@ -633,5 +658,5 @@ Planned (see PLAN.md), roughly in the order they're coming:
 - **World variety**: a volcanic biome, real models and textures for the new biomes (the
   trees and caves are placeholder shapes), more weather effects (puddles, snow cover building up).
 - **Co-op**: proximity voice chat; saving each player's inventory with the trip.
-- **Sound**: engine, horn, tires, ambience, music. The game is currently **silent**.
+- **Sound**: the horn, music, footsteps and other surfaces' tire sounds, the pump.
 - **Menus and options**: key rebinding, cosmetics, and the diegetic dashboard gauges.

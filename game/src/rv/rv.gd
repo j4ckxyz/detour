@@ -64,6 +64,8 @@ var headlights := false:
 var drivetrain := RVDrivetrain.new()
 var damage := RVDamage.new()
 var gear_stick := RVGearStick.new()
+## Its sounds (see `RVAudio`).
+var audio := RVAudio.new()
 var wheels: Array[RVWheel] = []
 ## First-person camera point (the driver's eyes), in RV space.
 var driver_eye := Transform3D.IDENTITY
@@ -174,6 +176,10 @@ func _ready() -> void:
 	drivetrain.stalled.connect(engine_stalled.emit)
 	drivetrain.started.connect(engine_started.emit)
 	drivetrain.gear_changed.connect(gear_stick.set_gear)
+
+	audio.name = "Audio"
+	add_child(audio)
+	audio.setup(self)
 
 
 func _marker(node_name: String) -> Node3D:

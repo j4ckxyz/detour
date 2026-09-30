@@ -22,6 +22,10 @@ Controls="*res://src/autoload/controls.gd"
 Updater="*res://src/autoload/updater.gd"
 Session="*res://src/autoload/session.gd"
 
+[audio]
+
+buses/default_bus_layout="res://default_bus_layout.tres"
+
 [debug]
 
 gdscript/warnings/untyped_declaration=2

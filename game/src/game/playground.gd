@@ -63,6 +63,7 @@ var status_panel := StatusPanel.new()
 var wildlife := Wildlife.new()
 var net := NetGame.new()
 var weather := Weather.new()
+var ambience := Ambience.new()
 ## Loose items in the world.
 var items := Node3D.new()
 var rv: RV
@@ -195,6 +196,7 @@ func _setup() -> void:
 	player.rv = rv
 	player.world_items = items
 	player.seat_changed.connect(_on_seat_changed)
+	player.struck.connect(_on_struck)
 	player.passed_out.connect(_on_passed_out)
 	player.water_query = world.water_level
 	player.ice_query = world.ice_at
@@ -210,6 +212,9 @@ func _setup() -> void:
 	weather.name = "Weather"
 	weather.setup(world.get_code())
 	add_child(weather)
+	ambience.name = "Ambience"
+	add_child(ambience)
+	ambience.setup(weather, lighting, player)
 	menu.before_quit = autosave
 	if Session.is_host():
 		menu.add_action("Tow to the last checkpoint", tow_to_checkpoint)
@@ -361,6 +366,8 @@ func _physics_process(dt: float) -> void:
 			trip.restock(trip.checkpoint)
 		trip.show_notice("Welcome back.", 5.0)
 	is_spawned = true
+	rv.audio.arm()
+	ambience.arm()
 	net.start(self)
 	spawned.emit()
 
@@ -684,6 +691,11 @@ func _saved_item(e: Array) -> Item:
 	if item.kind == &"patty":
 		ItemLibrary.tint(item, ItemLibrary.patty_color(float(item.get_meta(&"cook", 0.0))))
 	return item
+
+
+## The hammer hit something: a clank where it landed.
+func _on_struck(at: Vector3) -> void:
+	Sfx.play_at(self, Sfx.HAMMER_CLANKS[randi() % Sfx.HAMMER_CLANKS.size()], at, -3.0, randf_range(0.95, 1.05))
 
 
 func _on_seat_changed(seat: StringName) -> void:

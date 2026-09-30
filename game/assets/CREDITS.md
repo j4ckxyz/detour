@@ -35,3 +35,67 @@ Low-poly models from Kenney's kits (Creative Commons Zero), fetched by
 Nature Kit (tent, campfire, log stack, bushes, flowers, mushrooms, grass), Survival Kit
 (bedroll, signposts, workbench, barrel, crate, hammer), City Kit Suburban (house, fence,
 driveway) and City Kit Commercial (shop, awning).
+
+## Sounds
+
+Everything in `game/assets/audio/` (Ogg Vorbis) is one of two kinds. The check that every
+file is listed here is `game/tests/audio.gd`; the measurements behind "does it sound right"
+(peaks, loudness, loop seams, spectra) are `tools/audio/check_sounds.py`.
+
+**Birdsong: real recordings, CC0.** Songs of a common blackbird and an Eurasian blackcap from
+[BigSoundBank](https://bigsoundbank.com) (recorded in France's Centre region, spring
+mornings). Each sound's page says *"CC0 (public domain): Free and royalty-free"*, and the
+[licence page](https://bigsoundbank.com/licenses.html) spells it out: Creative Commons CC0 1.0
+Universal (share, adapt, use commercially, "without any restrictions, without asking
+permission"). Credit is not required, but we give it gladly. `tools/audio/fetch_birds.py`
+downloads them, checks that line again, and tidies them for the game (mono, rumble and the
+sharpest ticks filtered out, trimmed, levelled).
+
+| File | Sound | Author | Source page |
+|---|---|---|---|
+| `audio/birds/blackbird_1.ogg` | Common Blackbird #3 | Le tiroir du fond | [s3476](https://bigsoundbank.com/common-blackbird-3-s3476.html) |
+| `audio/birds/blackbird_2.ogg` | Common Blackbird #5 | Le tiroir du fond | [s3478](https://bigsoundbank.com/common-blackbird-5-s3478.html) |
+| `audio/birds/blackbird_3.ogg` | Common Blackbird #6 | Le tiroir du fond | [s3479](https://bigsoundbank.com/common-blackbird-6-s3479.html) |
+| `audio/birds/blackbird_4.ogg` | Common Blackbird #7 | Le tiroir du fond | [s3480](https://bigsoundbank.com/common-blackbird-7-s3480.html) |
+| `audio/birds/blackbird_5.ogg` | Common Blackbird #11 | Le tiroir du fond | [s3484](https://bigsoundbank.com/common-blackbird-11-s3484.html) |
+| `audio/birds/blackbird_6.ogg` | Common Blackbird #12 | Le tiroir du fond | [s3485](https://bigsoundbank.com/common-blackbird-12-s3485.html) |
+| `audio/birds/blackbird_7.ogg` | Common Blackbird #14 | Le tiroir du fond | [s3487](https://bigsoundbank.com/common-blackbird-14-s3487.html) |
+| `audio/birds/blackbird_8.ogg` | Common Blackbird #15 | Le tiroir du fond | [s3488](https://bigsoundbank.com/common-blackbird-15-s3488.html) |
+| `audio/birds/blackbird_9.ogg` | Common Blackbird #17 | Le tiroir du fond | [s3490](https://bigsoundbank.com/common-blackbird-17-s3490.html) |
+| `audio/birds/blackbird_10.ogg` | Common Blackbird #22 | Le tiroir du fond | [s3495](https://bigsoundbank.com/common-blackbird-22-s3495.html) |
+| `audio/birds/blackbird_11.ogg` | Common Blackbird #23 | Le tiroir du fond | [s3496](https://bigsoundbank.com/common-blackbird-23-s3496.html) |
+| `audio/birds/blackcap_1.ogg` | Eurasian blackcap #1 | Le tiroir du fond | [s3466](https://bigsoundbank.com/eurasian-blackcap-1-s3466.html) |
+| `audio/birds/blackcap_2.ogg` | Eurasian blackcap #5 | Le tiroir du fond | [s3470](https://bigsoundbank.com/eurasian-blackcap-5-s3470.html) |
+| `audio/birds/blackcap_3.ogg` | Eurasian blackcap #6 | Le tiroir du fond | [s3471](https://bigsoundbank.com/eurasian-blackcap-6-s3471.html) |
+
+**Everything else: made for Detour**, synthesized from noise and sine waves by
+`tools/audio/make_sounds.py` (fixed seeds: the same command gives the same sounds; nothing is
+sampled from anywhere). Author: the Detour project; same licence as the game's own art (see the
+README). The engine loops are the RV's V8 at four speeds (crossfaded and re-pitched in game).
+
+| File | Sound |
+|---|---|
+| `audio/rv/engine_idle.ogg` | Engine loop at 750 rpm (4 s) |
+| `audio/rv/engine_low.ogg` | Engine loop at 1320 rpm (3 s) |
+| `audio/rv/engine_mid.ogg` | Engine loop at 2100 rpm (4 s) |
+| `audio/rv/engine_high.ogg` | Engine loop at 3400 rpm (3 s) |
+| `audio/rv/starter_crank.ogg` | Starter motor and the engine turning over (loop) |
+| `audio/rv/engine_start.ogg` | The engine catching and settling to idle |
+| `audio/rv/engine_stall.ogg` | The engine stalling |
+| `audio/rv/gear_clunk.ogg` | The gearbox going into gear |
+| `audio/rv/tire_road.ogg` | Tires humming on the road (loop) |
+| `audio/rv/tire_gravel.ogg` | Tires crunching on gravel and dirt (loop) |
+| `audio/rv/landing_thud.ogg` | The body landing on its springs |
+| `audio/rv/crash.ogg` | The RV hitting something |
+| `audio/rv/door_open.ogg` | The door latch and swing |
+| `audio/rv/door_close.ogg` | The door shutting |
+| `audio/tools/hammer_clank_1.ogg` | A hammer blow on metal (three variants) |
+| `audio/tools/hammer_clank_2.ogg` | " |
+| `audio/tools/hammer_clank_3.ogg` | " |
+| `audio/ambience/wind_bed.ogg` | Wind, a low breathing rush (loop, also the rush of air at speed) |
+| `audio/ambience/wind_trees.ogg` | Wind in leaves and needles (loop) |
+| `audio/ambience/rain_loop.ogg` | Steady rain (loop) |
+| `audio/ambience/rain_roof.ogg` | Rain drumming on the RV's roof, heard inside (loop) |
+| `audio/ambience/thunder_1.ogg` | Distant thunder |
+| `audio/ambience/thunder_2.ogg` | Distant thunder, shorter |
+| `audio/ambience/crickets_loop.ogg` | Crickets at night (loop) |
