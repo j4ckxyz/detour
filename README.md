@@ -12,8 +12,10 @@ code here are original. See [PLAN.md](PLAN.md) for the full design and roadmap.
 
 **Status:** early development, but playable: generated trips from a camp to home through
 four biomes, with bridges to jump or plank, beams to line up on, gullies, fords, ice, hills,
-a fragile RV to keep running, wildlife, weather, day and night, saves, and co-op for up to
-four (PLAN.md §12 has what's next).
+a fragile RV to keep running (a status panel shows its condition and your health; wreck it
+and it's back to the last stop), wildlife, weather, day and night, saves, settings
+(interface scale, graphics, window, frame rate), and co-op for up to four (PLAN.md §12 has
+what's next).
 Everything the game does today, and every control, is listed in [CURRENT_GAME.md](CURRENT_GAME.md).
 Downloaded builds update themselves (Esc → *Update now*, or automatically on launch).
 
