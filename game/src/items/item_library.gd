@@ -258,6 +258,7 @@ static func hold_action(kind: StringName) -> Callable:
 ## What Use would do right now, for the HUD ("" if nothing). Only ever what's in reach this
 ## moment: it never says where to go or what to look for (working that out is the game).
 static func use_hint(item: Item, player: Player) -> String:
+	var use := Controls.prompt(&"use_item")
 	var aim := player.aim_rv() if player.rv else {}
 	var d: RVDamage = player.rv.damage if player.rv else null
 	match item.kind:
@@ -265,45 +266,45 @@ static func use_hint(item: Item, player: Player) -> String:
 			if aim.get("kind") == "part":
 				var part: RVDamage.Part = d.parts[aim["id"]]
 				if not part.attached:
-					return "LMB rebuild"
+					return use + " rebuild"
 				if part.hp < RVDamage.FULL:
-					return "LMB patch"
+					return use + " patch"
 		&"rv_part":
 			if aim.get("kind") == "part" and aim["id"] == item.get_meta(&"part", &"") and not d.parts[aim["id"]].attached:
-				return "LMB fit"
+				return use + " fit"
 		&"spare_tire", &"rv_wheel":
 			if aim.get("kind") == "wheel":
 				var i: int = aim["id"]
 				if not d.wheel_on[i] or d.tires[i] <= 0.0:
-					return "LMB fit"
+					return use + " fit"
 		&"drill":
 			if aim.get("kind") == "wheel" and d.wheel_on[aim["id"]] and d.bolts[aim["id"]] < RVDamage.BOLTS:
-				return "hold LMB"
+				return "hold " + use
 		&"motor_oil":
 			if aim.get("kind") == "engine" and d.oil <= 0.95:
-				return "LMB pour"
+				return use + " pour"
 		&"jerrycan":
 			if aim.get("kind") == "fuel" and float(item.get_meta(&"fuel", JERRY_CAN_LITRES)) > 0.0:
-				return "LMB pour"
+				return use + " pour"
 		&"burger":
-			return "LMB eat"
+			return use + " eat"
 		&"soda":
-			return "LMB drink"
+			return use + " drink"
 		&"patty":
 			if float(item.get_meta(&"cook", 0.0)) >= PATTY_THAWED:
-				return "LMB eat"
+				return use + " eat"
 		&"first_aid", &"antidote":
-			return "LMB use"
+			return use + " use"
 		&"bear_spray":
-			return "LMB spray"
+			return use + " spray"
 		&"winch_hook":
 			if find_anchor(player) != null:
-				return "LMB hook on"
+				return use + " hook on"
 		&"plank":
 			if plank_placement(player) != null:
-				return "LMB lay"
+				return use + " lay"
 		&"winch_remote":
-			return "LMB in · RMB out · R other winch"
+			return "%s in · %s out · %s other winch" % [use, Controls.prompt(&"throw_item"), Controls.prompt(&"winch_select")]
 	return ""
 
 

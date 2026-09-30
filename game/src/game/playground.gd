@@ -710,6 +710,7 @@ func _on_seat_changed(seat: StringName) -> void:
 		rv.steer_input = 0.0
 		rv.clutch_input = 0.0
 		rv.handbrake = false
+		rv.horn = false
 		if absf(rv.forward_speed()) < 1.0:
 			rv.parking_brake = true
 			if not rv.is_automatic():

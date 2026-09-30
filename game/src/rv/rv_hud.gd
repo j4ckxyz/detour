@@ -7,11 +7,6 @@ const TEXT := Color(0.96, 0.93, 0.86)
 const DIM := Color(0.96, 0.93, 0.86, 0.45)
 const WARN := Color(1.0, 0.62, 0.35)
 const REDLINE := Color(0.92, 0.36, 0.25)
-const HELP := """W/S  throttle / brake     A/D  steer     Space  handbrake
-Q  clutch (hold + move mouse: H-pattern)     E/Z or wheel  shift up / down
-1-5, R  pick a gear     T  manual / automatic     I  start engine
-L  headlights     F  get up     Backspace  back on the wheels
-Click  capture mouse     Esc  menu (updates, quit)     F1  this help     F3  perf"""
 
 var rv: RV
 
@@ -75,11 +70,28 @@ func _ready() -> void:
 	var help_panel := _panel()
 	help_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 16)
 	help_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_help.text = HELP
+	_help.text = help_text()
+	Controls.bindings_changed.connect(func() -> void: _help.text = help_text())
 	_help.add_theme_font_size_override("font_size", 14)
 	_help.add_theme_color_override("font_color", TEXT)
 	help_panel.add_child(_help)
 	add_child(help_panel)
+
+
+## The F1 help, with whatever keys are bound now.
+static func help_text() -> String:
+	var k := Controls.prompt
+	return "%s / %s  throttle / brake     %s / %s  steer     %s  handbrake     %s  horn\n" % [
+			k.call(&"rv_throttle"), k.call(&"rv_brake"), k.call(&"rv_steer_left"), k.call(&"rv_steer_right"),
+			k.call(&"rv_handbrake"), k.call(&"rv_horn")] \
+		+ "%s  clutch (hold + move mouse or right stick: H-pattern)     %s / %s  shift up / down\n" % [
+			k.call(&"rv_clutch"), k.call(&"rv_shift_up"), k.call(&"rv_shift_down")] \
+		+ "%s...%s, %s  pick a gear     %s  manual / automatic     %s  start engine\n" % [
+			k.call(&"rv_gear_1"), k.call(&"rv_gear_5"), k.call(&"rv_gear_reverse"),
+			k.call(&"rv_toggle_gearbox"), k.call(&"rv_ignition")] \
+		+ "%s  headlights     %s  get up     %s  back on the wheels\n" % [
+			k.call(&"rv_headlights"), k.call(&"leave_seat"), k.call(&"rv_reset")] \
+		+ "Click  capture mouse     Esc  menu (updates, quit)     F1  this help     F3  perf"
 
 
 func _panel() -> PanelContainer:

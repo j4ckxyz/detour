@@ -56,6 +56,13 @@ func close() -> void:
 	queue_free()
 
 
+## The key bindings screen, over this one (Esc or Done comes back here).
+func open_bindings() -> BindingsMenu:
+	var screen := BindingsMenu.new()
+	add_child(screen)
+	return screen
+
+
 func _build() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_root)
@@ -135,6 +142,10 @@ func _build() -> void:
 	_invert.text = "Inverted"
 	_invert.toggled.connect(func(on: bool) -> void: _change(&"invert_y", on))
 	_row("Look up and down", _invert)
+	var bindings := Button.new()
+	bindings.text = "Change key bindings…"
+	bindings.pressed.connect(open_bindings)
+	_row("Keys and buttons", bindings, "Rebind every action: keyboard, mouse and controller.")
 
 	_section("Sound")
 	for bus: String in BUS_NAMES:

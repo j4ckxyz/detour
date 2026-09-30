@@ -45,6 +45,8 @@ var steer_input := 0.0
 ## Clutch pedal 0 (up) .. 1 (pressed).
 var clutch_input := 0.0
 var handbrake := false
+## The horn button is down (the driver's; snapshots carry it, so everyone hears it).
+var horn := false
 ## Holds the rear wheels like the handbrake until the driver first touches the throttle,
 ## so a parked RV doesn't roll off a slope.
 var parking_brake := true
@@ -451,7 +453,7 @@ func snapshot() -> Array:
 		global_position, global_basis.get_rotation_quaternion(), linear_velocity, angular_velocity,
 		_steer, _axle_spin, w, drivetrain.gear, drivetrain.rpm, drivetrain.running, headlights,
 		PackedFloat32Array([winches[0].rope_length, winches[0].tension, winches[1].rope_length, winches[1].tension]),
-		PackedInt32Array([winches[0].drive, winches[1].drive]), throttle,
+		PackedInt32Array([winches[0].drive, winches[1].drive]), throttle, horn,
 	]
 
 
@@ -479,6 +481,7 @@ func apply_snapshot(s: Array) -> void:
 		winches[i].tension = rope[i * 2 + 1]
 		winches[i].drive = drives[i]
 	throttle = s[13]
+	horn = s[14]
 
 
 ## Slower-changing state: damage, gearbox mode, parking brake.

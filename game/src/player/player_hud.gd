@@ -82,9 +82,9 @@ func _process(_delta: float) -> void:
 	visible = not player.is_driving() or (player.held != null and player.held.kind == &"winch_remote")
 	_dot.visible = player.seat == &""
 	if player.seat != &"":
-		_prompt.text = "F  Get up"
+		_prompt.text = "%s  Get up" % Controls.prompt(&"leave_seat")
 	elif player.target_prompt != "":
-		_prompt.text = "E  " + player.target_prompt
+		_prompt.text = "%s  %s" % [Controls.prompt(&"interact"), player.target_prompt]
 	else:
 		_prompt.text = ""
 	var bits: PackedStringArray = []
@@ -115,8 +115,8 @@ func _process(_delta: float) -> void:
 	_message.text = player.message
 	_downed.visible = player.downed
 	if player.downed:
-		var keys := "LMB  EpiPen   ·   " if player.find_item(&"epipen") else ""
-		_downed.text = "You're down (%s)!  %d s\n%sE  give up" % [player.hurt_cause, ceili(player.bleed_out), keys]
+		var keys := "%s  EpiPen   ·   " % Controls.prompt(&"use_item") if player.find_item(&"epipen") else ""
+		_downed.text = "You're down (%s)!  %d s\n%s%s  give up" % [player.hurt_cause, ceili(player.bleed_out), keys, Controls.prompt(&"interact")]
 	var alpha := 0.35 if player.downed else player.hurt_flash * 0.3 + (0.08 if player.venom > 0.0 else 0.0)
 	_flash.color = Color(0.45, 0.6, 0.0, alpha) if player.venom > 0.0 and not player.downed and player.hurt_flash < 0.1 else Color(0.7, 0.0, 0.0, alpha)
 

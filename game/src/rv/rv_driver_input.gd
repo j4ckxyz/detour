@@ -21,6 +21,7 @@ func _physics_process(_dt: float) -> void:
 	rv.steer_input = Input.get_axis(&"rv_steer_left", &"rv_steer_right")
 	rv.clutch_input = Input.get_action_strength(&"rv_clutch")
 	rv.handbrake = Input.is_action_pressed(&"rv_handbrake")
+	rv.horn = Input.is_action_pressed(&"rv_horn")
 
 
 func _unhandled_input(event: InputEvent) -> void:
