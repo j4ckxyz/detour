@@ -222,6 +222,7 @@ func watch(pg: Playground) -> void:
 	pg.rv.damage.part_lost.connect(func(_part: StringName) -> void: add(&"parts_lost"))
 	pg.rv.damage.wheel_lost.connect(func(_i: int) -> void: add(&"wheels_lost"))
 	pg.player.did.connect(_on_did)
+	pg.rv.deck.tape_started.connect(tape_played)
 	pg.player.passed_out.connect(func() -> void: add(&"passouts"))
 	pg.sent_back.connect(func(_why: String) -> void: add(&"tows"))
 

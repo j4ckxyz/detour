@@ -62,6 +62,7 @@ var player_hud := PlayerHud.new()
 var trip := Trip.new()
 var trip_hud := TripHud.new()
 var status_panel := StatusPanel.new()
+var tape_subtitles := TapeSubtitles.new()
 var wildlife := Wildlife.new()
 var net := NetGame.new()
 var weather := Weather.new()
@@ -218,6 +219,9 @@ func _setup() -> void:
 	status_panel.rv = rv
 	add_child(status_panel)
 	add_child(trip_hud)
+	tape_subtitles.deck = rv.deck
+	tape_subtitles.player = player
+	add_child(tape_subtitles)
 	weather.name = "Weather"
 	weather.setup(world.get_code())
 	add_child(weather)
@@ -579,6 +583,9 @@ func _spawn_starter_items() -> void:
 	var remote := ItemLibrary.create(&"winch_remote")
 	rv.stash.add_child(remote)
 	remote.stow(rv, Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.34, -2.35))) # On the dashboard.
+	var tape := ItemLibrary.create_tape(0) # Dot's first tape, by the deck.
+	rv.stash.add_child(tape)
+	tape.stow(rv, Transform3D(Basis(Vector3.UP, 0.4), Vector3(0.95, 1.34 + tape.base_offset, -2.35)))
 	var stored: Array[Array] = [
 		[&"hammer", &"ToolWall1"], [&"drill", &"ToolWall2"],
 		[&"burger", &"FridgeTop1"], [&"burger", &"FridgeTop2"], [&"patty", &"FridgeTop3"], [&"patty", &"FridgeTop4"],
@@ -627,7 +634,7 @@ func _save_extra() -> Dictionary:
 
 static func _item_meta(item: Item) -> Dictionary:
 	var meta := {}
-	for k: StringName in [&"fuel", &"puffs", &"cook", &"tire", &"slot", &"part", &"wheel"]:
+	for k: StringName in [&"fuel", &"puffs", &"cook", &"tire", &"slot", &"part", &"wheel", &"tape"]:
 		if item.has_meta(k):
 			meta[String(k)] = item.get_meta(k)
 	return meta
@@ -704,6 +711,8 @@ func _saved_item(e: Array) -> Item:
 		item.set_meta(StringName(k), StringName(v) if String(k) in ["part", "slot"] else v)
 	if item.kind == &"patty":
 		ItemLibrary.tint(item, ItemLibrary.patty_color(float(item.get_meta(&"cook", 0.0))))
+	elif item.kind == &"tape":
+		ItemLibrary.refresh_tape(item)
 	return item
 
 

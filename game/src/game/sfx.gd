@@ -8,6 +8,7 @@ extends RefCounted
 const DIR := "res://assets/audio/"
 const EFFECTS := &"Effects"
 const AMBIENCE := &"Ambience"
+const MUSIC := &"Music"
 ## A source's `volume_db` is what's heard within its `unit_size` metres (`max_db` is set to the
 ## same, so it doesn't get louder up close), and it falls off 6 dB per doubling beyond that.
 ## Silence for a level: below it a loop is stopped.

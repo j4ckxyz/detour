@@ -38,6 +38,7 @@ static var DEFS: Dictionary[StringName, Dictionary] = {
 		"hold": Transform3D(Basis(Vector3.UP, PI / 2.0), Vector3(0.0, -0.5, -0.9))},
 	&"winch_hook": {"name": "Winch hook", "model": "@hook", "mass": 2.0,
 		"hold": Transform3D(Basis.IDENTITY, Vector3(0.25, -0.3, -0.55))},
+	&"tape": {"stow": &"tape", "name": "Cassette", "model": "@cassette", "mass": 0.1, "hold": SMALL_HOLD},
 }
 ## A full jerry can, litres.
 const JERRY_CAN_LITRES := 20.0
@@ -69,6 +70,19 @@ static func create_from_mesh(kind: StringName, mesh: Mesh, display: String) -> I
 	item.mass = def["mass"]
 	_dress(item, mesh)
 	return item
+
+
+## A cassette with tape `id` on it (see `Tapes`).
+static func create_tape(id: int) -> Item:
+	var item := create(&"tape")
+	item.set_meta(&"tape", clampi(id, 0, Tapes.COUNT - 1))
+	refresh_tape(item)
+	return item
+
+
+## Names a cassette after the tape on it (also after a save or the network gave it its number).
+static func refresh_tape(item: Item) -> void:
+	item.def["name"] = "Cassette: %s" % Tapes.title(int(item.get_meta(&"tape", 0)))
 
 
 static func create(kind: StringName) -> Item:
@@ -458,6 +472,8 @@ static func _mesh(model: String) -> Mesh:
 		_meshes[model] = _disc_mesh(0.065, 0.025, Color(0.85, 0.6, 0.6))
 	if model == "@soda" and not _meshes.has(model):
 		_meshes[model] = _disc_mesh(0.033, 0.12, Color(0.8, 0.12, 0.12))
+	if model == "@cassette" and not _meshes.has(model):
+		_meshes[model] = _cassette_mesh()
 	if not _meshes.has(model):
 		var path := (TripStops.KENNEY % model.trim_prefix("kenney:")) if model.begins_with("kenney:") else MODELS % model
 		var scene := load(path) as PackedScene
@@ -501,6 +517,36 @@ static func _hook_mesh() -> Mesh:
 		st.clear()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		st.append_from(part[0], 0, part[1])
+		st.set_material(part[2])
+		st.commit(mesh)
+		mesh.surface_set_material(mesh.get_surface_count() - 1, part[2])
+	return mesh
+
+
+## A cassette: a dark case with a cream label and two little windows, lying flat.
+static func _cassette_mesh() -> Mesh:
+	var case := StandardMaterial3D.new()
+	case.albedo_color = Color(0.13, 0.13, 0.15)
+	case.roughness = 0.5
+	var label := StandardMaterial3D.new()
+	label.albedo_color = Color(0.92, 0.86, 0.68)
+	label.roughness = 0.8
+	var reel := StandardMaterial3D.new()
+	reel.albedo_color = Color(0.4, 0.3, 0.25)
+	var mesh := ArrayMesh.new()
+	var st := SurfaceTool.new()
+	var parts: Array[Array] = [
+		[Vector3(0.108, 0.014, 0.068), Vector3(0.0, 0.007, 0.0), case],
+		[Vector3(0.088, 0.002, 0.036), Vector3(0.0, 0.0145, -0.008), label],
+		[Vector3(0.02, 0.002, 0.02), Vector3(-0.024, 0.0145, 0.016), reel],
+		[Vector3(0.02, 0.002, 0.02), Vector3(0.024, 0.0145, 0.016), reel],
+	]
+	for part: Array in parts:
+		var box := BoxMesh.new()
+		box.size = part[0]
+		st.clear()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		st.append_from(box, 0, Transform3D(Basis.IDENTITY, part[1]))
 		st.set_material(part[2])
 		st.commit(mesh)
 		mesh.surface_set_material(mesh.get_surface_count() - 1, part[2])

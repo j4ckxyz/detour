@@ -320,9 +320,12 @@ const STORAGE: Array[Array] = [
 	["Bed", [&"medium", &"small", &"food"], "bed", [Vector3(-0.6, 1.59, 2.4), Vector3(0.0, 1.59, 2.4), Vector3(0.6, 1.59, 2.4),
 		Vector3(-0.6, 1.59, 2.9), Vector3(0.0, 1.59, 2.9), Vector3(0.6, 1.59, 2.9)], Vector3.ZERO],
 	["CupHolder", [&"drink"], "cup holder", [Vector3(0.1, 1.32, -2.3), Vector3(0.3, 1.32, -2.3)], Vector3.ZERO],
+	["TapeDeck", [&"tape"], "tape deck", [Vector3(0.55, 1.36, -2.3)], Vector3.ZERO],
 ]
 ## Every storage slot, by name ("PlankRack1", "Shelf5", ...).
 var storage: Dictionary[StringName, StorageSlot] = {}
+## The cassette deck on the dashboard (plays the tape in the `TapeDeck1` slot).
+var deck := RVTapeDeck.new()
 
 
 func _build_storage() -> void:
@@ -340,6 +343,9 @@ func _build_storage() -> void:
 			slot.position = positions[i]
 			add_child(slot)
 			storage[StringName(slot.name)] = slot
+	deck.name = "TapeDeck"
+	add_child(deck)
+	deck.setup(self)
 
 
 func _build_headlights() -> void:

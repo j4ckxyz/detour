@@ -811,6 +811,19 @@ Status (2026-09-28):
   trip (`rvgen::route`, GEN_VERSION 2): a carved road with gap/ledge/mud/climb obstacles and a
   solvability validator, gas-station checkpoints with saves and restocks, camp and home.
 
+- **Playability and polish (2026-09-30, M12):**
+  - Manual gearbox made usable: each gear really raises the top speed (the hidden default
+    linear damping had been capping it), the starter holds the clutch so a stalled engine always
+    restarts, and a big ENGINE OFF / STARTING banner says what state it's in.
+  - Survival: venom only ticks when you've been bitten (and never inside the RV); the RV can't
+    hurt you by driving into you. Getting into and out of the RV is a walked stride.
+  - **Phase 8 audio, mostly landed:** sound effects for the RV, footsteps on every surface,
+    items, tools, winch, wildlife, weather and the UI, plus a horn and a Music bus (the
+    `sound` branch was merged first). Checked by `tools/audio/check_sounds.py` and `check_mix.py`.
+  - **Pulled forward from Phases 7 and 9:** key rebinding (keyboard, mouse and controller),
+    cosmetics (hats and glasses, some earned), achievements, and cassette tapes with subtitled
+    narrative. Still to do from those phases: proximity voice, localisation, dedicated host mode.
+
 Original scope:
 - Set up the repo, pin Godot 4.7.2, and create the Rust workspace. Get `rvcore` loading in Godot on all
   three OSes.

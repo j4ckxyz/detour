@@ -1,6 +1,6 @@
 # Detour: what the game does today
 
-A snapshot of the playable build (updated 2026-09-29), for comparing against *RV There Yet?*.
+A snapshot of the playable build (updated 2026-09-30), for comparing against *RV There Yet?*.
 Everything below is implemented and running unless it's in [Not in the game yet](#not-in-the-game-yet).
 The long-term design is in [PLAN.md](PLAN.md).
 
@@ -12,6 +12,13 @@ walk around, winch, push and repair. Play solo or together on a LAN, by IP or th
 ---
 
 ## Controls
+
+Everything below is the default layout. **Settings → Change key bindings…** (main menu and
+pause menu) rebinds any action: each has a keyboard key, a second key or mouse button, and a
+controller button; picking one that another action already uses in the same context moves it
+(the screen says what it was taken off). Esc, F1, F3 and F5–F8 are reserved. Bindings are saved
+(`user://controls.cfg`), **Reset** puts one action or all of them back, and the on-screen
+prompts, the F1 help and the item hints show your keys.
 
 ### On foot (keyboard and mouse)
 
@@ -50,7 +57,8 @@ in about half a second, no jump or snap); small ledges and rocks are stepped ove
 | **1**–**5** | Go straight to that gear (clutch assist) |
 | **R** | Reverse gear (clutch assist) |
 | **T** | Switch manual ↔ automatic gearbox |
-| **I** | Start the engine (needs the clutch down or neutral) |
+| **I** | Start the engine (the starter holds the clutch in for you, so it always starts) |
+| **H** | Horn (heard by everyone nearby, and shown to the other players) |
 | **L** | Headlights on/off |
 | **F** | Get up from the driver's seat |
 | **Mouse** | Look around the cab (while the mouse is captured) |
@@ -98,9 +106,9 @@ The H-pattern stick is mouse-only for now; on a controller you shift sequentiall
 - **First person, always**: on foot, in a seat and driving you see through your character's
   eyes; there's no third-person or chase view.
 - **Everyone is a pill-shaped person** (primitives for now, a Blender model later): one
-  rounded body whose top is the head, dark glasses, a beanie and a vest in the player's
-  colour over a white shirt, light trousers, stubby arms and feet. Your own body casts a
-  shadow.
+  rounded body whose top is the head, a hat and glasses of your choice (a beanie and dark
+  glasses by default, see [Your look](#your-look)) and a vest in the player's colour over a
+  white shirt, light trousers, stubby arms and feet. Your own body casts a shadow.
 - **First-person player** with walking (4.2 m/s), sprinting (7 m/s), crouching and jumping; steps
   up ledges up to 40 cm; collides with the terrain, rocks, trees and the RV's hull.
 - **Interaction**: a crosshair and a short "E  …" label for whatever you're looking at within
@@ -562,7 +570,8 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   - **Graphics**: quality (Auto picks one for the machine, or Potato/Low/Medium/High),
     resolution scale (the quality's own, or 50–100 %), field of view (60–100°).
   - **Controls**: look sensitivity (0.25–3×, mouse and right stick) and inverted look.
-  - **Sound**: master, effects and ambience volumes.
+  - **Sound**: master, effects, ambience and music volumes.
+  - **Change key bindings…**: the rebinding screen (see Controls).
   - The interface is laid out for 1600×900 and **stretches with the window**, so menus and
     the HUD are the same size on screen at any resolution or pixel density (a 5K display
     included); the interface scale makes them bigger or smaller on top.
@@ -606,7 +615,8 @@ Downloaded builds keep themselves current from this repo's GitHub releases:
 ## Sound
 
 Quiet and soothing by design; the volume sliders in Settings are **Master**, **Effects** (the
-RV, tools) and **Ambience** (birds, wind, rain). Master has a limiter, so nothing clips.
+RV, tools, footsteps, animals, chimes), **Ambience** (birds, wind, rain) and **Music** (the
+cassettes). Master has a limiter, so nothing clips.
 
 - **The RV** (`RVAudio`, all from what the network sends, so passengers and remote players
   hear what the driver does):
@@ -616,17 +626,51 @@ RV, tools) and **Ambience** (birds, wind, rain). Master has a limiter, so nothin
     gear (softer into neutral and in an automatic).
   - **Tires** humming and crunching on gravel with speed (silent in the air), **wind** rushing
     past at speed.
-  - A **thump** on hard landings, a **crash** on collisions, the **door**.
-  - The **hammer** clanks where it lands.
+  - A **thump** on hard landings, a **crash** on collisions, the **door**, the **horn**
+    (held for as long as the driver holds it), a **part falling off**.
+  - The **winch**: a motor whine while it reels, the hook clacking on, and a whip-crack when
+    the rope snaps. The **hammer** clanks where it lands; the welder zaps, the drill bites a bolt, planks thud
+    down and jerry cans pour.
+- **You**: **footsteps** that follow what's underfoot (grass, dirt, rock, mud, snow, ice,
+  shallow water, a laid plank, the RV's floor), with a splash when you wade in; picking up,
+  putting down, throwing, eating, drinking, spraying and the EpiPen all have a sound, and so
+  do items landing.
+- **Wildlife**: the bear's roar and the swipe of its paw, the rattlesnake's rattle (while it's
+  warning you) and hiss, the eagle's screech.
 - **Outdoors** (`Ambience`): **birdsong** by day (real blackbird and blackcap recordings,
   from random directions round you; rarer at dawn and dusk; none in heavy rain, storms or
   snow), **crickets** after dark, a **wind bed** that follows the weather (and storm gusts),
   **rain** that follows the rain, **thunder** a few seconds after a flash.
 - **Inside the RV** the outdoors is muffled (less with the door open) and rain drums on the roof.
+- **Chimes** for reaching a gas station, getting home and unlocking an achievement.
+- **Cassettes**: eight tapes (one plays already in the cab; the rest are left at points of
+  interest and in caves) that push into the **tape deck** on the dashboard, a storage slot
+  like the others. The music comes from the deck, so you hear it in the RV and from a few
+  metres outside it, and Dot's words appear as subtitles at the bottom of the screen. Eject
+  by taking the tape out. Playing them counts towards achievements.
 - Sounds are Ogg Vorbis under `game/assets/audio/`, credited in `game/assets/CREDITS.md`:
   birdsong is CC0 recordings (`tools/audio/fetch_birds.py`), everything else is synthesized
-  by `tools/audio/make_sounds.py`. `tools/audio/check_sounds.py` measures them (peaks,
-  loudness, loop seams, spectra). `src/debug/audio_tour.tscn` plays through them all.
+  by `tools/audio/make_sounds.py` (effects) and `make_music.py` (tapes). `tools/audio/check_sounds.py`
+  measures the files (peaks, loudness, loop seams, spectra) and `check_mix.py` measures the
+  real mix of `src/debug/audio_tour.tscn` (about -23 LUFS, no clipping).
+  `src/debug/audio_tour.tscn` plays through them all.
+
+## Achievements
+
+37 achievements, unlocked by playing (`Achievements`): getting to gas stations and home,
+distance and top speed, night driving, stalls, repairs, tires, winch and planks, EpiPens,
+antidotes and revives, bear spray, burgers, playing the tapes and hours on the road. A few
+are hidden until you earn them. Each shows a toast and a chime, the list (with progress) is
+under **Achievements** on the main and pause menus, and they're saved in
+`user://achievements.cfg`, so they carry from trip to trip.
+
+## Your look
+
+The main menu's **You** section also picks a **hat** (beanie, baseball cap, bucket hat or
+none; a cowboy hat, hard hat, chef's hat, top hat and antlers are earned through
+achievements) and **glasses** (dark, round or none; driving goggles are earned). It's remembered
+and everyone in a co-op game sees it on your person. Locked ones are greyed out and say what
+unlocks them. (Online, the game version and protocol must match: protocol 2.)
 
 ## Graphics and performance
 
@@ -669,12 +713,12 @@ RV, tools) and **Ambience** (birds, wind, rain). Master has a limiter, so nothin
 Planned (see PLAN.md), roughly in the order they're coming:
 
 - **Players**: the roof ladder and roof; a Blender character model (and animation) to
-  replace the primitive one, and cosmetics.
+  replace the primitive one.
 - **The trip**: a paper map, route forks and loot detours.
 - **More obstacles**: rockslides, cliffs and steps, lava; rivers that wind through the land
   (fords are straight channels today) and caves you drive through.
 - **World variety**: a volcanic biome, real models and textures for the new biomes (the
   trees and caves are placeholder shapes), more weather effects (puddles, snow cover building up).
 - **Co-op**: proximity voice chat; saving each player's inventory with the trip.
-- **Sound**: the horn, music, footsteps and other surfaces' tire sounds, the pump.
-- **Menus and options**: key rebinding, cosmetics, and the diegetic dashboard gauges.
+- **Sound**: other surfaces' tire sounds (mud, snow), the pump, spoken voices.
+- **Menus and options**: the diegetic dashboard gauges.

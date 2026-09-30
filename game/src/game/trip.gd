@@ -185,6 +185,7 @@ func _build_poi(index: int, p: Dictionary, stock: bool) -> void:
 	node.global_transform = Transform3D(Basis.looking_at(p["dir"], Vector3.UP), pos)
 	if stock:
 		_stock(node, POI_LOOT[kind], node.get_meta(&"loot_spots"), "%s:poi%d" % [world.get_code(), index])
+		_leave_tape(node, (node.get_meta(&"loot_spots") as Array)[0], "%s:poitape%d" % [world.get_code(), index], 0.7)
 
 
 ## Leaves a few things from `table` at `spots` (local to `node`), seeded by `key`.
@@ -212,6 +213,22 @@ func _stock(node: Node3D, table: Array, spots: Array, key: String) -> void:
 		item.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 
 
+## Maybe leaves one of Dot's cassettes at `local` in `node` (the same tape, or none, for the same
+## seed). Over several trips you'll find them all.
+func _leave_tape(node: Node3D, local: Vector3, key: String, chance: float) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(key)
+	if rng.randf() >= chance:
+		return
+	var item := ItemLibrary.create_tape(rng.randi() % Tapes.COUNT)
+	items.add_child(item)
+	var at := node.global_transform * (local + Vector3(rng.randf_range(-0.3, 0.3), 0.0, rng.randf_range(-0.3, 0.3)))
+	at.y = maxf(at.y, world.height_at(at.x, at.z)) + item.base_offset + 0.05
+	item.global_position = at
+	item.freeze = true # Waits there until picked up.
+	item.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+
+
 ## A cave off the road, stocked with a few random supplies (the same for the same seed).
 func _build_cave(index: int, c: Dictionary, stock: bool) -> void:
 	var pos: Vector3 = c["pos"]
@@ -223,6 +240,7 @@ func _build_cave(index: int, c: Dictionary, stock: bool) -> void:
 	node.global_transform = Transform3D(Basis.looking_at(dir, Vector3.UP), pos)
 	if not stock:
 		return
+	_leave_tape(node, Vector3(0.6, 0.0, 2.6), "%s:cavetape%d" % [world.get_code(), index], 0.6)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("%s:cave%d" % [world.get_code(), index])
 	var total := 0

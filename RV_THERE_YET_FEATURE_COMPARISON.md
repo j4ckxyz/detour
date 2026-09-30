@@ -1,7 +1,7 @@
 # Detour vs. RV There Yet? — full feature and gameplay gap analysis
 
 > **Update, 30 September 2026:** sections 2–15 below describe the build as it was on 28 September
-> (before milestones M1–M11). The status table in [§16](#16-feature-status-summary) is the
+> (before milestones M1–M12). The status table in [§16](#16-feature-status-summary) is the
 > current picture: each ✅ row says which milestone did it, and `CURRENT_GAME.md` lists exactly
 > what the game does now.
 
@@ -2149,19 +2149,19 @@ Legend:
 | Shared RV networking | ✅ DONE (M6: driver simulates, ownership handoff) |
 | Item networking | ✅ DONE (M6: host-authoritative, optimistic pickups) |
 | Winch networking | ✅ DONE (M6) |
-| Proximity voice | MISSING |
-| Character cosmetics | MISSING |
-| Narrative | MISSING |
-| Cassettes/tapes | MISSING |
-| Music | MISSING |
-| Sound effects | MISSING |
+| Proximity voice | MISSING (needs the Opus/voice transport in PLAN.md; deliberately left for its own milestone) |
+| Character cosmetics | ✅ DONE (M12: a hat and glasses picked on the main menu, remembered and shown on everyone's person; five hats and one pair of glasses are earned through achievements) |
+| Narrative | ✅ DONE (M12: Dot's spoken-word cassettes, with her lines as subtitles, at points of interest and caves) |
+| Cassettes/tapes | ✅ DONE (M12: eight tapes; find them, push one into the cab's tape deck, hear it in the RV and outside it; the deck is a physical storage slot that rides along and is saved) |
+| Music | ✅ DONE (M12: the tapes' music on its own Music volume) |
+| Sound effects | ✅ DONE (M12: the RV, footsteps on every surface, items, tools, winch, wildlife, weather, UI chimes; measured by `tools/audio/check_sounds.py` and `check_mix.py`) |
 | Main menu | ✅ DONE (M6) |
-| Settings | ✅ DONE (M11: display, interface scale, graphics quality and resolution scale, FOV, look sensitivity, volumes) |
+| Settings | ✅ DONE (M11: display, interface scale, graphics quality and resolution scale, FOV, look sensitivity, volumes; M12: Music volume, key bindings) |
 | Key rebinding | ✅ DONE (M12: keyboard, mouse and controller; three slots per action, conflicts move the key, saved; a bindings screen in Settings; prompts and help follow it) |
-| Horn | ✅ DONE (M12: the driver's horn, shared with co-op players; sound to follow) |
+| Horn | ✅ DONE (M12: the driver's horn, with its own sound, shared with co-op players) |
 | Manual-gearbox usability | ✅ DONE (M12: gears now really raise the top speed; the starter holds the clutch so a stalled engine always restarts; big ENGINE OFF / STARTING banner; lugging warning) |
 | Walking through the RV door | ✅ DONE (M12: a smooth stride up the step and over the sill, in and out; no snap) |
-| Achievements | MISSING |
+| Achievements | ✅ DONE (M12: 37 achievements from real play (driving, repairs, survival, tapes), a toast and chime when one unlocks, a list on the main and pause menus; saved between trips) |
 
 ---
 

@@ -18,6 +18,8 @@ const TRIPS_SHOWN := 8
 
 var _name := LineEdit.new()
 var _colors := HBoxContainer.new()
+var _hat := OptionButton.new()
+var _glasses := OptionButton.new()
 var _seed := LineEdit.new()
 ## Under the seed box: the seed code the text makes.
 var _seed_note := Label.new()
@@ -93,6 +95,15 @@ func _build() -> void:
 	you.add_child(_colors)
 	box.add_child(you)
 	_build_colors()
+	var wear := HBoxContainer.new()
+	wear.add_theme_constant_override("separation", 8)
+	wear.add_child(_label("Wearing", 15, DIM))
+	for pair: Array in [[&"hat", _hat], [&"glasses", _glasses]]:
+		var picker: OptionButton = pair[1]
+		picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_fill_wardrobe(pair[0], picker)
+		wear.add_child(picker)
+	box.add_child(wear)
 
 	_trips.add_theme_constant_override("separation", 6)
 	box.add_child(_trips)
@@ -171,6 +182,31 @@ func _build() -> void:
 	end.add_child(_button(quit))
 	box.add_child(end)
 	_refresh_lan()
+
+
+## The hats or glasses on offer (`kind`): locked ones are greyed out and say how to get them.
+func _fill_wardrobe(kind: StringName, picker: OptionButton) -> void:
+	var current: StringName = Session.player_hat if kind == &"hat" else Session.player_glasses
+	picker.clear()
+	var list := Cosmetics.list(kind)
+	for i: int in list.size():
+		var id: StringName = list[i]["id"]
+		var open := Cosmetics.is_unlocked(kind, id)
+		picker.add_item(String(list[i]["name"]) if open else "%s (locked)" % list[i]["name"], i)
+		picker.set_item_disabled(i, not open)
+		picker.set_item_tooltip(i, "" if open else Cosmetics.how_to_unlock(kind, id))
+		if id == current:
+			picker.select(i)
+	if picker.selected < 0 or not Cosmetics.is_unlocked(kind, current):
+		picker.select(0)
+	picker.tooltip_text = "What you wear (seen by everyone you play with)"
+	picker.item_selected.connect(func(i: int) -> void:
+		var id: StringName = list[i]["id"]
+		if kind == &"hat":
+			Session.player_hat = id
+		else:
+			Session.player_glasses = id
+		Session.save_settings())
 
 
 func _build_colors() -> void:

@@ -13,9 +13,10 @@ code here are original. See [PLAN.md](PLAN.md) for the full design and roadmap.
 **Status:** early development, but playable: generated trips from a camp to home through
 four biomes, with bridges to jump or plank, beams to line up on, gullies, fords, ice, hills,
 a fragile RV to keep running (a status panel shows its condition and your health; wreck it
-and it's back to the last stop), wildlife, weather, day and night, saves, settings
-(interface scale, graphics, window, frame rate), and co-op for up to four (PLAN.md §12 has
-what's next).
+and it's back to the last stop), wildlife, weather, day and night, sound and music (cassettes
+for the cab's tape deck), achievements, hats and glasses, saves, settings (interface scale,
+graphics, window, frame rate, volumes, rebindable keys), and co-op for up to four (PLAN.md §12
+has what's next).
 Everything the game does today, and every control, is listed in [CURRENT_GAME.md](CURRENT_GAME.md).
 Downloaded builds update themselves (Esc → *Update now*, or automatically on launch).
 
@@ -35,8 +36,9 @@ Check files against `SHA256SUMS` in the release.
 
 **Controls:** W/S throttle and brake, A/D steer, Space handbrake, Q clutch (hold it and move
 the mouse to work the H-pattern), E/Z or the mouse wheel to shift, 1–5 and R to pick a gear,
-T for manual/automatic, I to start the engine, L headlights, F to get up, Backspace to
-get back on the wheels, Esc menu, F1 help, F3 performance overlay. Full list, including
+T for manual/automatic, I to start the engine, H horn, L headlights, F to get up, Backspace to
+get back on the wheels, Esc menu, F1 help, F3 performance overlay. Every key, mouse button and
+controller button can be changed under Settings → *Change key bindings…*. Full list, including
 controller buttons: [CURRENT_GAME.md](CURRENT_GAME.md#controls).
 
 ## Layout

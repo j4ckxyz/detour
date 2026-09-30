@@ -20,7 +20,7 @@ signal lan_games_changed
 enum Mode { SOLO, HOST, CLIENT }
 
 ## Bump when gameplay messages change incompatibly.
-const PROTOCOL := 1
+const PROTOCOL := 2
 const DEFAULT_PORT := 24652
 const LAN_BEACON_PORT := 24653
 const MAX_PLAYERS := 4
@@ -36,10 +36,13 @@ var mode := Mode.SOLO
 var seed_code := ""
 var player_name := "Traveller"
 var player_color := 0
+## What you wear (see `Cosmetics`), remembered.
+var player_hat: StringName = Cosmetics.DEFAULT_HAT
+var player_glasses: StringName = Cosmetics.DEFAULT_GLASSES
 var relay_address := ""
 ## Relay room code once hosting or joining through the relay.
 var room_code := ""
-## peer id → {name: String, color: int}
+## peer id → {name: String, color: int, hat: String, glasses: String}
 var players: Dictionary[int, Dictionary] = {}
 ## "address:port" → {name, players, seed, seen (msec)}, from LAN beacons.
 var lan_games: Dictionary[String, Dictionary] = {}
@@ -86,6 +89,19 @@ func color_of(peer: int) -> Color:
 
 func name_of(peer: int) -> String:
 	return String(players.get(peer, {}).get("name", "Player %d" % peer))
+
+
+## The hat and glasses `peer` is wearing (yours by default when there's no roster: solo).
+func hat_of(peer: int) -> StringName:
+	if not players.has(peer):
+		return Cosmetics.wearable(&"hat", player_hat) if peer == local_id() else Cosmetics.DEFAULT_HAT
+	return Cosmetics.valid_or_default(&"hat", StringName(players[peer].get("hat", "")))
+
+
+func glasses_of(peer: int) -> StringName:
+	if not players.has(peer):
+		return Cosmetics.wearable(&"glasses", player_glasses) if peer == local_id() else Cosmetics.DEFAULT_GLASSES
+	return Cosmetics.valid_or_default(&"glasses", StringName(players[peer].get("glasses", "")))
 
 
 # --- hosting and joining -------------------------------------------------------------------
@@ -159,7 +175,7 @@ func _begin(m: Mode, peer: MultiplayerPeer) -> void:
 	multiplayer.multiplayer_peer = peer
 	players.clear()
 	if m == Mode.HOST:
-		players[1] = {"name": player_name, "color": player_color}
+		players[1] = {"name": player_name, "color": player_color, "hat": String(Cosmetics.wearable(&"hat", player_hat)), "glasses": String(Cosmetics.wearable(&"glasses", player_glasses))}
 
 
 func _fail(message: String) -> void:
@@ -212,7 +228,7 @@ func _hello(protocol: int, version: String, who: String, color: int) -> void:
 		taken.append(int(p["color"]))
 	while taken.has(color):
 		color = (color + 1) % COLORS.size() # Everyone gets their own colour.
-	players[peer] = {"name": who.substr(0, 24).strip_edges(), "color": color}
+	players[peer] = {"name": who.substr(0, 24).strip_edges(), "color": color, "hat": "", "glasses": ""}
 	_welcome.rpc_id(peer, seed_code, players, start_info_source.call() if start_info_source.is_valid() else {})
 	_roster.rpc(players)
 	roster_changed.emit()
@@ -227,7 +243,24 @@ func _welcome(code: String, roster: Dictionary, info: Dictionary) -> void:
 	seed_code = code
 	start_info = info
 	_set_roster(roster)
+	# Now that we're in, say what we're wearing (a separate message, so an older host or client still
+	# reads the greeting and can refuse us with a readable reason).
+	_look.rpc_id(1, String(Cosmetics.wearable(&"hat", player_hat)), String(Cosmetics.wearable(&"glasses", player_glasses)))
 	joined.emit()
+
+
+## A client says what it wears; everyone gets the new roster.
+@rpc("any_peer", "reliable")
+func _look(hat: String, glasses: String) -> void:
+	if mode != Mode.HOST:
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	if not players.has(peer):
+		return
+	players[peer]["hat"] = String(Cosmetics.valid_or_default(&"hat", StringName(hat)))
+	players[peer]["glasses"] = String(Cosmetics.valid_or_default(&"glasses", StringName(glasses)))
+	_roster.rpc(players)
+	roster_changed.emit()
 
 
 @rpc("authority", "reliable")
@@ -246,7 +279,8 @@ func _set_roster(roster: Dictionary) -> void:
 	players.clear()
 	for k: Variant in roster:
 		var p: Dictionary = roster[k]
-		players[int(k)] = {"name": String(p.get("name", "")), "color": int(p.get("color", 0))}
+		players[int(k)] = {"name": String(p.get("name", "")), "color": int(p.get("color", 0)),
+			"hat": String(p.get("hat", "")), "glasses": String(p.get("glasses", ""))}
 
 
 # --- LAN discovery -------------------------------------------------------------------------
@@ -300,6 +334,8 @@ func _load_settings() -> void:
 		return
 	player_name = String(cfg.get_value("player", "name", player_name))
 	player_color = int(cfg.get_value("player", "color", 0))
+	player_hat = Cosmetics.valid_or_default(&"hat", StringName(cfg.get_value("player", "hat", "")))
+	player_glasses = Cosmetics.valid_or_default(&"glasses", StringName(cfg.get_value("player", "glasses", "")))
 	relay_address = String(cfg.get_value("net", "relay", ""))
 
 
@@ -307,5 +343,7 @@ func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("player", "name", player_name)
 	cfg.set_value("player", "color", player_color)
+	cfg.set_value("player", "hat", String(player_hat))
+	cfg.set_value("player", "glasses", String(player_glasses))
 	cfg.set_value("net", "relay", relay_address)
 	cfg.save(SETTINGS_PATH)

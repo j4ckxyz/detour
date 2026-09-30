@@ -26,7 +26,7 @@ const TRIP_INTERVAL := 1.0
 ## First ids are fixed: the winch hooks (made by every machine's RV).
 const HOOK_IDS: Array[int] = [1, 2]
 const PLAYER_CALLS: Array[StringName] = [&"hurt", &"poison", &"knock", &"revive", &"say"]
-const META_KEYS: Array[StringName] = [&"fuel", &"puffs", &"cook", &"tire", &"part", &"wheel", &"slot"]
+const META_KEYS: Array[StringName] = [&"fuel", &"puffs", &"cook", &"tire", &"part", &"wheel", &"slot", &"tape"]
 
 var active := false
 var pg: Playground
@@ -183,6 +183,9 @@ func _full_state(state: Dictionary) -> void:
 
 
 func _sync_puppets() -> void:
+	for existing: Player in puppets.values():
+		if is_instance_valid(existing):
+			existing.refresh_look()
 	for peer: int in Session.players:
 		if peer == local_id() or puppets.has(peer):
 			continue

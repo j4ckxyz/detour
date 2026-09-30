@@ -37,8 +37,8 @@ var fov := 75.0
 ## Multiplies mouse (and right-stick) look speed.
 var look_sensitivity := 1.0
 var invert_y := false
-## 0..1 per bus: "Master", "Effects", "Ambience".
-var volumes: Dictionary[String, float] = {"Master": 0.8, "Effects": 1.0, "Ambience": 1.0}
+## 0..1 per bus: "Master", "Effects", "Ambience", "Music".
+var volumes: Dictionary[String, float] = {"Master": 0.8, "Effects": 1.0, "Ambience": 1.0, "Music": 1.0}
 
 ## What the window was last set to from here: it's only changed again when these settings
 ## change (not when anything else does), so a window dragged to another size stays put.
@@ -100,7 +100,7 @@ func reset() -> void:
 	fov = 75.0
 	look_sensitivity = 1.0
 	invert_y = false
-	volumes = {"Master": 0.8, "Effects": 1.0, "Ambience": 1.0}
+	volumes = {"Master": 0.8, "Effects": 1.0, "Ambience": 1.0, "Music": 1.0}
 	apply()
 	save()
 

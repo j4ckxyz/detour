@@ -15,7 +15,8 @@ const QUALITY_NAMES: Dictionary[StringName, String] = {
 	&"auto": "Auto", &"potato": "Potato", &"low": "Low", &"medium": "Medium", &"high": "High",
 }
 const BUS_NAMES: Dictionary[String, String] = {
-	"Master": "Master volume", "Effects": "Effects (the RV, tools)", "Ambience": "Ambience (birds, wind, rain)",
+	"Master": "Master volume", "Effects": "Effects (the RV, tools, footsteps)", "Ambience": "Ambience (birds, wind, rain)",
+	"Music": "Music (the cassettes)",
 }
 
 var _root := Control.new()

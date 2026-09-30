@@ -70,8 +70,10 @@ sharpest ticks filtered out, trimmed, levelled).
 
 **Everything else: made for Detour**, synthesized from noise and sine waves by
 `tools/audio/make_sounds.py` (fixed seeds: the same command gives the same sounds; nothing is
-sampled from anywhere). Author: the Detour project; same licence as the game's own art (see the
-README). The engine loops are the RV's V8 at four speeds (crossfaded and re-pitched in game).
+sampled from anywhere), and the cassette music (plucked strings, pads and bells; the tunes are
+made up, not borrowed) by `tools/audio/make_music.py`. Author: the Detour project; same licence
+as the game's own art (see the README). The engine loops are the RV's V8 at four speeds
+(crossfaded and re-pitched in game).
 
 | File | Sound |
 |---|---|
@@ -159,3 +161,11 @@ README). The engine loops are the RV's V8 at four speeds (crossfaded and re-pitc
 | `audio/ui/chime.ogg` | Reaching a gas station |
 | `audio/ui/toast.ogg` | Earning an achievement |
 | `audio/ui/home.ogg` | Getting home |
+| `audio/music/tape_1.ogg` | Cassette 1, "Dust and Gravel": easy acoustic folk in A minor (about a minute) |
+| `audio/music/tape_2.ogg` | Cassette 2, "Highway Hum": a steady driving groove in G (about a minute) |
+| `audio/music/tape_3.ogg` | Cassette 3, "Gas Station Waltz": a music-box waltz in C (about a minute) |
+| `audio/music/tape_4.ogg` | Cassette 4, "Night Drive": slow night ambience in E minor (about a minute) |
+| `audio/music/tape_5.ogg` | Cassette 5, "Bayou Blues": a lazy shuffle blues in E (about a minute) |
+| `audio/music/tape_6.ogg` | Cassette 6, "Canyon Sunrise": open fifths and slow arpeggios in D (about a minute) |
+| `audio/music/tape_7.ogg` | Cassette 7, "Frostpeak": cold glassy bells in B minor (about a minute) |
+| `audio/music/tape_8.ogg` | Cassette 8, "Home Again": a bright, hopeful tune in A (about a minute) |

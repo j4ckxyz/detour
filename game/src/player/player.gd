@@ -148,6 +148,8 @@ var _net_pos := Vector3.ZERO
 var _net_velocity := Vector3.ZERO
 var _net_age := 0.0
 var _avatar: Node3D
+## What the avatar was built from: colour, hat, glasses, name.
+var _worn: Array = []
 
 
 func _init() -> void:
@@ -611,8 +613,18 @@ func _follow_snapshots(dt: float) -> void:
 ## your name over it; your own casts just its shadow (you see the world from its eyes).
 func _build_avatar() -> void:
 	var color := Session.color_of(peer_id)
-	_avatar = PillAvatar.build(color, Session.name_of(peer_id) if puppet else "", not puppet)
+	_worn = [color, Session.hat_of(peer_id), Session.glasses_of(peer_id), Session.name_of(peer_id)]
+	_avatar = PillAvatar.build(color, Session.name_of(peer_id) if puppet else "", not puppet, Session.hat_of(peer_id), Session.glasses_of(peer_id))
 	add_child(_avatar)
+
+
+## Puppets: the roster changed (someone's hat, colour or name arrived): draw them as they are now.
+func refresh_look() -> void:
+	var now: Array = [Session.color_of(peer_id), Session.hat_of(peer_id), Session.glasses_of(peer_id), Session.name_of(peer_id)]
+	if _avatar == null or now == _worn:
+		return
+	_avatar.queue_free()
+	_build_avatar()
 
 
 func _pose_avatar() -> void:
