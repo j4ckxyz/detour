@@ -191,7 +191,7 @@ func _end(message: String) -> void:
 
 
 func _on_connected() -> void:
-	_hello.rpc_id(1, PROTOCOL, BuildInfo.version, player_name, player_color)
+	_hello.rpc_id(1, PROTOCOL, BuildInfo.handshake(), player_name, player_color)
 
 
 func _on_peer_connected(_peer: int) -> void:
@@ -212,9 +212,10 @@ func _hello(protocol: int, version: String, who: String, color: int) -> void:
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	var refuse := ""
-	if protocol != PROTOCOL or version != BuildInfo.version:
+	# `version` is the client's `BuildInfo.handshake()`: the same commit is the same game.
+	if protocol != PROTOCOL or not BuildInfo.same_game(BuildInfo.version, BuildInfo.commit, version):
 		refuse = "Version mismatch: the host runs Detour %s (protocol %d), you have %s (protocol %d). Update to play together." % [
-			_or_dev(BuildInfo.version), PROTOCOL, _or_dev(version), protocol]
+			_or_dev(BuildInfo.version), PROTOCOL, _or_dev(BuildInfo.handshake_version(version)), protocol]
 	elif players.size() >= MAX_PLAYERS:
 		refuse = "The game is full (%d players)." % MAX_PLAYERS
 	if refuse != "":

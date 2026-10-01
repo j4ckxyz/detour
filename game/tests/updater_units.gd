@@ -11,6 +11,7 @@ func _initialize() -> void:
 	UpdateLogic.remove_tree(_root)
 	DirAccess.make_dir_recursive_absolute(_root)
 	_versions()
+	_handshake()
 	_release_parsing()
 	_detection()
 	_replace_tree()
@@ -252,6 +253,19 @@ func _dir(rel: String) -> String:
 	var path := _root.path_join(rel)
 	DirAccess.make_dir_recursive_absolute(path)
 	return path
+
+## Joining a game: the nightly and the stable build of one commit play together.
+func _handshake() -> void:
+	var c := "905aa57085056e4ba1b5185ffa4f0672f033e050"
+	_check(BuildInfo.same_game("0.2.0-nightly.31", c, "0.2.1+" + c), "nightly host, stable client, same commit")
+	_check(BuildInfo.same_game("0.2.1", c, "0.2.0-nightly.31+" + c), "stable host, nightly client, same commit")
+	_check(not BuildInfo.same_game("0.2.1", c, "0.2.1+0000000"), "same version, other commit")
+	_check(not BuildInfo.same_game("0.2.1", c, "0.2.0+5c5b4a0"), "older release")
+	_check(BuildInfo.same_game("0.2.0", "", "0.2.0"), "two development builds")
+	_check(BuildInfo.same_game("0.2.0", "", "0.2.0+" + c), "development host goes by version")
+	_check(not BuildInfo.same_game("0.2.1", c, "0.2.0"), "a build without a commit goes by version")
+	_check(BuildInfo.handshake_version("0.2.1+" + c) == "0.2.1", "handshake version")
+	_check(BuildInfo.handshake_version("0.2.0") == "0.2.0", "handshake version without a commit")
 
 
 func _write(path: String, text: String) -> void:
