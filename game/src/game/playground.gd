@@ -20,7 +20,7 @@ signal spawned
 ## The RV and everyone went back to the last stop (a wreck, a tow, everyone down).
 signal sent_back(reason: String)
 
-const DEFAULT_SEED := "DT6-00000-000ZT" # A short trip: woods, mud, gaps and a bridge with a hole; canyon: a climb, a ledge, a ford; the pass: ice, beams and a hill.
+const DEFAULT_SEED := "DT7-00000-08GT3" # A short trip through badlands: mud, climbs, a hill with a side track, bridges with holes, a gap, beams, a ford, ice, a ledge and two switchbacks.
 const START := Vector3(64.0, 0.0, 64.0)
 const RV_SCENE := preload("res://src/rv/rv.tscn")
 const MAIN_MENU := "res://src/ui/main_menu.tscn"

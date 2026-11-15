@@ -9,7 +9,7 @@ extends Node
 
 const PLAYGROUND := preload("res://src/game/playground.tscn")
 const HZ := 60
-const SEEDS: Array[String] = ["DT6-00000-000ZT", "DT6-00000-0009Q", "DT6-80000-000ZJ", "DT6-80000-0009Z"]
+const SEEDS: Array[String] = ["DT7-00000-08GT3", "DT7-00000-02DPR", "DT7-80000-000ZM", "DT7-80000-0009S"]
 
 var _pg: Playground
 var _failures: PackedStringArray = []

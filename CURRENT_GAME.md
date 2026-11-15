@@ -206,7 +206,7 @@ sequentially with **RB** / **LB**.
 
 Every seed makes a trip (a **Short** trip is ~4–5.5 km: camp → 2 gas stations → home, each
 stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed is
-`DT6-00000-000ZT`.
+`DT7-00000-08GT3`.
 
 - **Biomes**: the four biomes come in a seeded order (any can come first; short trips see
   three of them). The biome changes near each gas station, blending over ~180 m, and the top
@@ -219,13 +219,34 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   - *Frostpeak Pass*: 18 m higher with bigger relief, snow on everything but steep rock, snowy
     firs, frozen lakes; ice, climbs and ledges.
 
+- **Every world has a character**, drawn from the seed and read by the whole generator:
+  *rolling hills* (a bit of everything), *open plains* (gentle ground, long sweeping bends),
+  *highlands* (big relief, mountains everywhere, a road that zig-zags up and down them),
+  *river country* (low and wet: fords, mud and ponds whatever the biome) or *badlands* (dry,
+  broken, twisted ground and a tight, twisty road). Each number behind it (relief, mountain
+  cover and height, ruggedness, warp, wetness, how much the road winds, how readily it
+  switchbacks) is jittered per seed, so two highland worlds still aren't alike. Over seeds
+  0–19 the road is 1.09–1.53 times as long as the crow flies, turns 115–410° per km and
+  climbs 30–96 m per km; its height range runs from 29 m (plains) to 371 m (highlands).
+  `rvgen-cli trip <code>` prints a world's character and its road's numbers.
+- **The land** is layered noise, each layer with a job: a very broad *continent* layer mapped
+  through a spline into basins, shelves and plateaus; an *erosion* layer (worn smooth here,
+  rough there); domain-warped fractal rolling ground and hills; a mountain mask (mountains
+  gather on high ground) and ridged crests; small bumps. Biomes then reshape it.
 - **The road** is surveyed, not just drawn: the generator walks ten candidate routes east
-  across the land, each meandering its own way (swinging up to ~70° off east, with dead
-  straight runs now and then), and keeps the best: little cutting and filling, no mountains
-  looming over it, real hills to climb and straights for bridges and jumps, and never passing
-  near an earlier stretch of itself. It's a dirt road carved in with cut and fill (≤ 9 %
-  outside the hills), cleared of trees and rocks, with the forest crowding its edges. It
-  leaves the camp on a level straight.
+  across the land and keeps the best. Each meanders on two octaves of noise (a broad sweep
+  with tighter bends on top, swinging up to ~75° off east), contours round hills instead of
+  ploughing through them, and steers how hard it winds to hit the world's sinuosity. Where
+  the way east is too steep to drive straight at, it breaks into **switchbacks**: 2–4 short
+  legs zig-zagging across the slope (only mud and climbs are put on those). The best route
+  has little cutting and filling, no mountains looming over it, real hills to climb and
+  straights for bridges and jumps, and never passes near an earlier stretch of itself.
+  Bridges, beams and gaps only go where the road has run straight (within 3°) and level for
+  an RV's length and more beforehand, however twisty the world. It's
+  a dirt road carved in with cut and fill (≤ 9 % outside the hills), cleared of trees and
+  rocks, with the forest crowding its edges. It leaves the camp on a level straight.
+- **It gets harder towards home**: the road winds more, quiet stretches get rarer and
+  shorter, and obstacles come closer together (as well as bigger, as before).
 - **Telephone poles** follow the road on its right every ~48 m, wired pole to pole: up the
   hills too, never down the side tracks, and down where a crossing's washed out. They're
   solid (and something to hook the winch on).
@@ -399,7 +420,7 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
 ## The world
 
 ### Generation
-- **Seed codes** like `DT6-00000-000ZT`: generator version, trip length and a 40-bit seed in
+- **Seed codes** like `DT7-00000-08GT3`: generator version, trip length and a 40-bit seed in
   Crockford base32, with a typo check. The default seed is fixed; `-- --seed=CODE` picks another.
 - **Any text is a seed**, like Minecraft: type a word or phrase (up to 20 characters) and it's
   turned into a seed code (a whole number is used as the seed itself; a typed seed code is

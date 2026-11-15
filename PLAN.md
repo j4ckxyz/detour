@@ -826,6 +826,11 @@ Status (2026-09-28):
     the plank preview lies across a gap at the road's level and lines up with the RV's wheel
     tracks; you can climb out of a trench you fall into, and the pause menu can put you back at
     the RV from a ravine.
+  - **Worlds with a personality (GEN_VERSION 7):** each seed draws an archetype (rolling hills,
+    open plains, highlands, river country, badlands) and jittered numbers that the terrain
+    (continent/erosion/mountain layers), the road (sinuosity, bend length, switchbacks) and the
+    obstacles (wetness) all read; the road winds and tightens up towards home. Rust tests check
+    curvature and the spread between seeds over 20 seeds.
   - **Pulled forward from Phases 7 and 9:** key rebinding (keyboard, mouse and controller),
     cosmetics (hats and glasses, some earned), achievements, and cassette tapes with subtitled
     narrative. Still to do from those phases: proximity voice, localisation, dedicated host mode.

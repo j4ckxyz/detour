@@ -10,7 +10,7 @@ extends Node
 const PLAYGROUND := preload("res://src/game/playground.tscn")
 const HZ := 60
 ## A short trip with a jump (6.6 m) in it.
-const JUMP_SEED := "DT6-00000-0009Q"
+const JUMP_SEED := "DT7-00000-02DPR"
 
 var _pg: Playground
 var _failures: PackedStringArray = []
@@ -52,13 +52,15 @@ func _bridge(o: Dictionary) -> void:
 	_check(_progress() < hole_end + 2.0 or low < deck - 1.5, "creeping, the RV doesn't get past the hole (%.1f m, hole ends %.1f m; lowest %.1f m, deck %.1f m)" % [_progress(), hole_end, low, deck])
 	# Hit the kicker fast and it jumps the hole.
 	await _teleport(s - half - 70.0)
+	# (The road may climb to the bridge: "low" is below where the run-up began or the deck.)
+	var floor_y := minf(deck, _pg.rv.global_position.y)
 	var top := [0.0]
 	var watch := func() -> bool:
 		if _progress() < s + float(o["hole_at"]) - float(o["hole"]) * 0.5:
 			top[0] = _pg.rv.forward_speed()
 		return _progress() > s + half + 8.0
 	low = await _drive(17.0, 30.0, watch)
-	_check(_progress() > s + half + 8.0 and low > deck - 1.0, "at %.0f km/h it jumps the hole and carries on (%.1f m, lowest %.1f m)" % [top[0] * 3.6, _progress(), low])
+	_check(_progress() > s + half + 8.0 and low > floor_y - 1.0, "at %.0f km/h it jumps the hole and carries on (%.1f m, lowest %.1f m)" % [top[0] * 3.6, _progress(), low])
 	# Or: two planks across the hole, one under each wheel track.
 	await _teleport(s - half - 20.0)
 	var xf := TripStructures.frame(o)
