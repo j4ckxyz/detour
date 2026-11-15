@@ -118,6 +118,8 @@ var inside := false
 var health := MAX_HEALTH
 ## Out of health: crawling, waiting for an EpiPen, bleeding out (`bleed_out` seconds left).
 var downed := false
+## Holding the paper map up to read it (see PaperMap).
+var reading_map := false
 var bleed_out := 0.0
 ## Seconds of snake venom left working (0 = not poisoned).
 var venom := 0.0
@@ -299,6 +301,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if seat != &"":
 		if event.is_action_pressed(&"leave_seat"):
 			stand_up()
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed(&"use_item") and held and held.kind == &"map" and not is_driving():
+			held.use(self) # A passenger can read the map on the way.
 			get_viewport().set_input_as_handled()
 		return
 	for i: int in SLOTS:

@@ -41,6 +41,8 @@ static var DEFS: Dictionary[StringName, Dictionary] = {
 	&"winch_hook": {"name": "Winch hook", "model": "@hook", "mass": 2.0,
 		"hold": Transform3D(Basis.IDENTITY, Vector3(0.25, -0.3, -0.55))},
 	&"tape": {"stow": &"tape", "name": "Cassette", "model": "@cassette", "mass": 0.1, "hold": SMALL_HOLD},
+	&"map": {"stow": &"small", "name": "Paper map", "model": "@map", "mass": 0.1, "seated": true,
+		"hold": Transform3D(Basis(Vector3.RIGHT, 0.5), Vector3(0.2, -0.28, -0.45))},
 }
 ## A full jerry can, litres.
 const JERRY_CAN_LITRES := 20.0
@@ -163,6 +165,10 @@ static func use_action(kind: StringName) -> Callable:
 					player.eat(item, 10.0)
 					player.say("Crunchy.")
 				return true
+		&"map":
+			return func(_item: Item, player: Player) -> bool:
+				player.reading_map = not player.reading_map
+				return false
 		&"first_aid":
 			return func(item: Item, player: Player) -> bool:
 				if player.health >= Player.MAX_HEALTH:
@@ -348,6 +354,8 @@ static func use_hint(item: Item, player: Player) -> String:
 		&"jerrycan":
 			if aim.get("kind") == "fuel" and float(item.get_meta(&"fuel", JERRY_CAN_LITRES)) > 0.0:
 				return use + " pour"
+		&"map":
+			return use + (" fold up" if player.reading_map else " read")
 		&"burger":
 			return use + " eat"
 		&"soda":
@@ -655,6 +663,14 @@ static func _mesh(model: String) -> Mesh:
 		_meshes[model] = _disc_mesh(0.033, 0.12, Color(0.8, 0.12, 0.12))
 	if model == "@cassette" and not _meshes.has(model):
 		_meshes[model] = _cassette_mesh()
+	if model == "@map" and not _meshes.has(model):
+		var paper := StandardMaterial3D.new()
+		paper.albedo_color = Color(0.9, 0.84, 0.66)
+		paper.roughness = 0.95
+		var box := BoxMesh.new() # Folded in three, then in three again.
+		box.size = Vector3(0.12, 0.012, 0.16)
+		box.material = paper
+		_meshes[model] = box
 	if not _meshes.has(model):
 		var path := (TripStops.KENNEY % model.trim_prefix("kenney:")) if model.begins_with("kenney:") else MODELS % model
 		var scene := load(path) as PackedScene

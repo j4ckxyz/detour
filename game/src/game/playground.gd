@@ -66,6 +66,7 @@ var trip := Trip.new()
 var trip_hud := TripHud.new()
 var status_panel := StatusPanel.new()
 var tape_subtitles := TapeSubtitles.new()
+var paper_map := PaperMap.new()
 var wildlife := Wildlife.new()
 var net := NetGame.new()
 var weather := Weather.new()
@@ -225,6 +226,13 @@ func _setup() -> void:
 	tape_subtitles.deck = rv.deck
 	tape_subtitles.player = player
 	add_child(tape_subtitles)
+	var map_layer := CanvasLayer.new()
+	map_layer.name = "PaperMap"
+	map_layer.layer = 45
+	paper_map.player = player
+	paper_map.trip = trip
+	map_layer.add_child(paper_map)
+	add_child(map_layer)
 	weather.name = "Weather"
 	weather.setup(world.get_code())
 	add_child(weather)
@@ -383,6 +391,8 @@ func _physics_process(dt: float) -> void:
 			trip.checkpoint_rv = rv.slow_snapshot()
 		if not restoring and trip.checkpoint > 0:
 			trip.restock(trip.checkpoint)
+		if not get_tree().get_nodes_in_group(&"items").any(func(n: Node) -> bool: return n is Item and (n as Item).kind == &"map" and is_ancestor_of(n)):
+			_stow_map() # (A save from before there was a map.)
 		trip.show_notice("Welcome back.", 5.0)
 	is_spawned = true
 	Sfx.armed = true
@@ -610,6 +620,7 @@ func _spawn_starter_items() -> void:
 	var remote := ItemLibrary.create(&"winch_remote")
 	rv.stash.add_child(remote)
 	remote.stow(rv, Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.34, -2.35))) # On the dashboard.
+	_stow_map()
 	var tape := ItemLibrary.create_tape(0) # Dot's first tape, by the deck.
 	rv.stash.add_child(tape)
 	tape.stow(rv, Transform3D(Basis(Vector3.UP, 0.4), Vector3(0.95, 1.34 + tape.base_offset, -2.35)))
@@ -623,6 +634,13 @@ func _spawn_starter_items() -> void:
 		var item := ItemLibrary.create(spec[0])
 		rv.stash.add_child(item)
 		rv.storage[spec[1]].store(item)
+
+
+## The paper map, on the dashboard (passenger side).
+func _stow_map() -> void:
+	var map := ItemLibrary.create(&"map")
+	rv.stash.add_child(map)
+	map.stow(rv, Transform3D(Basis(Vector3.UP, -0.2), Vector3(0.75, 1.34 + map.base_offset, -2.1)))
 
 
 ## What a save keeps besides progress: the RV (its state and where it is), what's stowed in

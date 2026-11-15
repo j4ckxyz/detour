@@ -377,6 +377,11 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   0.5 m/s, slowing as the load rises; the rope only pulls when taut, sags when slack (drawn
   as a cable), and snaps if yanked far past its limit (e.g. driving away at full power).
   The HUD shows rope out and tension.
+- **Paper map** (on the dashboard, passenger side): **left click** unfolds it and again folds
+  it up (a passenger can read it from their seat). It's the trip laid out top-down from the
+  route generator, north up: the road from **Camp** through each **Gas** station to **Home**,
+  lakes, caves and places off the road, and a pencil cross at each obstacle. There's no "you
+  are here". Putting it down folds it away. Older saves get one on the dashboard.
 - **Planks** (6 m long, 0.5 m wide): while holding one, a ghost shows where it would go;
   **left click** lays it. It lies along your view, level, resting on the ground at both ends
   (or continuing from the end of a plank you're looking at):
@@ -749,7 +754,7 @@ Planned (see PLAN.md), roughly in the order they're coming:
 
 - **Players**: the roof ladder and roof; a Blender character model (and animation) to
   replace the primitive one.
-- **The trip**: a paper map, route forks and loot detours.
+- **The trip**: route forks and loot detours; a printed map texture on the paper-map model.
 - **More obstacles**: rockslides, cliffs and steps, lava; rivers that wind through the land
   (fords are straight channels today) and caves you drive through.
 - **World variety**: a volcanic biome, real models and textures for the new biomes (the
