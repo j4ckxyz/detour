@@ -462,8 +462,11 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   tires**, a rear ladder, bumpers, a grille, and front and rear **winch drums**.
 - Rear wheels are **dual**.
 - **Full interior**:
-  - Cab: two seats, a dashboard with three gauges, a steering wheel, the gear stick and the
-    handbrake lever.
+  - Cab: two seats, a dashboard with three working gauges (a speedometer to 120 km/h, a rev
+    counter to 5000 rpm red from the redline, a fuel gauge E–F) whose needles swing to their
+    readings, and four warning lights above them (oil low, overheating, charge while the
+    engine's off, and a "check" light for wheels that need attention or missing parts), a
+    steering wheel, the gear stick and the handbrake lever.
   - Living area: a dinette with table and benches, a kitchen counter with stove and sink,
     upper cabinets, a fridge, a wardrobe, a rear bed and the over-cab mattress.
 - Animated parts: the steering wheel turns, the gear stick moves through the gate, and the
@@ -763,4 +766,3 @@ Planned (see PLAN.md), roughly in the order they're coming:
   trees and caves are placeholder shapes), more weather effects (puddles, snow cover building up).
 - **Co-op**: proximity voice chat.
 - **Sound**: spoken voices.
-- **Menus and options**: the diegetic dashboard gauges.

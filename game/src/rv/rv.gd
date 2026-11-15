@@ -89,6 +89,8 @@ var _door_angle := 0.0
 
 ## The inside, as its own physics world (see `RVInterior`).
 var interior := RVInterior.new()
+## The working gauges and warning lights on the dashboard.
+var dashboard := RVDashboard.new()
 ## Items put down inside ride here, frozen (see `Item`).
 var stash := Node3D.new()
 var door_open := false:
@@ -168,6 +170,7 @@ func _ready() -> void:
 	_gear_lever = _marker("GearStick")
 	_gear_lever_rest = _gear_lever.basis
 	_build_interior() # Needs driver_eye.
+	dashboard.setup(self)
 	for which: String in ["Front", "Rear"]:
 		var winch := RVWinch.new()
 		winch.name = "Winch" + which
