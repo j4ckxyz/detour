@@ -311,7 +311,10 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   stood (put back upright), its state (damage, missing parts, wheels and bolts, fuel, oil,
   gearbox), everything stowed in it, **everything lying about the world** (dropped and thrown
   things, laid planks, what's left in caves and at stations, parts that fell off the RV), your
-  health and hotbar, and the clock. **Tow to the last checkpoint** still goes back to the last
+  health and hotbar, and the clock. When hosting, **each other player's hotbar and health**
+  are saved too, under a random player id their game makes on first launch: when they join
+  that trip again (in a later session, from any address) they get their things back; until
+  then later saves keep them aside. **Tow to the last checkpoint** still goes back to the last
   gas station. Start over with `-- --new`, the menu, or **Restart this trip**.
 - **Top of the screen**: the next stop and how far down the road it is, plus checkpoint notices.
 - **Back to the last stop** (like RV There Yet's respawn): if the RV is **wrecked** (its frame
@@ -751,6 +754,6 @@ Planned (see PLAN.md), roughly in the order they're coming:
   (fords are straight channels today) and caves you drive through.
 - **World variety**: a volcanic biome, real models and textures for the new biomes (the
   trees and caves are placeholder shapes), more weather effects (puddles, snow cover building up).
-- **Co-op**: proximity voice chat; saving each player's inventory with the trip.
+- **Co-op**: proximity voice chat.
 - **Sound**: other surfaces' tire sounds (mud, snow), the pump, spoken voices.
 - **Menus and options**: the diegetic dashboard gauges.

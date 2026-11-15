@@ -46,6 +46,9 @@ const FALLEN_SECONDS := 3.0
 const CHECKPOINT_MINUTES := 30.0
 ## Item kinds a save doesn't keep: the winch hooks belong to the RV.
 const UNSAVED_KINDS: Array[StringName] = [&"winch_hook"]
+## The rest of the crew's things, as the save had them: player uuid → {hotbar, health, venom}.
+## Handed back when that player joins again (`give_back`), kept in later saves until then.
+var crew_saved: Dictionary = {}
 
 var world := WorldGen.new()
 var lighting := WorldLighting.new()
@@ -631,16 +634,24 @@ func _save_extra() -> Dictionary:
 		var item := c as Item
 		if item and ItemLibrary.DEFS.has(item.kind) and item.kind not in [&"rv_part", &"rv_wheel"]:
 			stowed.append([item.kind, item.display_name(), _item_meta(item), item.transform])
-	var hotbar: Array = []
-	for item: Item in player.slots:
-		if item and item.kind not in UNSAVED_KINDS:
-			hotbar.append([item.kind, item.display_name(), _item_meta(item)])
+	var hotbar := _hotbar_of(player)
+	# Everyone else's hotbar and health, by their uuid (players who haven't come back yet keep
+	# what the last save had).
+	var crew := crew_saved.duplicate(true)
+	var kept: Array[Player] = []
+	for peer: int in net.puppets:
+		var p := net.puppets[peer]
+		var uuid := String(Session.players.get(peer, {}).get("uuid", ""))
+		if uuid == "" or not is_instance_valid(p):
+			continue
+		crew[uuid] = {"hotbar": _hotbar_of(p), "health": p.health, "venom": p.venom}
+		kept.append(p)
 	var lying: Array = []
 	for n: Node in get_tree().get_nodes_in_group(&"items"):
 		var item := n as Item
 		if item == null or not is_ancestor_of(item) or item.kind in UNSAVED_KINDS or item.winch_of():
 			continue
-		if item.get_parent() == rv.stash or (item.holder == player):
+		if item.get_parent() == rv.stash or item.holder == player or (item.holder and kept.has(item.holder)):
 			continue
 		var xf := item.global_transform
 		if item.holder: # Someone else's hands (online): it's left where they stand.
@@ -652,8 +663,43 @@ func _save_extra() -> Dictionary:
 	me["at"] = player.local_position() if player.inside else player.global_position
 	return {
 		"rv": rv.slow_snapshot(), "rv_xf": rv.global_transform, "stowed": stowed, "hotbar": hotbar,
-		"world": lying, "player": me, "door": rv.door_open,
+		"world": lying, "player": me, "door": rv.door_open, "crew": crew,
 	}
+
+
+func _hotbar_of(p: Player) -> Array:
+	var hotbar: Array = []
+	for item: Item in p.slots:
+		if item and item.kind not in UNSAVED_KINDS:
+			hotbar.append([item.kind, item.display_name(), _item_meta(item)])
+	return hotbar
+
+
+## Host: gives a player who has rejoined (`p`, keyed by `uuid`) what they had when the trip was
+## saved: their hotbar (the items go out to everyone held by them) and their health.
+func give_back(p: Player, uuid: String) -> void:
+	var saved: Dictionary = crew_saved.get(uuid, {})
+	if uuid == "" or saved.is_empty():
+		return
+	crew_saved.erase(uuid)
+	for e: Array in saved.get("hotbar", []):
+		var item := _saved_item(e)
+		if item == null:
+			continue
+		var slot := p.slots.find(null)
+		if slot < 0:
+			item.free()
+			break
+		items.add_child(item)
+		item.global_position = p.global_position + Vector3.UP
+		p.slots[slot] = item
+		item.grab(p, p.hand)
+		item.visible = slot == p.selected
+	if saved.has("health"):
+		p.health = float(saved["health"])
+		p.venom = float(saved.get("venom", 0.0))
+		if p.puppet:
+			p.remote.call(p.peer_id, &"restore", [p.health, p.venom])
 
 
 static func _item_meta(item: Item) -> Dictionary:
@@ -670,6 +716,7 @@ func _restore_extra(extra: Dictionary) -> void:
 	if extra.has("rv"):
 		rv.apply_slow_snapshot(extra["rv"])
 	rv.door_open = bool(extra.get("door", rv.door_open))
+	crew_saved = extra.get("crew", {})
 	for e: Array in extra.get("stowed", []):
 		var item := _saved_item(e)
 		if item:

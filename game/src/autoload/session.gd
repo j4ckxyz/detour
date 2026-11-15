@@ -39,10 +39,13 @@ var player_color := 0
 ## What you wear (see `Cosmetics`), remembered.
 var player_hat: StringName = Cosmetics.DEFAULT_HAT
 var player_glasses: StringName = Cosmetics.DEFAULT_GLASSES
+## A random id made on first launch and kept: a saved trip keys each player's inventory by it,
+## so rejoining a trip (from any address) gets your things back.
+var player_uuid := ""
 var relay_address := ""
 ## Relay room code once hosting or joining through the relay.
 var room_code := ""
-## peer id → {name: String, color: int, hat: String, glasses: String}
+## peer id → {name: String, color: int, hat: String, glasses: String, uuid: String}
 var players: Dictionary[int, Dictionary] = {}
 ## "address:port" → {name, players, seed, seen (msec)}, from LAN beacons.
 var lan_games: Dictionary[String, Dictionary] = {}
@@ -175,7 +178,7 @@ func _begin(m: Mode, peer: MultiplayerPeer) -> void:
 	multiplayer.multiplayer_peer = peer
 	players.clear()
 	if m == Mode.HOST:
-		players[1] = {"name": player_name, "color": player_color, "hat": String(Cosmetics.wearable(&"hat", player_hat)), "glasses": String(Cosmetics.wearable(&"glasses", player_glasses))}
+		players[1] = {"name": player_name, "color": player_color, "hat": String(Cosmetics.wearable(&"hat", player_hat)), "glasses": String(Cosmetics.wearable(&"glasses", player_glasses)), "uuid": player_uuid}
 
 
 func _fail(message: String) -> void:
@@ -246,13 +249,13 @@ func _welcome(code: String, roster: Dictionary, info: Dictionary) -> void:
 	_set_roster(roster)
 	# Now that we're in, say what we're wearing (a separate message, so an older host or client still
 	# reads the greeting and can refuse us with a readable reason).
-	_look.rpc_id(1, String(Cosmetics.wearable(&"hat", player_hat)), String(Cosmetics.wearable(&"glasses", player_glasses)))
+	_look.rpc_id(1, String(Cosmetics.wearable(&"hat", player_hat)), String(Cosmetics.wearable(&"glasses", player_glasses)), player_uuid)
 	joined.emit()
 
 
 ## A client says what it wears; everyone gets the new roster.
 @rpc("any_peer", "reliable")
-func _look(hat: String, glasses: String) -> void:
+func _look(hat: String, glasses: String, uuid: String) -> void:
 	if mode != Mode.HOST:
 		return
 	var peer := multiplayer.get_remote_sender_id()
@@ -260,6 +263,7 @@ func _look(hat: String, glasses: String) -> void:
 		return
 	players[peer]["hat"] = String(Cosmetics.valid_or_default(&"hat", StringName(hat)))
 	players[peer]["glasses"] = String(Cosmetics.valid_or_default(&"glasses", StringName(glasses)))
+	players[peer]["uuid"] = uuid.substr(0, 64)
 	_roster.rpc(players)
 	roster_changed.emit()
 
@@ -332,12 +336,21 @@ func _load_settings() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SETTINGS_PATH) != OK:
 		player_color = randi() % COLORS.size()
+		_ensure_uuid()
 		return
 	player_name = String(cfg.get_value("player", "name", player_name))
 	player_color = int(cfg.get_value("player", "color", 0))
 	player_hat = Cosmetics.valid_or_default(&"hat", StringName(cfg.get_value("player", "hat", "")))
 	player_glasses = Cosmetics.valid_or_default(&"glasses", StringName(cfg.get_value("player", "glasses", "")))
 	relay_address = String(cfg.get_value("net", "relay", ""))
+	player_uuid = String(cfg.get_value("player", "uuid", ""))
+	_ensure_uuid()
+
+
+func _ensure_uuid() -> void:
+	if player_uuid == "":
+		player_uuid = Crypto.new().generate_random_bytes(16).hex_encode()
+		save_settings()
 
 
 func save_settings() -> void:
@@ -346,5 +359,6 @@ func save_settings() -> void:
 	cfg.set_value("player", "color", player_color)
 	cfg.set_value("player", "hat", String(player_hat))
 	cfg.set_value("player", "glasses", String(player_glasses))
+	cfg.set_value("player", "uuid", player_uuid)
 	cfg.set_value("net", "relay", relay_address)
 	cfg.save(SETTINGS_PATH)
