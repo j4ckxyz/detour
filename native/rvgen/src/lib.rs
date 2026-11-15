@@ -18,6 +18,7 @@ pub mod chunk;
 pub mod hash;
 pub mod mesh;
 pub mod noise;
+pub mod personality;
 pub mod rng;
 pub mod route;
 pub mod scatter;
@@ -25,6 +26,7 @@ pub mod seed;
 pub mod terrain;
 
 pub use chunk::{CHUNK_SIZE, CHUNK_VERTS, ChunkCoord, Heightfield};
+pub use personality::{Archetype, Personality};
 pub use seed::{GEN_VERSION, SeedCode, SeedCodeError, TripLength};
 
 use route::Route;
@@ -73,6 +75,11 @@ impl World {
 
     pub fn terrain(&self) -> &TerrainGen {
         &self.terrain
+    }
+
+    /// The world's character: what kind of land and road this seed makes.
+    pub fn personality(&self) -> &Personality {
+        self.terrain.personality()
     }
 
     /// The trip: road, obstacles, stations.

@@ -31,8 +31,10 @@ pub const WALL_WOBBLE: f32 = 4.0;
 const WALL_CRAGS: f32 = 9.0;
 /// Furthest from the road the valley changes anything.
 pub const WALL_REACH: f32 = FLOOR_WIDE[1] + WALL_WOBBLE + WALL_BAND + WALL_FADE[1] + 1.0;
-/// Road samples per segment of the coarse centreline the walls follow.
-pub const WALL_STRIDE: usize = 4;
+/// Road samples per segment of the coarse centreline the walls follow. (Finding the nearest
+/// segment is the dearest part of shaping a chunk near the road, and a winding road puts
+/// more of itself near every chunk, so the segments are long: 16 m.)
+pub const WALL_STRIDE: usize = 8;
 const WALL_GRID: f32 = 64.0;
 /// A side track keeps this much floor either side of it.
 pub const SPUR_ROOM: f32 = 16.0;
