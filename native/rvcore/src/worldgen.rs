@@ -368,6 +368,17 @@ impl WorldGen {
         d.set("lakes", &lakes.to_variant());
         d.set("caves", &caves.to_variant());
         d.set("biomes", &biomes.to_variant());
+        // The world's character (0 rolling hills | 1 open plains | 2 highlands | 3 river
+        // country | 4 badlands), its name, and where the road zig-zags (arc lengths).
+        let character = w.personality().archetype;
+        let switchbacks: PackedVector2Array = r
+            .switchbacks
+            .iter()
+            .map(|z| Vector2::new(z[0], z[1]))
+            .collect();
+        d.set("character", character as i32);
+        d.set("character_name", character.name());
+        d.set("switchbacks", &switchbacks.to_variant());
         d.set("river_half", RIVER_HALF);
         d.set("length", r.length);
         d.set("road_half_width", ROAD_HALF_WIDTH);

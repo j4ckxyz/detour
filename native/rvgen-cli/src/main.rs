@@ -81,6 +81,29 @@ fn cmd_trip(args: &[String]) -> Result<(), String> {
         r.pads.len(),
         r.obstacles.len()
     );
+    let (p, st) = (world.personality(), r.stats());
+    println!(
+        "{}: relief {:.2}, mountains {:+.2}, peaks {:.2}, ruggedness {:.2}, wetness {:.2}, directness {:.2}, switchbacks {:.2}",
+        p.archetype.name(),
+        p.relief,
+        p.mountains,
+        p.peaks,
+        p.ruggedness,
+        p.wetness,
+        p.directness,
+        p.switchbacks
+    );
+    println!(
+        "road: sinuosity {:.2}, {:.0} deg/km of turning, {:.0}% tight bends, {:.0}% straight, {} switchbacks, {:.0} m/km of climbing, {:.0}% steeper than 6%, {:.0} m from lowest to highest",
+        st.sinuosity,
+        st.turning,
+        st.tight * 100.0,
+        st.straight * 100.0,
+        st.switchbacks,
+        st.climb,
+        st.steep * 100.0,
+        st.height_range
+    );
     for p in &r.pads {
         println!("  {:>6.0} m  {:?}", p.s, p.kind);
     }
