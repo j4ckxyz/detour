@@ -50,7 +50,7 @@ pub fn candidate(world_seed: u64, k: u32, total: f32, terrain: &TerrainGen) -> C
         world_seed ^ (k as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15),
         "route.meander",
     );
-    let amplitude = rng.range_f32(0.6, 1.0) * if tame { 0.6 } else { 1.0 };
+    let amplitude = rng.range_f32(0.6, 1.0) * if tame { 0.8 } else { 1.0 };
     let wavelength = rng.range_f32(450.0, 850.0) * p.bend_length;
     let lean = rng.range_f32(-0.25, 0.25); // Some routes drift north or south overall.
     let mut coarse = vec![START];
@@ -92,8 +92,8 @@ pub fn candidate(world_seed: u64, k: u32, total: f32, terrain: &TerrainGen) -> C
             continue;
         }
         if until_hold == 0 {
-            hold = rng.range_f32(9.0, 14.0) as usize;
-            until_hold = (rng.range_f32(12.0, 34.0) * (1.2 - 0.4 * t)) as usize;
+            hold = rng.range_f32(8.0, 13.0) as usize;
+            until_hold = (rng.range_f32(8.0, 24.0) * (1.2 - 0.4 * t)) as usize;
         } else {
             until_hold -= 1;
         }
@@ -122,9 +122,14 @@ pub fn candidate(world_seed: u64, k: u32, total: f32, terrain: &TerrainGen) -> C
         }
         // Meander harder when the road's been making too much progress east, and ease off
         // when it's made too little: that pins the trip's sinuosity to the world's.
-        let made = (x - START[0]) / s.max(300.0);
-        let steer = (1.0 + 9.0 * (made - p.directness)).clamp(0.3, 3.5);
-        let swing = amplitude * steer * (0.8 + 0.4 * t);
+        // (Measured as the crow flies from the camp, so drifting north-east in a straight
+        // line doesn't count as winding.)
+        let (cx, cz) = (x - START[0], z - START[1]);
+        let made = 0.97 * (cx * cx + cz * cz).sqrt() / s.max(300.0);
+        // (It aims to be a little ahead early on, so the winding saved up is spent late.)
+        let aim = p.directness + 0.08 * (1.0 - t);
+        let steer = (1.0 + 9.0 * (made - aim)).clamp(0.3, 3.5);
+        let swing = amplitude * steer * (0.7 + 0.6 * t);
         let wave = 0.7 * perlin(meander, s / wavelength, 0.5 + k as f32 * 3.7)
             + 0.45 * perlin(meander ^ 0x51ab, s * 3.0 / wavelength, 7.5 + k as f32 * 1.3);
         let target = (lean + swing * 1.6 * wave).clamp(-MAX_HEADING, MAX_HEADING);
@@ -157,7 +162,7 @@ pub fn candidate(world_seed: u64, k: u32, total: f32, terrain: &TerrainGen) -> C
     // A road that winds as the world's character says (so the biomes change where the
     // stations are), with the switchbacks it calls for, beats a tidier one that doesn't.
     let made = (xz[xz.len() - 1][0] - xz[0][0]) / (xz.len() as f32 * SAMPLE);
-    let score = score(&xz, terrain) + 80.0 * (made - p.directness).abs()
+    let score = score(&xz, terrain) + 250.0 * (made - p.directness).abs()
         - 4.0 * p.switchbacks * switchbacks.len().min(4) as f32;
     Candidate {
         xz,

@@ -617,7 +617,9 @@ impl Route {
                 min_dot,
             )
         };
-        if !(straight(s - 40.0, s + 40.0, 0.99) && level(s - 30.0, s + 30.0)) {
+        // (Bends are tight in some worlds, so "straight" is strict: within 3 degrees from
+        // well before, where the RV lines up, to well after.)
+        if !(straight(s - 60.0, s + 40.0, 0.9986) && level(s - 30.0, s + 30.0)) {
             w[6] = 0.0;
             w[7] = 0.0;
         }
@@ -631,7 +633,7 @@ impl Route {
         {
             w[8] = 0.0;
         }
-        if !straight(s - 15.0, s + 15.0, 0.98) {
+        if !straight(s - 35.0, s + 20.0, 0.998) {
             w[0] = 0.0;
         }
         if crossings {
@@ -754,7 +756,8 @@ impl Route {
                 let (before, after) = match o.kind {
                     ObstacleKind::Jump => (RUN_UP * 0.4, 8.0),
                     ObstacleKind::Ford => (RIVER_BANK + 12.0, RIVER_BANK + 12.0),
-                    _ => (8.0, 8.0),
+                    // Level for an RV's length and more before, so it's square on.
+                    _ => (16.0, 8.0),
                 };
                 let (a, b) = (
                     self.index_at(o.s - o.length * 0.5 - before),

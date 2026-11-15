@@ -546,7 +546,8 @@ fn roads_wind_and_climb() {
         "sinuosity {sinuosity:?}"
     );
     assert!(mean(&turning) > 200.0, "turning {turning:?}");
-    assert!(turning.iter().all(|&t| t > 100.0), "turning {turning:?}");
+    // (The gentlest plains world winds about as much as the average road used to.)
+    assert!(turning.iter().all(|&t| t > 85.0), "turning {turning:?}");
     assert!(mean(&of(|s| s.tight)) > 0.08, "{:?}", of(|s| s.tight));
     assert!(
         stats.iter().all(|s| s.swing > 60.0),

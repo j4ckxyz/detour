@@ -76,7 +76,7 @@ impl Personality {
         // [relief, mountains, peaks, ruggedness, warp, wetness, directness, bend, switchbacks]
         let base: [f32; 9] = match archetype {
             Archetype::Rolling => [1.0, 0.0, 1.0, 1.0, 80.0, 0.3, 0.73, 1.0, 0.35],
-            Archetype::Plains => [0.45, -0.3, 0.6, 0.5, 50.0, 0.35, 0.8, 1.5, 0.08],
+            Archetype::Plains => [0.45, -0.3, 0.6, 0.5, 50.0, 0.35, 0.76, 1.4, 0.08],
             Archetype::Highlands => [1.4, 0.3, 1.4, 1.35, 120.0, 0.15, 0.62, 0.85, 0.95],
             Archetype::Rivers => [0.6, -0.15, 0.8, 0.7, 70.0, 0.95, 0.69, 1.1, 0.2],
             Archetype::Badlands => [0.9, 0.0, 0.9, 1.7, 150.0, 0.05, 0.65, 0.65, 0.6],
