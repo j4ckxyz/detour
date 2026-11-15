@@ -18,6 +18,7 @@
 //! `Route::validate` checks the solvability rules; the tests check them for many seeds.
 
 mod path;
+mod stats;
 mod valley;
 
 #[cfg(test)]
@@ -33,6 +34,7 @@ use crate::seed::TripLength;
 use crate::terrain::TerrainGen;
 
 pub use path::{CANDIDATES, sin_cos};
+pub use stats::RouteStats;
 use valley::Walls;
 pub use valley::{FLOOR_NARROW, FLOOR_WIDE, WALL_BAND, WALL_HEIGHT};
 
@@ -313,6 +315,9 @@ pub struct Route {
     pub caves: Vec<Cave>,
     pub pois: Vec<Poi>,
     pub spurs: Vec<Spur>,
+    /// Switchbacks: arc length where each starts and ends. The road zig-zags across a slope
+    /// there; only obstacles that keep to the road itself (mud, climbs) are put on them.
+    pub switchbacks: Vec<[f32; 2]>,
     pub length: f32,
     /// Samples near each grid cell (cells of `GRID` metres, keyed by cell).
     grid: BTreeMap<(i32, i32), Vec<u32>>,
@@ -372,7 +377,7 @@ impl Route {
                 best = Some(c);
             }
         }
-        let xz = best.map(|b| b.xz).unwrap_or_default();
+        let (xz, switchbacks) = best.map(|b| (b.xz, b.switchbacks)).unwrap_or_default();
         progress(0.72, "Planning the obstacles");
         let natural: Vec<f32> = xz.iter().map(|p| terrain.height_m(p[0], p[1])).collect();
         let n = xz.len();
@@ -391,6 +396,7 @@ impl Route {
             caves: Vec::new(),
             pois: Vec::new(),
             spurs: Vec::new(),
+            switchbacks,
             grid: BTreeMap::new(),
             bounds: [0.0; 4],
             walls: Walls::default(),
@@ -421,7 +427,19 @@ impl Route {
             let weak: Vec<bool> = route
                 .obstacles
                 .iter()
-                .map(|o| o.kind == ObstacleKind::Hill && route.hill_rise(o) < HILL_RISE * 0.75)
+                .map(|o| match o.kind {
+                    ObstacleKind::Hill => route.hill_rise(o) < HILL_RISE * 0.75,
+                    // (Likewise a jump whose run-up has ended up climbing.)
+                    ObstacleKind::Jump => {
+                        let lip = o.s - o.length * 0.5;
+                        let (a, b) = (
+                            route.index_at(lip - RUN_UP),
+                            route.index_at(lip - KICKER[1] - 1.0),
+                        );
+                        route.h[b] - route.h[a] > 0.035 * RUN_UP
+                    }
+                    _ => false,
+                })
                 .collect();
             let mut k = 0;
             route.obstacles.retain(|_| {
@@ -457,6 +475,7 @@ impl Route {
             .into_iter()
             .map(|i| i as f32 * SAMPLE)
             .collect();
+        let wet = terrain.personality().wetness;
         let mut s = 260.0;
         let mut since_breather = 0;
         let mut last_hill = f32::NEG_INFINITY;
@@ -472,29 +491,49 @@ impl Route {
                 s += 60.0;
                 continue;
             }
-            if since_breather >= 3 && a < 0.45 {
+            let t = s / self.length;
+            // The trip tightens up towards home: quiet stretches get rarer and shorter, and
+            // obstacles come closer together.
+            if since_breather >= 3 && a < 0.6 - 0.35 * t {
                 since_breather = 0; // A quiet stretch: the valley opens out.
-                s += 260.0;
+                s += 300.0 - 100.0 * t;
                 continue;
             }
-            let t = s / self.length;
+            let gap_after = gap_after * (1.15 - 0.45 * t);
             let i = self.index_at(s);
             let biome = terrain.biomes().at(self.xz[i][0], self.xz[i][1]);
-            // A hill nearby takes priority (one every 900 m at most).
+            // A hill nearby takes priority (one every 600 m at most).
             let hill = hills
                 .iter()
                 .copied()
-                .find(|&h| h >= s - 20.0 && h < s + 160.0 && h - last_hill > 900.0);
+                .find(|&h| h >= s - 20.0 && h < s + 160.0 && h - last_hill > 600.0);
             // Otherwise, more often than not, a crossing (bridge, beams, jump or gap) where the
             // road runs straight in the next stretch, if there is one.
             let crossing = || {
                 (0..20).map(|k| s + k as f32 * 10.0).find_map(|at| {
                     let t = at / self.length;
-                    self.choose_kind(pick, biome, t, at, true)
+                    self.choose_kind(pick, biome, t, at, true, wet)
                         .map(|kind| (kind, at, t))
                 })
             };
-            let o = if let Some(foot) = hill.filter(|_| pick < 0.85) {
+            // On a switchback only what keeps to the road itself will do: anything wider
+            // would land on the next leg.
+            let on_switchback = self
+                .switchbacks
+                .iter()
+                .any(|z| s > z[0] - 80.0 && s < z[1] + 80.0);
+            if on_switchback && seek < 0.5 {
+                s += 120.0; // The bends are trouble enough, half the time.
+                continue;
+            }
+            let o = if on_switchback {
+                let kind = if pick < 0.4 && matches!(biome, Biome::Forest | Biome::Swamp) {
+                    ObstacleKind::Mud
+                } else {
+                    ObstacleKind::Climb
+                };
+                self.sized(kind, s, t, b, c)
+            } else if let Some(foot) = hill.filter(|_| pick < 0.85) {
                 last_hill = foot;
                 self.make(
                     ObstacleKind::Hill,
@@ -509,7 +548,7 @@ impl Route {
                 self.sized(kind, at, t, b, c)
             } else {
                 let kind = self
-                    .choose_kind(pick, biome, t, s, false)
+                    .choose_kind(pick, biome, t, s, false, wet)
                     .unwrap_or(if t < 0.5 {
                         ObstacleKind::Mud
                     } else {
@@ -526,7 +565,12 @@ impl Route {
                 .obstacles
                 .last()
                 .is_none_or(|l| l.extent().1 + 90.0 < start);
-            if clear_of_pads && clear_of_last && end < self.length - 150.0 {
+            let clear_of_switchbacks = on_switchback
+                || self
+                    .switchbacks
+                    .iter()
+                    .all(|z| end < z[0] - 70.0 || start > z[1] + 70.0);
+            if clear_of_pads && clear_of_last && clear_of_switchbacks && end < self.length - 150.0 {
                 self.obstacles.push(o);
                 since_breather += 1;
                 s = end + gap_after;
@@ -545,6 +589,7 @@ impl Route {
         t: f32,
         s: f32,
         crossings: bool,
+        wet: f32,
     ) -> Option<ObstacleKind> {
         use ObstacleKind::*;
         // [Gap, Ledge, Mud, Climb, Ford, Ice, Bridge, Beams, Jump]
@@ -556,6 +601,13 @@ impl Route {
         };
         let kinds = [Gap, Ledge, Mud, Climb, Ford, Ice, Bridge, Beams, Jump];
         let mut w = base;
+        // Wet worlds have rivers to ford and mud everywhere but the mountains (where it's
+        // ice); dry ones have less of both.
+        let damp = (wet - 0.3) * 0.5;
+        if biome != Biome::Alpine {
+            w[2] = (w[2] + damp * 0.6).max(0.0);
+            w[4] = (w[4] + damp).max(0.0);
+        }
         // The first stretch teaches: mud, climbs, a plank gap or a ford.
         let min_t = [0.0, 0.15, 0.0, 0.0, 0.0, 0.1, 0.12, 0.2, 0.28];
         for k in 0..9 {
@@ -577,18 +629,23 @@ impl Route {
                 min_dot,
             )
         };
-        if !(straight(s - 40.0, s + 40.0, 0.99) && level(s - 30.0, s + 30.0)) {
+        // (Bends are tight in some worlds, so "straight" is strict: within 3 degrees from
+        // well before, where the RV lines up, to well after.)
+        if !(straight(s - 60.0, s + 40.0, 0.9986) && level(s - 30.0, s + 30.0)) {
             w[6] = 0.0;
             w[7] = 0.0;
         }
         let run_up_rise = self.h[self.index_at(s)] - self.h[self.index_at((s - RUN_UP).max(0.0))];
+        // (The run-up to the lip is checked the way `validate` measures it, too.)
+        let lip = s - (5.6 + 1.4 * t) * 0.5;
         if !(straight(s - RUN_UP - 10.0, s + 20.0, 0.996)
+            && straight(lip - RUN_UP, lip - KICKER[1] - 1.0, 0.996)
             && run_up_rise < 0.02 * RUN_UP
             && level(s - 30.0, s + 30.0))
         {
             w[8] = 0.0;
         }
-        if !straight(s - 15.0, s + 15.0, 0.98) {
+        if !straight(s - 35.0, s + 20.0, 0.998) {
             w[0] = 0.0;
         }
         if crossings {
@@ -711,7 +768,9 @@ impl Route {
                 let (before, after) = match o.kind {
                     ObstacleKind::Jump => (RUN_UP * 0.4, 8.0),
                     ObstacleKind::Ford => (RIVER_BANK + 12.0, RIVER_BANK + 12.0),
-                    _ => (8.0, 8.0),
+                    // Level for a few RV lengths before (so it's settled and square on,
+                    // even coming off a climb at speed) and one after.
+                    _ => (30.0, 12.0),
                 };
                 let (a, b) = (
                     self.index_at(o.s - o.length * 0.5 - before),
@@ -1018,6 +1077,7 @@ impl Route {
     /// Ponds in the bayou and frozen lakes in the mountains, off to the sides of the road
     /// where the valley's wide.
     fn place_lakes(&mut self, world_seed: u64, terrain: &TerrainGen) {
+        let wet = terrain.personality().wetness;
         let mut rng = Pcg32::new(sub_seed(world_seed, "route.lakes", 0, 0), 7);
         let mut s = 120.0;
         while s < self.length - 60.0 {
@@ -1028,11 +1088,25 @@ impl Route {
                 rng.range_f32(8.0, 40.0),
             );
             s += rng.range_f32(110.0, 190.0);
+            // (Not in among a switchback's legs: there's no room.)
+            if self
+                .switchbacks
+                .iter()
+                .any(|z| s > z[0] - 90.0 && s < z[1] + 90.0)
+            {
+                continue;
+            }
             let i = self.index_at(s);
             let p = self.xz[i];
             let biome = terrain.biomes().at(p[0], p[1]);
             let frozen = biome == Biome::Alpine;
-            if !(biome == Biome::Swamp || frozen) || chance > 0.55 {
+            // Ponds in the bayou and the mountains; in wet worlds, anywhere.
+            let odds = if biome == Biome::Swamp || frozen {
+                0.4 + 0.5 * wet
+            } else {
+                (wet - 0.5).max(0.0) * 0.9
+            };
+            if chance > odds {
                 continue;
             }
             let side = if side_roll < 0.5 { 1.0 } else { -1.0 };

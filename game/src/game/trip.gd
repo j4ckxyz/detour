@@ -81,6 +81,7 @@ var _left_stop := false
 
 var _last_rv_pos := Vector3.INF
 var _biome := -1
+var _biome_pos := Vector3.ZERO
 var _biome_check := 0.0
 
 
@@ -394,8 +395,11 @@ func _physics_process(dt: float) -> void:
 	if _biome_check <= 0.0:
 		_biome_check = 1.0
 		var b := world.biome_at(rv.global_position.x, rv.global_position.z)
-		if b != _biome and _biome >= 0:
+		# (Driving into it, that is: not when the RV's been put back at a stop, which has
+		# its own notice to show.)
+		if b != _biome and _biome >= 0 and rv.global_position.distance_to(_biome_pos) < 120.0:
 			show_notice("Entering %s" % BIOME_NAMES[b], 6.0)
+		_biome_pos = rv.global_position
 		_biome = b
 	if not is_authority:
 		return

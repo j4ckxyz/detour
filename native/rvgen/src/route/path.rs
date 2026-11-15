@@ -11,31 +11,47 @@ use super::{SAMPLE, START};
 
 /// Coarse walk step, metres.
 const STEP: f32 = 20.0;
-/// How many candidate routes are tried.
+/// How many candidate routes are tried. The last `TAME` of them wind less and never break
+/// into switchbacks, so there's always one that keeps clear of itself.
 pub const CANDIDATES: u32 = 10;
+const TAME: u32 = 3;
 /// Widest heading off due east (radians): the road always makes progress east, so it never
 /// doubles back or loops, but it can wind a long way north and south.
-pub const MAX_HEADING: f32 = 1.2;
+pub const MAX_HEADING: f32 = 1.3;
+/// Heading of a switchback's legs, either side of east: steeper than the road ever meanders.
+pub const SWITCHBACK_HEADING: f32 = 1.36;
 /// Road points further apart than this along the road must be at least `SEPARATION` apart on
 /// the ground, so neighbouring stretches never share a valley (no short cuts).
 pub const SEPARATION_ARC: f32 = 700.0;
 pub const SEPARATION: f32 = 340.0;
 
-/// One candidate: its centreline (every `SAMPLE` metres) and how good it is (lower is better).
+/// One candidate: its centreline (every `SAMPLE` metres), its switchbacks (arc length where
+/// each starts and ends) and how good it is (lower is better).
 pub struct Candidate {
     pub xz: Vec<[f32; 2]>,
+    pub switchbacks: Vec<[f32; 2]>,
     pub score: f32,
 }
 
 /// Walks candidate `k` east for `total` metres of road.
+///
+/// Each step the walker picks, among a fan of headings, the one that best trades off staying
+/// level (so the road contours round hills instead of ploughing through them), turning
+/// gently, and following a meander: two octaves of noise, a broad sweep with tighter bends on
+/// top. How hard it meanders is steered so the trip makes the eastward progress the world's
+/// personality asks for (its sinuosity), and grows towards home. Where the land ahead rises
+/// or falls too steeply to drive straight at, the road may break into switchbacks: a few
+/// short legs zig-zagging across the slope.
 pub fn candidate(world_seed: u64, k: u32, total: f32, terrain: &TerrainGen) -> Candidate {
+    let p = *terrain.personality();
+    let tame = k + TAME >= CANDIDATES;
     let mut rng = Pcg32::new(sub_seed(world_seed, "route.path", k as i64, 0), 11);
     let meander = sub_seed32(
         world_seed ^ (k as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15),
         "route.meander",
     );
-    let amplitude = rng.range_f32(0.45, 1.05);
-    let wavelength = rng.range_f32(500.0, 1000.0);
+    let amplitude = rng.range_f32(0.6, 1.0) * if tame { 0.8 } else { 1.0 };
+    let wavelength = rng.range_f32(450.0, 850.0) * p.bend_length;
     let lean = rng.range_f32(-0.25, 0.25); // Some routes drift north or south overall.
     let mut coarse = vec![START];
     let mut heading: f32 = rng.range_f32(-0.4, 0.4);
@@ -44,31 +60,91 @@ pub fn candidate(world_seed: u64, k: u32, total: f32, terrain: &TerrainGen) -> C
     // always leaves the camp straight, so there's room to get going.
     let mut hold = rng.range_f32(12.0, 15.0) as usize;
     let mut until_hold = rng.range_f32(8.0, 30.0) as usize;
+    // Switchbacks: legs left, steps left of this leg, which way it heads, steps till the next.
+    let (mut legs, mut leg_left, mut side) = (0usize, 0usize, 1.0f32);
+    let mut until_switchback = 30usize;
+    let mut switchbacks: Vec<[f32; 2]> = Vec::new();
     for step in 0..steps {
         let [x, z] = *coarse.last().unwrap();
+        let s = step as f32 * STEP;
+        let t = (s / total).min(1.0);
         if hold > 0 {
             hold -= 1;
             let (dx, dz) = dir_of(heading);
             coarse.push([x + dx * STEP, z + dz * STEP]);
             continue;
         }
+        if legs > 0 {
+            // Swing hard onto the leg's heading, hold it, then swing back the other way.
+            let want = side * SWITCHBACK_HEADING;
+            heading += (want - heading).clamp(-0.5, 0.5);
+            leg_left -= 1;
+            if leg_left == 0 {
+                legs -= 1;
+                side = -side;
+                leg_left = rng.range_f32(6.0, 9.0) as usize;
+                if legs == 0 {
+                    switchbacks.last_mut().unwrap()[1] = s + STEP;
+                }
+            }
+            let (dx, dz) = dir_of(heading);
+            coarse.push([x + dx * STEP, z + dz * STEP]);
+            continue;
+        }
         if until_hold == 0 {
-            hold = rng.range_f32(9.0, 14.0) as usize;
-            until_hold = rng.range_f32(10.0, 30.0) as usize;
+            hold = rng.range_f32(8.0, 13.0) as usize;
+            until_hold = (rng.range_f32(8.0, 24.0) * (1.2 - 0.4 * t)) as usize;
         } else {
             until_hold -= 1;
         }
-        let s = step as f32 * STEP;
-        let target = (lean + amplitude * perlin(meander, s / wavelength, 0.5 + k as f32 * 3.7))
-            .clamp(-MAX_HEADING, MAX_HEADING);
         let h0 = terrain.height_m(x, z);
+        // Switchbacks start where the way east is too steep to drive straight at, and now
+        // and then just for the fun of it; more of them towards home.
+        let roll = rng.next_f32();
+        if until_switchback > 0 {
+            until_switchback -= 1;
+        } else if !tame && s < total - 500.0 {
+            let ahead = terrain.height_m(x + 120.0, z) - h0;
+            let steep = ahead.abs() > super::MAX_GRADE * 120.0;
+            let chance = p.switchbacks * (0.5 + t) * if steep { 0.3 } else { 0.012 };
+            if roll < chance {
+                legs = 2 + rng.below(3) as usize;
+                leg_left = rng.range_f32(6.0, 9.0) as usize;
+                // Start by turning the way that's the smaller swing.
+                side = if heading >= 0.0 { 1.0 } else { -1.0 };
+                until_switchback = (rng.range_f32(30.0, 55.0) * (1.5 - p.switchbacks)) as usize;
+                until_hold = until_hold.max(6);
+                switchbacks.push([s, s]);
+                let (dx, dz) = dir_of(heading);
+                coarse.push([x + dx * STEP, z + dz * STEP]);
+                continue;
+            }
+        }
+        // Meander harder when the road's been making too much progress east, and ease off
+        // when it's made too little: that pins the trip's sinuosity to the world's.
+        // (Measured as the crow flies from the camp, so drifting north-east in a straight
+        // line doesn't count as winding.)
+        let (cx, cz) = (x - START[0], z - START[1]);
+        let made = 0.97 * (cx * cx + cz * cz).sqrt() / s.max(300.0);
+        // (It aims to be a little ahead early on, so the winding saved up is spent late.)
+        let aim = p.directness + 0.08 * (1.0 - t);
+        let steer = (1.0 + 9.0 * (made - aim)).clamp(0.3, 3.5);
+        let swing = amplitude * steer * (0.7 + 0.6 * t);
+        let wave = 0.7 * perlin(meander, s / wavelength, 0.5 + k as f32 * 3.7)
+            + 0.45 * perlin(meander ^ 0x51ab, s * 3.0 / wavelength, 7.5 + k as f32 * 1.3);
+        let target = (lean + swing * 1.6 * wave).clamp(-MAX_HEADING, MAX_HEADING);
         let mut best = (f32::INFINITY, heading);
         for j in 0..7 {
             let cand = (heading + (j as f32 - 3.0) * 0.1 + rng.range_f32(-0.03, 0.03))
                 .clamp(-MAX_HEADING, MAX_HEADING);
             let (dx, dz) = dir_of(cand);
             let h1 = terrain.height_m(x + dx * STEP, z + dz * STEP);
-            let cost = (h1 - h0).abs() + (cand - heading).abs() * 2.5 + (cand - target).abs() * 1.4;
+            // Look further on too, so the road goes round a hill, not up to its foot.
+            let h3 = terrain.height_m(x + dx * STEP * 3.0, z + dz * STEP * 3.0);
+            let cost = (h1 - h0).abs()
+                + 0.2 * (h3 - h0).abs()
+                + (cand - heading).abs() * 2.0
+                + (cand - target).abs() * 1.8;
             if cost < best.0 {
                 best = (cost, cand);
             }
@@ -77,9 +153,22 @@ pub fn candidate(world_seed: u64, k: u32, total: f32, terrain: &TerrainGen) -> C
         let (dx, dz) = dir_of(heading);
         coarse.push([x + dx * STEP, z + dz * STEP]);
     }
+    if let Some(last) = switchbacks.last_mut()
+        && last[1] <= last[0]
+    {
+        last[1] = total;
+    }
     let xz = resample(&catmull_rom(&coarse, 8), SAMPLE, total + 40.0);
-    let score = score(&xz, terrain);
-    Candidate { xz, score }
+    // A road that winds as the world's character says (so the biomes change where the
+    // stations are), with the switchbacks it calls for, beats a tidier one that doesn't.
+    let made = (xz[xz.len() - 1][0] - xz[0][0]) / (xz.len() as f32 * SAMPLE);
+    let score = score(&xz, terrain) + 250.0 * (made - p.directness).abs()
+        - 4.0 * p.switchbacks * switchbacks.len().min(4) as f32;
+    Candidate {
+        xz,
+        switchbacks,
+        score,
+    }
 }
 
 /// How good a route is (lower is better): little cutting and filling, no mountains looming
@@ -134,7 +223,7 @@ fn score(xz: &[[f32; 2]], terrain: &TerrainGen) -> f32 {
     }
     let turning = turning / (n / every) as f32;
     let winding = (turning * 400.0).min(3.0);
-    cut_fill * 1.0 + looming * 0.4 - hills * 2.5 - straights * 1.5 - winding
+    cut_fill * 1.0 + looming * 0.4 - hills * 4.0 - straights * 1.5 - winding
 }
 
 /// Where the natural ground rises steadily by `HILL_RISE` or more over the next
@@ -150,7 +239,7 @@ pub fn hill_sites(natural: &[f32]) -> Vec<usize> {
         // Rising all the way (no dip in the middle), and not too steep to drive.
         let mid = smooth[i + span / 2] - smooth[i];
         if rise > super::HILL_RISE
-            && rise < super::HILL_LENGTH * 0.2
+            && rise < super::HILL_LENGTH * 0.28
             && mid > rise * 0.3
             && mid < rise * 0.75
         {

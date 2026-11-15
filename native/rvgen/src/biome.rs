@@ -30,9 +30,8 @@ pub const ALL: [Biome; BIOMES] = [Biome::Forest, Biome::Swamp, Biome::Canyon, Bi
 const BLEND: f32 = 90.0;
 /// How far a boundary wanders east/west, metres.
 const WOBBLE: f32 = 45.0;
-/// Where trips start (x), and the rough ratio of eastward progress to road length.
+/// Where trips start (x).
 const START_X: f32 = 64.0;
-const PROGRESS: f32 = 0.8;
 
 /// Per-biome weights at a point; they sum to 1.
 pub type Weights = [f32; BIOMES];
@@ -47,8 +46,10 @@ pub struct Biomes {
 
 impl Biomes {
     /// The biome plan for a trip: all four in a seeded order, one per stretch between stops
-    /// (spread over more stretches on longer trips). Changes land near the gas stations.
-    pub fn new(world_seed: u64, trip: TripLength) -> Self {
+    /// (spread over more stretches on longer trips). Changes land near the gas stations:
+    /// `directness` is the eastward progress the road makes per metre (see
+    /// [`crate::personality::Personality::directness`]; the route steers to keep to it).
+    pub fn new(world_seed: u64, trip: TripLength, directness: f32) -> Self {
         let lengths = crate::route::segment_lengths(world_seed, trip);
         let mut ends = Vec::with_capacity(lengths.len());
         let mut total = 0.0;
@@ -74,7 +75,7 @@ impl Biomes {
         for i in 1..n {
             let b = of(i);
             if b != of(i - 1) {
-                bounds.push((START_X + ends[i - 1] * PROGRESS, b));
+                bounds.push((START_X + ends[i - 1] * directness, b));
             }
         }
         Self {
@@ -132,7 +133,7 @@ mod tests {
         let mut firsts = std::collections::BTreeSet::new();
         for seed in 0..40u64 {
             for trip in [TripLength::Short, TripLength::Medium, TripLength::Long] {
-                let b = Biomes::new(seed * 7919, trip);
+                let b = Biomes::new(seed * 7919, trip, 0.75);
                 let seq = b.sequence();
                 assert_eq!(b.at(64.0, 64.0), seq[0]);
                 firsts.insert(seq[0]);
@@ -152,7 +153,7 @@ mod tests {
 
     #[test]
     fn long_trips_see_every_biome() {
-        let b = Biomes::new(12345, TripLength::Long);
+        let b = Biomes::new(12345, TripLength::Long, 0.75);
         let seq = b.sequence();
         for biome in ALL {
             assert!(seq.contains(&biome), "{seq:?}");

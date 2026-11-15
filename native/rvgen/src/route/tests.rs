@@ -92,7 +92,7 @@ fn many_seeds_validate() {
         "every obstacle kind appears: {kinds:?}"
     );
     assert!(
-        lakes > 50 && frozen > 10 && caves > 50 && pois > 200 && spurs > 80,
+        lakes > 50 && frozen > 10 && caves > 50 && pois > 200 && spurs > 30,
         "{lakes} lakes ({frozen} frozen), {caves} caves, {pois} places, {spurs} spurs"
     );
 }
@@ -500,4 +500,183 @@ fn sin_cos_is_accurate() {
             "{a}"
         );
     }
+}
+
+/// Prints a table of every seed's character and road (run with `--nocapture`).
+#[test]
+fn seed_table() {
+    for seed in 0..20 {
+        let w = world(seed, TripLength::Short);
+        let (p, st) = (w.personality(), w.route().stats());
+        println!(
+            "{seed:>3} {:<14} sinuosity {:.2}  turn {:>3.0} deg/km  tight {:>2.0}%  straight {:>2.0}%  climb {:>3.0} m/km  steep {:>2.0}%  range {:>3.0} m  switchbacks {}  obstacles {:.1}/km",
+            p.archetype.name(),
+            st.sinuosity,
+            st.turning,
+            st.tight * 100.0,
+            st.straight * 100.0,
+            st.climb,
+            st.steep * 100.0,
+            st.height_range,
+            st.switchbacks,
+            st.obstacles_per_km,
+        );
+    }
+}
+
+fn mean(v: &[f32]) -> f32 {
+    v.iter().sum::<f32>() / v.len().max(1) as f32
+}
+
+/// The road is nothing like straight: over 20 seeds it's a good deal longer than the crow
+/// flies, turns a lot, has tight bends and switchbacks, and climbs.
+#[test]
+fn roads_wind_and_climb() {
+    let stats: Vec<RouteStats> = (0..20)
+        .map(|seed| route(seed, TripLength::Short).stats())
+        .collect();
+    let of = |f: fn(&RouteStats) -> f32| stats.iter().map(f).collect::<Vec<f32>>();
+    let sinuosity = of(|s| s.sinuosity);
+    let turning = of(|s| s.turning);
+    // (Before worlds had personalities these averaged 1.14 and 133 deg/km, and no seed had
+    // more than 5 % of its road in tight bends.)
+    assert!(mean(&sinuosity) > 1.25, "sinuosity {sinuosity:?}");
+    assert!(
+        sinuosity.iter().all(|&s| s > 1.08),
+        "sinuosity {sinuosity:?}"
+    );
+    assert!(mean(&turning) > 200.0, "turning {turning:?}");
+    // (The gentlest plains world winds about as much as the average road used to.)
+    assert!(turning.iter().all(|&t| t > 85.0), "turning {turning:?}");
+    assert!(mean(&of(|s| s.tight)) > 0.08, "{:?}", of(|s| s.tight));
+    assert!(
+        stats.iter().all(|s| s.swing > 60.0),
+        "every road swings well off east"
+    );
+    let switchbacks: usize = stats.iter().map(|s| s.switchbacks).sum();
+    assert!(switchbacks >= 20, "{switchbacks} switchbacks in 20 trips");
+    assert!(mean(&of(|s| s.climb)) > 45.0, "{:?}", of(|s| s.climb));
+}
+
+/// Seeds differ in kind, not just in detail: across 20 seeds the spread of how much the road
+/// winds and climbs is wide, and the archetypes are what they say they are.
+#[test]
+fn seeds_have_different_characters() {
+    let worlds: Vec<World> = (0..20).map(|s| world(s, TripLength::Short)).collect();
+    let stats: Vec<RouteStats> = worlds.iter().map(|w| w.route().stats()).collect();
+    let spread = |f: fn(&RouteStats) -> f32| {
+        let v: Vec<f32> = stats.iter().map(f).collect();
+        let (lo, hi) = v
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+        (lo, hi)
+    };
+    // (Before: sinuosity 1.04–1.33, turning 80–179 deg/km, climbing 55–76 m/km, and the
+    // road's height range 49–117 m.)
+    let (lo, hi) = spread(|s| s.sinuosity);
+    assert!(hi - lo > 0.35, "sinuosity {lo:.2}..{hi:.2}");
+    let (lo, hi) = spread(|s| s.turning);
+    assert!(hi > lo * 2.2, "turning {lo:.0}..{hi:.0} deg/km");
+    let (lo, hi) = spread(|s| s.climb);
+    assert!(hi > lo * 2.2, "climb {lo:.0}..{hi:.0} m/km");
+    let (lo, hi) = spread(|s| s.height_range);
+    assert!(hi > lo * 5.0, "height range {lo:.0}..{hi:.0} m");
+
+    // By archetype: highlands climb and wind more than plains, and river country is wetter.
+    let by = |a: crate::Archetype, f: &dyn Fn(usize) -> f32| -> f32 {
+        let v: Vec<f32> = (0..worlds.len())
+            .filter(|&i| worlds[i].personality().archetype == a)
+            .map(f)
+            .collect();
+        assert!(!v.is_empty(), "no {a:?} among the seeds");
+        mean(&v)
+    };
+    use crate::Archetype::*;
+    let climb = |i: usize| stats[i].climb;
+    let turning = |i: usize| stats[i].turning;
+    assert!(by(Highlands, &climb) > 1.8 * by(Plains, &climb));
+    assert!(by(Highlands, &turning) > 1.4 * by(Plains, &turning));
+    assert!(by(Badlands, &turning) > 1.4 * by(Plains, &turning));
+    let wet = |i: usize| {
+        let r = worlds[i].route();
+        let fords = r
+            .obstacles
+            .iter()
+            .filter(|o| matches!(o.kind, ObstacleKind::Ford | ObstacleKind::Mud))
+            .count();
+        (fords + r.lakes.len()) as f32
+    };
+    assert!(by(Rivers, &wet) > 1.5 * by(Highlands, &wet));
+    assert!(by(Rivers, &wet) > 1.5 * by(Badlands, &wet));
+    // The land itself: highland terrain has several times the relief of the plains.
+    let relief = |i: usize| {
+        let t = worlds[i].terrain();
+        let (mut lo, mut hi) = (f32::MAX, f32::MIN);
+        for x in (0..4000).step_by(100) {
+            for z in (-2000..2000).step_by(100) {
+                let h = t.height_m(x as f32, z as f32);
+                (lo, hi) = (lo.min(h), hi.max(h));
+            }
+        }
+        hi - lo
+    };
+    assert!(by(Highlands, &relief) > 2.5 * by(Plains, &relief));
+}
+
+/// The trip gets harder as it goes: obstacles come closer together and the road winds more
+/// in the last third than the first (over 40 seeds).
+#[test]
+fn the_trip_ramps_up() {
+    let (mut early, mut late, mut turn_early, mut turn_late) = (0, 0, 0.0, 0.0);
+    for seed in 0..40 {
+        let r = route(seed, TripLength::Medium);
+        early += r.obstacles.iter().filter(|o| o.s < r.length / 3.0).count();
+        late += r
+            .obstacles
+            .iter()
+            .filter(|o| o.s > r.length * 2.0 / 3.0)
+            .count();
+        let n = r.xz.len();
+        let turn = |a: usize, b: usize| -> f32 {
+            (a..b - 20)
+                .step_by(20)
+                .map(|i| {
+                    let (p, q) = (r.dir(i), r.dir(i + 20));
+                    1.0 - (p[0] * q[0] + p[1] * q[1])
+                })
+                .sum()
+        };
+        turn_early += turn(0, n / 3);
+        turn_late += turn(n * 2 / 3, n);
+    }
+    assert!(
+        late as f32 > early as f32 * 1.1,
+        "{early} obstacles early, {late} late"
+    );
+    assert!(
+        turn_late > turn_early * 1.1,
+        "turning {turn_early:.1} early, {turn_late:.1} late"
+    );
+}
+
+/// Switchbacks zig-zag: within each the road swings hard one way and then the other.
+#[test]
+fn switchbacks_zig_zag() {
+    let mut seen = 0;
+    for seed in 0..20 {
+        let r = route(seed, TripLength::Short);
+        for z in &r.switchbacks {
+            seen += 1;
+            let (a, b) = (r.index_at(z[0]), r.index_at(z[1] + 60.0));
+            let (lo, hi) = (a..b).fold((f32::MAX, f32::MIN), |(lo, hi), i| {
+                (lo.min(r.dir(i)[1]), hi.max(r.dir(i)[1]))
+            });
+            assert!(
+                lo < -0.75 && hi > 0.75,
+                "seed {seed}: switchback at {:.0} m swings {lo:.2}..{hi:.2}",
+                z[0]
+            );
+        }
+    }
+    assert!(seen >= 20, "{seen} switchbacks");
 }

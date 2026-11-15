@@ -85,7 +85,7 @@ func _run() -> void:
 		await _bridge_hole(bridge)
 
 	# The rest of the plank gaps in a few more trips are all the same size or less.
-	for code: String in ["DT6-00000-0000M", "DT6-00000-0009Q"]:
+	for code: String in ["DT7-00000-0000J", "DT7-00000-02DPR"]:
 		await _start(code)
 		for o: Dictionary in _pg.trip.data["obstacles"]:
 			if int(o["kind"]) == Trip.GAP:

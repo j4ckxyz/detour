@@ -13,8 +13,10 @@ use crate::hash;
 /// Bumped on any generator change that alters worlds (v2: trips with roads and obstacles;
 /// v3: biomes, fords, ice, lakes and caves; v4: the road's walled valley, bridge planks off in
 /// the trees; v5: long winding trips through a wide valley, bridges, beams, jumps and hills,
-/// places to explore; v6: 6 m planks in piles a short walk before what needs them).
-pub const GEN_VERSION: u16 = 6;
+/// places to explore; v6: 6 m planks in piles a short walk before what needs them; v7: worlds
+/// with a personality (plains, highlands, river country, badlands...), layered terrain, and a
+/// road that winds, switchbacks and gets harder towards home).
+pub const GEN_VERSION: u16 = 7;
 /// Longest text [`SeedCode::from_text`] reads (the rest is ignored).
 pub const TEXT_SEED_MAX: usize = 20;
 
