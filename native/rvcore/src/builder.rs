@@ -156,7 +156,9 @@ impl ChunkBuilder {
                 .spawn(move || worker(world, shared, tx));
             match handle {
                 Ok(h) => self.workers.push(h),
-                Err(e) => godot_error!("ChunkBuilder: could not spawn worker: {e}"),
+                Err(e) => {
+                    godot_error!("ChunkBuilder: could not spawn worker: {e}");
+                }
             }
         }
         self.shared = Some(shared);
