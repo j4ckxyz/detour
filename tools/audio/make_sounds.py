@@ -288,6 +288,54 @@ def tire_gravel() -> np.ndarray:
 
 
 @sound("rv")
+def tire_mud() -> np.ndarray:
+    """Tires churning through mud: a wet low suck and slap, with squelchy bubbles. 8 s, loops."""
+    rng = rng_for("tire_mud")
+    n = 8 * SR
+    bed = filt(pinkish(rng.standard_normal(n)), lambda f: hp(f, 50.0, 2) * lp(f, 520.0, 3))
+    x = bed / np.std(bed) * swell(n, 1.6, 0.35, rng)
+    # Slaps: the tread lifting out and dropping back, a soft low thump each.
+    slaps = np.zeros(n)
+    for _ in range(26):
+        k = np.arange(int(0.16 * SR)) / SR
+        f0 = float(rng.uniform(60.0, 120.0))
+        slap = np.sin(2.0 * np.pi * np.cumsum(f0 * (1.0 + 1.5 * np.exp(-k / 0.03))) / SR) * np.exp(-k / 0.05) * (1.0 - np.exp(-k / 0.004))
+        dsp.add_at(slaps, slap, float(rng.uniform(0.0, 8.0)), float(rng.uniform(0.3, 1.0)), wrap=True)
+    # Squelches: little bubbles popping, pitch rising fast (sucking), through a low band.
+    pops = np.zeros(n)
+    for _ in range(70):
+        k = np.arange(int(0.09 * SR)) / SR
+        f0 = float(rng.uniform(150.0, 380.0))
+        pop = np.sin(2.0 * np.pi * np.cumsum(f0 * (1.0 + 2.5 * k / 0.09)) / SR) * np.exp(-k / 0.025)
+        dsp.add_at(pops, pop, float(rng.uniform(0.0, 8.0)), float(rng.uniform(0.2, 1.0)), wrap=True)
+    x = x + 0.9 * slaps / (np.std(slaps) + 1e-9) + 0.45 * pops / (np.std(pops) + 1e-9)
+    x = filt(x, lambda f: hp(f, 40.0, 2) * lp(f, 1500.0, 3))
+    return dsp.normalize_rms(dsp.remove_dc(x), -22.0, -3.0)
+
+
+@sound("rv")
+def tire_snow() -> np.ndarray:
+    """Tires compressing packed snow: a soft crunching, a creak of squeak now and then. 8 s, loops."""
+    rng = rng_for("tire_snow")
+    n = 8 * SR
+    grains = np.zeros(n)
+    count = 420 * 8
+    pos = rng.integers(0, n, count)
+    amp = rng.exponential(1.0, count) ** 1.5
+    np.add.at(grains, pos, amp * np.where(rng.random(count) < 0.5, -1.0, 1.0))
+    grains = filt(grains, lambda f: hp(f, 900.0, 2) * lp(f, 3600.0, 3))
+    hush = filt(pinkish(rng.standard_normal(n)), lambda f: hp(f, 250.0, 2) * lp(f, 1800.0, 2))
+    x = grains / np.std(grains) + 0.45 * hush / np.std(hush)
+    x = x * swell(n, 0.9, 0.3, rng)
+    # The squeak of ice crystals rubbing: a thin wavering tone that comes and goes.
+    gate = np.clip(slow_random(n, 1.1, rng) - 0.6, 0.0, None)
+    squeak = dsp.periodic_tone(1650.0, 0.05 * slow_random(n, 3.0, rng), n, harmonics=(1.0, 0.2)) * gate
+    x = x + 0.25 * squeak / (np.std(squeak) + 1e-9) * np.std(x) * 0.6
+    x = filt(x, lambda f: lp(f, 4200.0, 2))
+    return dsp.normalize_rms(dsp.remove_dc(x), -24.0, -3.0)
+
+
+@sound("rv")
 def landing_thud() -> np.ndarray:
     """The body coming down hard on its springs: a deep thump with a short settling rattle."""
     rng = rng_for("landing_thud")
@@ -732,6 +780,25 @@ def pour() -> np.ndarray:
     x = stream / np.std(stream) + 0.6 * glugs / (np.std(glugs) + 1e-9)
     x = filt(x, lambda f: lp(f, 3600.0, 2))
     return dsp.normalize_rms(dsp.remove_dc(x), -24.0, -3.0)
+
+
+@sound("tools")
+def fuel_pump() -> np.ndarray:
+    """A gas pump filling a tank: the motor's hum and the fuel rushing and gurgling. 4 s, loops."""
+    rng = rng_for("fuel_pump")
+    n = 4 * SR
+    hum = dsp.periodic_tone(112.0, 0.004 * slow_random(n, 1.5, rng), n, harmonics=(1.0, 0.55, 0.3, 0.12))
+    hum = hum * (1.0 + 0.08 * np.sin(2.0 * np.pi * 2.0 * np.arange(n) / n * 2.0))
+    flow = filt(pinkish(rng.standard_normal(n)), lambda f: hp(f, 250.0, 2) * lp(f, 2400.0, 2)) * swell(n, 6.0, 0.3, rng)
+    gurgle = np.zeros(n)
+    for _ in range(14):
+        k = np.arange(int(0.08 * SR)) / SR
+        f0 = float(rng.uniform(220.0, 480.0))
+        bubble = np.sin(2.0 * np.pi * np.cumsum(f0 * (1.0 + 2.0 * k / 0.08)) / SR) * np.exp(-k / 0.03)
+        dsp.add_at(gurgle, bubble, float(rng.uniform(0.0, 4.0)), float(rng.uniform(0.3, 1.0)), wrap=True)
+    x = 0.8 * hum / np.std(hum) + 0.7 * flow / np.std(flow) + 0.35 * gurgle / (np.std(gurgle) + 1e-9)
+    x = filt(x, lambda f: hp(f, 60.0, 2) * lp(f, 3200.0, 2))
+    return dsp.normalize_rms(dsp.remove_dc(x), -22.0, -3.0)
 
 
 @sound("tools")

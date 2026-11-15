@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 AUDIO = ROOT / "game" / "assets" / "audio"
 
 LOOPS = {
-    "engine_idle", "engine_low", "engine_mid", "engine_high", "starter_crank", "tire_road", "tire_gravel",
+    "engine_idle", "engine_low", "engine_mid", "engine_high", "starter_crank", "tire_road", "tire_gravel", "tire_mud", "tire_snow", "fuel_pump",
     "wind_bed", "wind_trees", "rain_loop", "rain_roof", "crickets_loop",
     "horn", "winch_motor", "pour", "rattle",
 }

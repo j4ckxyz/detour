@@ -159,6 +159,7 @@ func _setup() -> void:
 	rv.surface_query = world.mud_at
 	rv.ice_query = world.ice_at
 	rv.water_query = world.water_level
+	rv.audio.ground_query = surface_at
 	trip.name = "Trip"
 	add_child(trip)
 	trip.setup(world, rv, items)

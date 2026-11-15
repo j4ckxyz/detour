@@ -184,6 +184,41 @@ func _tires() -> void:
 	audio.apply_tires(20.0, 0.0, -1.0, 5.0)
 	_check(not audio.tire_road.playing and not audio.tire_gravel.playing, "in the air the tires go quiet")
 	audio.apply_tires(0.0, 1.0, 0.0, 5.0)
+	# Mud and snow have their own tire sounds, in place of the road's.
+	for p: AudioStreamPlayer3D in [audio.tire_mud, audio.tire_snow]:
+		_check(p.stream != null and p.stream.get_length() > 7.0 and p.bus == &"Effects", "%s loads (%.0f s)" % [p.name, p.stream.get_length()])
+	audio.set_ground(&"mud")
+	audio.apply_tires(0.0, 1.0, 0.0, 5.0)
+	_check(not audio.tire_mud.playing, "mud, standing still: silent")
+	audio.set_ground(&"grass")
+	audio.apply_tires(12.0, 1.0, 0.0, 5.0)
+	audio.set_ground(&"mud")
+	audio.apply_tires(12.0, 1.0, 0.0, 0.05)
+	_check(audio.tire_mud.playing and audio.tire_road.playing, "a moment after hitting mud the road sound is still fading out")
+	audio.apply_tires(12.0, 1.0, 0.0, 5.0)
+	_check(audio.tire_mud.playing and audio.tire_mud.volume_db > -20.0 and not audio.tire_road.playing and not audio.tire_gravel.playing and not audio.tire_snow.playing,
+		"on mud: the mud loop is the one heard (%.1f dB)" % audio.tire_mud.volume_db)
+	audio.apply_tires(12.0, 0.0, -1.0, 5.0)
+	_check(not audio.tire_mud.playing, "mud, in the air: quiet")
+	audio.set_ground(&"snow")
+	audio.apply_tires(12.0, 1.0, 0.0, 5.0)
+	_check(audio.tire_snow.playing and audio.tire_snow.volume_db > -20.0 and not audio.tire_road.playing and not audio.tire_gravel.playing and not audio.tire_mud.playing,
+		"on snow: the snow loop is the one heard (%.1f dB)" % audio.tire_snow.volume_db)
+	var snow_db := audio.tire_snow.volume_db
+	audio.set_ground(&"ice")
+	audio.apply_tires(12.0, 1.0, 0.0, 5.0)
+	_check(audio.tire_snow.playing and audio.tire_snow.volume_db < snow_db - 3.0 and audio.tire_road.playing, "ice: a quieter snow sound shared with the road")
+	# The playground's own ground query drives it while the RV is driven.
+	audio.set_ground(&"grass")
+	audio.apply_tires(12.0, 1.0, 0.0, 5.0)
+	_check(audio.tire_road.playing and not audio.tire_mud.playing and not audio.tire_snow.playing, "other ground: road and gravel again")
+	audio.ground_query = func(_at: Vector3, _steep: bool) -> StringName: return &"mud"
+	audio._look_at_ground()
+	audio.apply_tires(12.0, 1.0, 0.0, 5.0)
+	_check(audio.tire_mud.playing and not audio.tire_road.playing, "the ground query picks the tire sound")
+	audio.ground_query = _pg.surface_at
+	audio.set_ground(&"grass")
+	audio.apply_tires(0.0, 1.0, 0.0, 5.0)
 
 
 ## The real RV, through its own events: stalling, starting, cranking, shifting, a knock.
@@ -497,6 +532,22 @@ func _effects() -> void:
 	_check(_heard(eagle, "wildlife/eagle_screech") == 1, "an eagle screeches as it dives")
 	for animal: Node in [snake, bear, eagle]:
 		animal.queue_free()
+
+	# The gas pump runs while it fills a can (or the tank), at the pump.
+	var pump := Interactable.new()
+	pump.reach = 2.4
+	pump.add_to_group(&"fuel_pumps")
+	_pg.trip.add_child(pump)
+	pump.global_position = ground + Vector3(0.0, 1.0, 3.0)
+	_pg.trip._wire_station_services()
+	var tank := ItemLibrary.create(&"jerrycan")
+	_pg.items.add_child(tank)
+	player.pick_up(tank)
+	_check(_heard(_pg.trip, "tools/fuel_pump") == 0, "the pump is quiet until it's used")
+	pump.interact(player)
+	_check(_heard(_pg.trip, "tools/fuel_pump") == 1, "filling a can runs the pump")
+	pump.queue_free()
+	player.drop_held()
 
 	# Chimes.
 	_pg.trip.checkpoint_reached.emit(1, 2)

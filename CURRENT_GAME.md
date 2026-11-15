@@ -665,7 +665,9 @@ cassettes). Master has a limiter, so nothing clips.
   - **Starter** crank while cranking, the engine **catching**, the **stall**, a **clunk** into
     gear (softer into neutral and in an automatic).
   - **Tires** humming and crunching on gravel with speed (silent in the air), **wind** rushing
-    past at speed.
+    past at speed. On **mud** the tires squelch and slap, on **snow** they crunch (a quieter
+    snow sound on ice); the sounds crossfade over about 0.3 s as the ground changes.
+  - The gas **pump** hums and gurgles for a few seconds while it fills the tank or a jerry can.
   - A **thump** on hard landings, a **crash** on collisions, the **door**, the **horn**
     (held for as long as the driver holds it), a **part falling off**.
   - The **winch**: a motor whine while it reels, the hook clacking on, and a whip-crack when
@@ -760,5 +762,5 @@ Planned (see PLAN.md), roughly in the order they're coming:
 - **World variety**: a volcanic biome, real models and textures for the new biomes (the
   trees and caves are placeholder shapes), more weather effects (puddles, snow cover building up).
 - **Co-op**: proximity voice chat.
-- **Sound**: other surfaces' tire sounds (mud, snow), the pump, spoken voices.
+- **Sound**: spoken voices.
 - **Menus and options**: the diegetic dashboard gauges.
