@@ -427,7 +427,19 @@ impl Route {
             let weak: Vec<bool> = route
                 .obstacles
                 .iter()
-                .map(|o| o.kind == ObstacleKind::Hill && route.hill_rise(o) < HILL_RISE * 0.75)
+                .map(|o| match o.kind {
+                    ObstacleKind::Hill => route.hill_rise(o) < HILL_RISE * 0.75,
+                    // (Likewise a jump whose run-up has ended up climbing.)
+                    ObstacleKind::Jump => {
+                        let lip = o.s - o.length * 0.5;
+                        let (a, b) = (
+                            route.index_at(lip - RUN_UP),
+                            route.index_at(lip - KICKER[1] - 1.0),
+                        );
+                        route.h[b] - route.h[a] > 0.035 * RUN_UP
+                    }
+                    _ => false,
+                })
                 .collect();
             let mut k = 0;
             route.obstacles.retain(|_| {
@@ -756,8 +768,9 @@ impl Route {
                 let (before, after) = match o.kind {
                     ObstacleKind::Jump => (RUN_UP * 0.4, 8.0),
                     ObstacleKind::Ford => (RIVER_BANK + 12.0, RIVER_BANK + 12.0),
-                    // Level for an RV's length and more before, so it's square on.
-                    _ => (16.0, 8.0),
+                    // Level for a few RV lengths before (so it's settled and square on,
+                    // even coming off a climb at speed) and one after.
+                    _ => (30.0, 12.0),
                 };
                 let (a, b) = (
                     self.index_at(o.s - o.length * 0.5 - before),
