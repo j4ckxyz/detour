@@ -37,6 +37,8 @@ const ARRIVE_RADIUS := 20.0
 ## How near a pump the RV must be for the hose to reach its tank (the lane between the pumps,
 ## or pulled up on the road outside), metres.
 const PUMP_REACH := 16.0
+## How loud the pump is (dB at 7 m).
+const PUMP_DB := -4.0
 ## Once this far from the last stop the RV has set off (its state is the checkpoint's).
 const LEAVE_RADIUS := 45.0
 const START_HOUR := 8.0
@@ -320,6 +322,8 @@ func _wire_station_services() -> void:
 				return "Fill up (%d / %d L)" % [roundi(rv.damage.fuel), roundi(RVDamage.TANK)]
 			return "Pump"
 		pump.used.connect(func(player: Player) -> void:
+			if (player.held and player.held.kind == &"jerrycan") or _rv_near(pump, PUMP_REACH):
+				_pump_sound(pump.global_position)
 			if player.held and player.held.kind == &"jerrycan":
 				player.held.set_meta(&"fuel", ItemLibrary.JERRY_CAN_LITRES)
 				player.held.def["name"] = "Jerry can (20 L)"
@@ -343,6 +347,19 @@ func _wire_station_services() -> void:
 				player.say("Frame welded good as new; the mechanic looked the engine over too.")
 			else:
 				player.say("The leads don't reach that far."))
+
+
+## The pump running while it fills: its motor and the fuel flowing (a few seconds, faded in and out).
+func _pump_sound(at: Vector3) -> void:
+	if not Sfx.armed:
+		return
+	var p := Sfx.play_at(self, "tools/fuel_pump", at, PUMP_DB, 1.0, Sfx.EFFECTS, 7.0, 60.0)
+	var seconds := p.stream.get_length()
+	var tween := p.create_tween()
+	p.volume_db = PUMP_DB - 30.0
+	tween.tween_property(p, "volume_db", PUMP_DB, 0.2)
+	tween.tween_interval(maxf(0.0, seconds - 0.8))
+	tween.tween_property(p, "volume_db", PUMP_DB - 30.0, 0.5)
 
 
 func _rv_near(node: Node3D, radius: float) -> bool:

@@ -311,7 +311,10 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   stood (put back upright), its state (damage, missing parts, wheels and bolts, fuel, oil,
   gearbox), everything stowed in it, **everything lying about the world** (dropped and thrown
   things, laid planks, what's left in caves and at stations, parts that fell off the RV), your
-  health and hotbar, and the clock. **Tow to the last checkpoint** still goes back to the last
+  health and hotbar, and the clock. When hosting, **each other player's hotbar and health**
+  are saved too, under a random player id their game makes on first launch: when they join
+  that trip again (in a later session, from any address) they get their things back; until
+  then later saves keep them aside. **Tow to the last checkpoint** still goes back to the last
   gas station. Start over with `-- --new`, the menu, or **Restart this trip**.
 - **Top of the screen**: the next stop and how far down the road it is, plus checkpoint notices.
 - **Back to the last stop** (like RV There Yet's respawn): if the RV is **wrecked** (its frame
@@ -374,6 +377,11 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   0.5 m/s, slowing as the load rises; the rope only pulls when taut, sags when slack (drawn
   as a cable), and snaps if yanked far past its limit (e.g. driving away at full power).
   The HUD shows rope out and tension.
+- **Paper map** (on the dashboard, passenger side): **left click** unfolds it and again folds
+  it up (a passenger can read it from their seat). It's the trip laid out top-down from the
+  route generator, north up: the road from **Camp** through each **Gas** station to **Home**,
+  lakes, caves and places off the road, and a pencil cross at each obstacle. There's no "you
+  are here". Putting it down folds it away. Older saves get one on the dashboard.
 - **Planks** (6 m long, 0.5 m wide): while holding one, a ghost shows where it would go;
   **left click** lays it. It lies along your view, level, resting on the ground at both ends
   (or continuing from the end of a plank you're looking at):
@@ -454,8 +462,11 @@ stretch 1.3–1.8 km; Medium and Long have 5 and 11 stations). The default seed 
   tires**, a rear ladder, bumpers, a grille, and front and rear **winch drums**.
 - Rear wheels are **dual**.
 - **Full interior**:
-  - Cab: two seats, a dashboard with three gauges, a steering wheel, the gear stick and the
-    handbrake lever.
+  - Cab: two seats, a dashboard with three working gauges (a speedometer to 120 km/h, a rev
+    counter to 5000 rpm red from the redline, a fuel gauge E–F) whose needles swing to their
+    readings, and four warning lights above them (oil low, overheating, charge while the
+    engine's off, and a "check" light for wheels that need attention or missing parts), a
+    steering wheel, the gear stick and the handbrake lever.
   - Living area: a dinette with table and benches, a kitchen counter with stove and sink,
     upper cabinets, a fridge, a wardrobe, a rear bed and the over-cab mattress.
 - Animated parts: the steering wheel turns, the gear stick moves through the gate, and the
@@ -657,7 +668,9 @@ cassettes). Master has a limiter, so nothing clips.
   - **Starter** crank while cranking, the engine **catching**, the **stall**, a **clunk** into
     gear (softer into neutral and in an automatic).
   - **Tires** humming and crunching on gravel with speed (silent in the air), **wind** rushing
-    past at speed.
+    past at speed. On **mud** the tires squelch and slap, on **snow** they crunch (a quieter
+    snow sound on ice); the sounds crossfade over about 0.3 s as the ground changes.
+  - The gas **pump** hums and gurgles for a few seconds while it fills the tank or a jerry can.
   - A **thump** on hard landings, a **crash** on collisions, the **door**, the **horn**
     (held for as long as the driver holds it), a **part falling off**.
   - The **winch**: a motor whine while it reels, the hook clacking on, and a whip-crack when
@@ -746,11 +759,10 @@ Planned (see PLAN.md), roughly in the order they're coming:
 
 - **Players**: the roof ladder and roof; a Blender character model (and animation) to
   replace the primitive one.
-- **The trip**: a paper map, route forks and loot detours.
+- **The trip**: route forks and loot detours; a printed map texture on the paper-map model.
 - **More obstacles**: rockslides, cliffs and steps, lava; rivers that wind through the land
   (fords are straight channels today) and caves you drive through.
 - **World variety**: a volcanic biome, real models and textures for the new biomes (the
   trees and caves are placeholder shapes), more weather effects (puddles, snow cover building up).
-- **Co-op**: proximity voice chat; saving each player's inventory with the trip.
-- **Sound**: other surfaces' tire sounds (mud, snow), the pump, spoken voices.
-- **Menus and options**: the diegetic dashboard gauges.
+- **Co-op**: proximity voice chat.
+- **Sound**: spoken voices.

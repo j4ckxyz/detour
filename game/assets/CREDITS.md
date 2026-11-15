@@ -87,6 +87,8 @@ as the game's own art (see the README). The engine loops are the RV's V8 at four
 | `audio/rv/gear_clunk.ogg` | The gearbox going into gear |
 | `audio/rv/tire_road.ogg` | Tires humming on the road (loop) |
 | `audio/rv/tire_gravel.ogg` | Tires crunching on gravel and dirt (loop) |
+| `audio/rv/tire_mud.ogg` | Tires squelching through mud (loop) |
+| `audio/rv/tire_snow.ogg` | Tires crunching on packed snow (loop) |
 | `audio/rv/landing_thud.ogg` | The body landing on its springs |
 | `audio/rv/crash.ogg` | The RV hitting something |
 | `audio/rv/door_open.ogg` | The door latch and swing |
@@ -109,6 +111,7 @@ as the game's own art (see the README). The engine loops are the RV's V8 at four
 | `audio/tools/winch_hook.ogg` | The winch hook clinking onto an anchor |
 | `audio/tools/drill_bolt.ogg` | The drill running a wheel bolt in |
 | `audio/tools/weld_zap.ogg` | The welder's arc |
+| `audio/tools/fuel_pump.ogg` | A gas pump filling a tank: motor hum and flowing fuel (loop, played once) |
 | `audio/tools/pour.ogg` | Liquid pouring from a can or bottle (loop, played once) |
 | `audio/tools/plank_lay.ogg` | A plank set down |
 | `audio/items/pickup.ogg` | Picking something up |

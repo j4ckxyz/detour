@@ -46,6 +46,9 @@ const FALLEN_SECONDS := 3.0
 const CHECKPOINT_MINUTES := 30.0
 ## Item kinds a save doesn't keep: the winch hooks belong to the RV.
 const UNSAVED_KINDS: Array[StringName] = [&"winch_hook"]
+## The rest of the crew's things, as the save had them: player uuid → {hotbar, health, venom}.
+## Handed back when that player joins again (`give_back`), kept in later saves until then.
+var crew_saved: Dictionary = {}
 
 var world := WorldGen.new()
 var lighting := WorldLighting.new()
@@ -63,6 +66,7 @@ var trip := Trip.new()
 var trip_hud := TripHud.new()
 var status_panel := StatusPanel.new()
 var tape_subtitles := TapeSubtitles.new()
+var paper_map := PaperMap.new()
 var wildlife := Wildlife.new()
 var net := NetGame.new()
 var weather := Weather.new()
@@ -155,6 +159,7 @@ func _setup() -> void:
 	rv.surface_query = world.mud_at
 	rv.ice_query = world.ice_at
 	rv.water_query = world.water_level
+	rv.audio.ground_query = surface_at
 	trip.name = "Trip"
 	add_child(trip)
 	trip.setup(world, rv, items)
@@ -222,6 +227,13 @@ func _setup() -> void:
 	tape_subtitles.deck = rv.deck
 	tape_subtitles.player = player
 	add_child(tape_subtitles)
+	var map_layer := CanvasLayer.new()
+	map_layer.name = "PaperMap"
+	map_layer.layer = 45
+	paper_map.player = player
+	paper_map.trip = trip
+	map_layer.add_child(paper_map)
+	add_child(map_layer)
 	weather.name = "Weather"
 	weather.setup(world.get_code())
 	add_child(weather)
@@ -380,6 +392,8 @@ func _physics_process(dt: float) -> void:
 			trip.checkpoint_rv = rv.slow_snapshot()
 		if not restoring and trip.checkpoint > 0:
 			trip.restock(trip.checkpoint)
+		if not get_tree().get_nodes_in_group(&"items").any(func(n: Node) -> bool: return n is Item and (n as Item).kind == &"map" and is_ancestor_of(n)):
+			_stow_map() # (A save from before there was a map.)
 		trip.show_notice("Welcome back.", 5.0)
 	is_spawned = true
 	Sfx.armed = true
@@ -607,6 +621,7 @@ func _spawn_starter_items() -> void:
 	var remote := ItemLibrary.create(&"winch_remote")
 	rv.stash.add_child(remote)
 	remote.stow(rv, Transform3D(Basis.IDENTITY, Vector3(-0.3, 1.34, -2.35))) # On the dashboard.
+	_stow_map()
 	var tape := ItemLibrary.create_tape(0) # Dot's first tape, by the deck.
 	rv.stash.add_child(tape)
 	tape.stow(rv, Transform3D(Basis(Vector3.UP, 0.4), Vector3(0.95, 1.34 + tape.base_offset, -2.35)))
@@ -622,6 +637,13 @@ func _spawn_starter_items() -> void:
 		rv.storage[spec[1]].store(item)
 
 
+## The paper map, on the dashboard (passenger side).
+func _stow_map() -> void:
+	var map := ItemLibrary.create(&"map")
+	rv.stash.add_child(map)
+	map.stow(rv, Transform3D(Basis(Vector3.UP, -0.2), Vector3(0.75, 1.34 + map.base_offset, -2.1)))
+
+
 ## What a save keeps besides progress: the RV (its state and where it is), what's stowed in
 ## it, everything lying about the world (dropped, laid as planks, left in caves and at
 ## stations, fallen off the RV), and the player (where, health, hotbar).
@@ -631,16 +653,24 @@ func _save_extra() -> Dictionary:
 		var item := c as Item
 		if item and ItemLibrary.DEFS.has(item.kind) and item.kind not in [&"rv_part", &"rv_wheel"]:
 			stowed.append([item.kind, item.display_name(), _item_meta(item), item.transform])
-	var hotbar: Array = []
-	for item: Item in player.slots:
-		if item and item.kind not in UNSAVED_KINDS:
-			hotbar.append([item.kind, item.display_name(), _item_meta(item)])
+	var hotbar := _hotbar_of(player)
+	# Everyone else's hotbar and health, by their uuid (players who haven't come back yet keep
+	# what the last save had).
+	var crew := crew_saved.duplicate(true)
+	var kept: Array[Player] = []
+	for peer: int in net.puppets:
+		var p := net.puppets[peer]
+		var uuid := String(Session.players.get(peer, {}).get("uuid", ""))
+		if uuid == "" or not is_instance_valid(p):
+			continue
+		crew[uuid] = {"hotbar": _hotbar_of(p), "health": p.health, "venom": p.venom}
+		kept.append(p)
 	var lying: Array = []
 	for n: Node in get_tree().get_nodes_in_group(&"items"):
 		var item := n as Item
 		if item == null or not is_ancestor_of(item) or item.kind in UNSAVED_KINDS or item.winch_of():
 			continue
-		if item.get_parent() == rv.stash or (item.holder == player):
+		if item.get_parent() == rv.stash or item.holder == player or (item.holder and kept.has(item.holder)):
 			continue
 		var xf := item.global_transform
 		if item.holder: # Someone else's hands (online): it's left where they stand.
@@ -652,8 +682,43 @@ func _save_extra() -> Dictionary:
 	me["at"] = player.local_position() if player.inside else player.global_position
 	return {
 		"rv": rv.slow_snapshot(), "rv_xf": rv.global_transform, "stowed": stowed, "hotbar": hotbar,
-		"world": lying, "player": me, "door": rv.door_open,
+		"world": lying, "player": me, "door": rv.door_open, "crew": crew,
 	}
+
+
+func _hotbar_of(p: Player) -> Array:
+	var hotbar: Array = []
+	for item: Item in p.slots:
+		if item and item.kind not in UNSAVED_KINDS:
+			hotbar.append([item.kind, item.display_name(), _item_meta(item)])
+	return hotbar
+
+
+## Host: gives a player who has rejoined (`p`, keyed by `uuid`) what they had when the trip was
+## saved: their hotbar (the items go out to everyone held by them) and their health.
+func give_back(p: Player, uuid: String) -> void:
+	var saved: Dictionary = crew_saved.get(uuid, {})
+	if uuid == "" or saved.is_empty():
+		return
+	crew_saved.erase(uuid)
+	for e: Array in saved.get("hotbar", []):
+		var item := _saved_item(e)
+		if item == null:
+			continue
+		var slot := p.slots.find(null)
+		if slot < 0:
+			item.free()
+			break
+		items.add_child(item)
+		item.global_position = p.global_position + Vector3.UP
+		p.slots[slot] = item
+		item.grab(p, p.hand)
+		item.visible = slot == p.selected
+	if saved.has("health"):
+		p.health = float(saved["health"])
+		p.venom = float(saved.get("venom", 0.0))
+		if p.puppet:
+			p.remote.call(p.peer_id, &"restore", [p.health, p.venom])
 
 
 static func _item_meta(item: Item) -> Dictionary:
@@ -670,6 +735,7 @@ func _restore_extra(extra: Dictionary) -> void:
 	if extra.has("rv"):
 		rv.apply_slow_snapshot(extra["rv"])
 	rv.door_open = bool(extra.get("door", rv.door_open))
+	crew_saved = extra.get("crew", {})
 	for e: Array in extra.get("stowed", []):
 		var item := _saved_item(e)
 		if item:

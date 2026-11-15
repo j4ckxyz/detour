@@ -23,6 +23,14 @@ const ENGINE_COAST_DB := -4.0
 const ENGINE_LOAD_DB := -1.0
 const TIRE_ROAD_DB := -4.0
 const TIRE_GRAVEL_DB := -6.0
+const TIRE_MUD_DB := -3.0
+const TIRE_SNOW_DB := -5.0
+## How often (s) the ground under the RV is looked up, and how fast (per s) tire sounds crossfade
+## between surfaces (about 0.3 s).
+const GROUND_EVERY := 0.1
+const GROUND_FADE := 3.3
+## Ice is heard as a quiet snow.
+const ICE_SNOW := 0.4
 const HORN_DB := -2.0
 const WINCH_DB := -6.0
 ## The horn is at the front (RV space).
@@ -43,6 +51,11 @@ var engine_players: Array[AudioStreamPlayer3D] = []
 var crank_player: AudioStreamPlayer3D
 var tire_road: AudioStreamPlayer3D
 var tire_gravel: AudioStreamPlayer3D
+var tire_mud: AudioStreamPlayer3D
+var tire_snow: AudioStreamPlayer3D
+## Optional `func(at: Vector3, steep: bool) -> StringName`: what the ground is there (see
+## `Playground.surface_at`). Without it the tires are heard on road and gravel only.
+var ground_query: Callable
 var wind_rush: AudioStreamPlayer3D
 var horn_player: AudioStreamPlayer3D
 ## One motor sound per winch (front, rear).
@@ -58,6 +71,12 @@ var _rpm_lag := 0.0
 var _load := 0.0
 var _crank := 0.0
 var _ground := 1.0
+## How much of the tire noise is mud's and snow's (0..1 each), fading as the surface changes.
+var _mud := 0.0
+var _snow := 0.0
+var _mud_to := 0.0
+var _snow_to := 0.0
+var _ground_wait := 0.0
 var _was_running := true
 var _gear := 0
 var _door_open := false
@@ -80,8 +99,10 @@ func setup(owner_rv: RV) -> void:
 	crank_player.position = ENGINE_AT
 	tire_road = Sfx.source(self, "TireRoad", "rv/tire_road", true, Sfx.EFFECTS, 6.0, 110.0)
 	tire_gravel = Sfx.source(self, "TireGravel", "rv/tire_gravel", true, Sfx.EFFECTS, 6.0, 110.0)
+	tire_mud = Sfx.source(self, "TireMud", "rv/tire_mud", true, Sfx.EFFECTS, 6.0, 110.0)
+	tire_snow = Sfx.source(self, "TireSnow", "rv/tire_snow", true, Sfx.EFFECTS, 6.0, 110.0)
 	wind_rush = Sfx.source(self, "WindRush", "ambience/wind_bed", true, Sfx.EFFECTS, 6.0, 90.0)
-	for p: AudioStreamPlayer3D in [tire_road, tire_gravel, wind_rush]:
+	for p: AudioStreamPlayer3D in [tire_road, tire_gravel, tire_mud, tire_snow, wind_rush]:
 		p.position = UNDER_AT
 	horn_player = Sfx.source(self, "Horn", "rv/horn", true, Sfx.EFFECTS, 10.0, 220.0)
 	horn_player.position = HORN_AT
@@ -122,6 +143,10 @@ func _process(dt: float) -> void:
 	for wheel: RVWheel in rv.wheels:
 		grounded += 1 if wheel.grounded else 0
 	var velocity := rv.linear_velocity
+	_ground_wait -= dt
+	if _ground_wait <= 0.0:
+		_ground_wait = GROUND_EVERY
+		_look_at_ground()
 	apply_tires(velocity.length(), float(grounded) / maxf(1.0, float(rv.wheels.size())), velocity.y, dt)
 	apply_horn(rv.horn, dt)
 	apply_winches(dt)
@@ -171,6 +196,21 @@ func apply_engine(rpm: float, throttle: float, running: bool, cranking: bool, dt
 	Sfx.set_level(crank_player, _crank, -3.0)
 
 
+## What the wheels are on, from the ground query: mud, snow (or ice, quieter) change the tire
+## sound; anything else is road and gravel.
+func _look_at_ground() -> void:
+	if not ground_query.is_valid():
+		return
+	var kind: StringName = ground_query.call(rv.global_position, false)
+	set_ground(kind)
+
+
+## Sets which tire sound the ground asks for (`&"mud"`, `&"snow"`, `&"ice"`, or any other).
+func set_ground(kind: StringName) -> void:
+	_mud_to = 1.0 if kind == &"mud" else 0.0
+	_snow_to = 1.0 if kind == &"snow" else (ICE_SNOW if kind == &"ice" else 0.0)
+
+
 ## Tires and wind: how fast the RV goes, how many of its wheels are on the ground (0..1) and
 ## its vertical speed (for landings).
 func apply_tires(speed: float, grounded: float, vertical: float, dt: float) -> void:
@@ -178,8 +218,16 @@ func apply_tires(speed: float, grounded: float, vertical: float, dt: float) -> v
 	var s := clampf(absf(speed) / FULL_SPEED, 0.0, 1.0)
 	tire_road.pitch_scale = 0.75 + 0.6 * s
 	tire_gravel.pitch_scale = 0.8 + 0.45 * s
-	Sfx.set_level(tire_road, pow(s, 0.9) * _ground, TIRE_ROAD_DB)
-	Sfx.set_level(tire_gravel, smoothstep(0.02, 0.4, s) * (1.0 - 0.45 * s) * _ground, TIRE_GRAVEL_DB)
+	_mud = move_toward(_mud, _mud_to, dt * GROUND_FADE)
+	_snow = move_toward(_snow, _snow_to, dt * GROUND_FADE)
+	tire_mud.pitch_scale = 0.8 + 0.4 * s
+	tire_snow.pitch_scale = 0.85 + 0.4 * s
+	# Mud and snow take over from the road and gravel (ice's quiet snow shares with them).
+	var plain := clampf(1.0 - _mud - _snow, 0.0, 1.0)
+	Sfx.set_level(tire_road, pow(s, 0.9) * _ground * plain, TIRE_ROAD_DB)
+	Sfx.set_level(tire_gravel, smoothstep(0.02, 0.4, s) * (1.0 - 0.45 * s) * _ground * plain, TIRE_GRAVEL_DB)
+	Sfx.set_level(tire_mud, smoothstep(0.02, 0.3, s) * (1.0 - 0.3 * s) * _ground * _mud, TIRE_MUD_DB)
+	Sfx.set_level(tire_snow, smoothstep(0.02, 0.3, s) * _ground * _snow, TIRE_SNOW_DB)
 	Sfx.set_level(wind_rush, pow(s, 2.2), WIND_RUSH_DB)
 	# A landing: airborne for a moment, coming down fast, then the wheels touch.
 	if grounded < 0.01:

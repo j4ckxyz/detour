@@ -25,7 +25,7 @@ const ANIMAL_INTERVAL := 0.1
 const TRIP_INTERVAL := 1.0
 ## First ids are fixed: the winch hooks (made by every machine's RV).
 const HOOK_IDS: Array[int] = [1, 2]
-const PLAYER_CALLS: Array[StringName] = [&"hurt", &"poison", &"knock", &"revive", &"say"]
+const PLAYER_CALLS: Array[StringName] = [&"hurt", &"poison", &"knock", &"revive", &"say", &"restore"]
 const META_KEYS: Array[StringName] = [&"fuel", &"puffs", &"cook", &"tire", &"part", &"wheel", &"slot", &"tape", &"settling"]
 
 var active := false
@@ -167,6 +167,9 @@ func _client_ready() -> void:
 	})
 	if not ready_peers.has(peer):
 		ready_peers.append(peer)
+	var p: Player = puppets.get(peer)
+	if p:
+		pg.give_back(p, String(Session.players.get(peer, {}).get("uuid", "")))
 
 
 @rpc("authority", "reliable")
@@ -255,6 +258,9 @@ func _player_call(method: StringName, args: Array) -> void:
 			me.revive(player_of(int(args[0])))
 		&"say":
 			me.say(String(args[0]))
+		&"restore": # Health from the save, on rejoining a trip.
+			me.health = float(args[0])
+			me.venom = float(args[1])
 
 
 # --- the RV ----------------------------------------------------------------------------------
